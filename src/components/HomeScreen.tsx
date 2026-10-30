@@ -5,9 +5,10 @@ interface HomeScreenProps {
   isHindi: boolean;
   onNavigate: (tab: NavTab) => void;
   onOpenVoice: () => void;
+  onOpenScan?: (mode: 'receipt' | 'fridge') => void;
 }
 
-export const HomeScreen: React.FC<HomeScreenProps> = ({ isHindi, onNavigate, onOpenVoice }) => {
+export const HomeScreen: React.FC<HomeScreenProps> = ({ isHindi, onNavigate, onOpenVoice, onOpenScan }) => {
   const [showExpiryAlert, setShowExpiryAlert] = useState(true);
   const [expiryAdded, setExpiryAdded] = useState(false);
   const [didiNote, setDidiNote] = useState('Kam namak aur bina pyaaz wali daal');
@@ -444,24 +445,24 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ isHindi, onNavigate, onO
         <div className="grid grid-cols-2 gap-3">
           {/* Action 1: Scan Bill */}
           <button
-            className="p-3.5 rounded-xl bg-white border border-[#E6E4DD] text-left flex flex-col justify-between gap-3 hover:bg-[#f4f4f0] active:scale-95 transition-all min-h-[92px] shadow-xs"
+            className="p-3.5 rounded-xl bg-white border border-[#E6E4DD] text-left flex flex-col justify-between gap-3 hover:bg-[#f4f4f0] active:scale-95 transition-all min-h-[92px] shadow-xs cursor-pointer"
             type="button"
-            onClick={onOpenVoice}
+            onClick={() => (onOpenScan ? onOpenScan('receipt') : onNavigate('stock'))}
           >
             <div className="w-9 h-9 rounded-full bg-[#eeeeea] text-[#424843] flex items-center justify-center">
               <span className="material-symbols-outlined text-[20px]">receipt_long</span>
             </div>
             <div className="flex flex-col">
               <span className="text-[13px] font-bold text-[#1a1c1a]">Scan Receipt</span>
-              <span className="text-[11px] text-[#424843]">Blinkit / Zepto Bill</span>
+              <span className="text-[11px] text-[#424843]">Blinkit / Zepto Bill OCR</span>
             </div>
           </button>
 
           {/* Action 2: Scan Fridge */}
           <button
-            className="p-3.5 rounded-xl bg-white border border-[#E6E4DD] text-left flex flex-col justify-between gap-3 hover:bg-[#f4f4f0] active:scale-95 transition-all min-h-[92px] shadow-xs"
+            className="p-3.5 rounded-xl bg-white border border-[#E6E4DD] text-left flex flex-col justify-between gap-3 hover:bg-[#f4f4f0] active:scale-95 transition-all min-h-[92px] shadow-xs cursor-pointer"
             type="button"
-            onClick={() => onNavigate('stock')}
+            onClick={() => (onOpenScan ? onOpenScan('fridge') : onNavigate('stock'))}
           >
             <div className="w-9 h-9 rounded-full bg-[#E8F0EC] text-[#1E4620] flex items-center justify-center">
               <span className="material-symbols-outlined text-[20px]">kitchen</span>

@@ -274,6 +274,46 @@ export async function transcribeWithRouting(
   };
 }
 
+export async function transcribeAudioFile(
+  file: File,
+  preference: STTEngineType = 'auto'
+): Promise<STTResult> {
+  const mimeType = file.type || 'audio/webm';
+  const base64 = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Failed to read audio file'));
+    reader.onloadend = () => {
+      const res = reader.result as string;
+      resolve(res.split(',')[1] || '');
+    };
+    reader.readAsDataURL(file);
+  });
+
+  const serverResult = await fetch('/api/stt/transcribe', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      textCandidate: '',
+      engine: preference,
+      audioBase64: base64,
+      mimeType,
+      isOnline: true,
+    }),
+  });
+
+  if (!serverResult.ok) {
+    throw new Error('Failed to transcribe uploaded audio file');
+  }
+
+  const data = await serverResult.json();
+  const transcript = (data.transcript || '').trim();
+  if (!transcript) {
+    throw new Error('No intelligible speech detected in the audio file.');
+  }
+
+  return transcribeWithRouting(transcript, preference, base64);
+}
+
 // ---------------------------------------------------------------------------
 // 5. Robust Browser Audio Controller (Web Audio + MediaRecorder + WebSpeech)
 // ---------------------------------------------------------------------------
@@ -282,13 +322,16 @@ export class STTController {
   private isListening = false;
   private mediaStream: MediaStream | null = null;
   private mediaRecorder: MediaRecorder | null = null;
+  private recordedMimeType = 'audio/webm';
   private audioChunks: Blob[] = [];
   private audioContext: AudioContext | null = null;
   private analyser: AnalyserNode | null = null;
   private animationFrameId: number | null = null;
   private silenceTimer: any = null;
   private recordedText = '';
+  private lastInterimText = '';
   private micPermissionDenied = false;
+  private iframePolicyBlocked = false;
 
   constructor() {
     this.initSpeechRecognition();
@@ -319,6 +362,10 @@ export class STTController {
     return this.micPermissionDenied;
   }
 
+  public getIframePolicyBlocked(): boolean {
+    return this.iframePolicyBlocked;
+  }
+
   public isSupported(): boolean {
     return true;
   }
@@ -329,7 +376,7 @@ export class STTController {
     onFinal: (result: STTResult) => void;
     onError: (error: string) => void;
     onStatusChange?: (status: 'listening' | 'processing' | 'idle') => void;
-    onVolumeChange?: (volume: number) => void; // 0 to 100 for live waveform visualization
+    onVolumeChange?: (volume: number) => void;
   }) {
     if (this.isListening) {
       await this.stop(options);
@@ -339,20 +386,20 @@ export class STTController {
     const { preference, onInterim, onFinal, onError, onStatusChange, onVolumeChange } = options;
     this.isListening = true;
     this.recordedText = '';
+    this.lastInterimText = '';
     this.micPermissionDenied = false;
+    this.iframePolicyBlocked = false;
     onStatusChange?.('listening');
 
     let streamObtained = false;
+    const isEmbeddedIframe = typeof window !== 'undefined' && window.self !== window.top;
+    const reqStartMs = Date.now();
 
     // 1. Request real microphone access via MediaDevices
     try {
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
         this.mediaStream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-          },
+          audio: true,
         });
         streamObtained = true;
 
@@ -360,7 +407,6 @@ export class STTController {
         const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
         if (AudioContextClass) {
           this.audioContext = new AudioContextClass();
-          // Ensure AudioContext is resumed (browsers suspend on initialization)
           if (this.audioContext.state === 'suspended') {
             await this.audioContext.resume().catch(() => {});
           }
@@ -403,6 +449,7 @@ export class STTController {
             this.mediaRecorder = mimeType
               ? new MediaRecorder(this.mediaStream, { mimeType })
               : new MediaRecorder(this.mediaStream);
+            this.recordedMimeType = this.mediaRecorder.mimeType || mimeType || 'audio/webm';
 
             this.mediaRecorder.ondataavailable = (event) => {
               if (event.data && event.data.size > 0) {
@@ -410,31 +457,25 @@ export class STTController {
               }
             };
 
-            this.mediaRecorder.start(200); // 200ms slices for responsive buffering
+            this.mediaRecorder.start(200);
           } catch (recErr) {
             console.warn('MediaRecorder init fallback:', recErr);
           }
         }
       }
     } catch (micErr: any) {
-      console.warn('Microphone permission or hardware access notice:', micErr?.message || micErr);
+      const elapsedMs = Date.now() - reqStartMs;
+      const errMsg = String(micErr?.message || micErr || '');
+      console.warn('Microphone access error:', errMsg, `(${elapsedMs}ms)`);
       this.micPermissionDenied = true;
-      // Start simulated audio waveform so user gets clear tactile feedback
-      let simVolume = 20;
-      let step = 1;
-      const simTimer = setInterval(() => {
-        if (!this.isListening) {
-          clearInterval(simTimer);
-          return;
-        }
-        simVolume += step * (Math.random() * 20 - 9);
-        if (simVolume > 85) simVolume = 75;
-        if (simVolume < 10) simVolume = 20;
-        onVolumeChange?.(Math.round(simVolume));
-      }, 120);
+      // If rejected in < 150ms inside an iframe, the parent iframe Permissions-Policy blocked the prompt
+      if (isEmbeddedIframe && (elapsedMs < 150 || /policy|not allowed by the user agent/i.test(errMsg))) {
+        this.iframePolicyBlocked = true;
+      }
     }
 
-    // 2. Start Web Speech Recognition if available (as real-time client decoder)
+    // 2. Start Web Speech Recognition if available (also acts as fallback if getUserMedia failed)
+    let recognitionStarted = false;
     if (this.recognition) {
       try {
         if (preference === 'cactus_whisper') {
@@ -446,23 +487,30 @@ export class STTController {
         }
 
         this.recognition.onresult = (event: any) => {
+          let finalTranscript = '';
           let interim = '';
-          for (let i = event.resultIndex; i < event.results.length; ++i) {
+          for (let i = 0; i < event.results.length; ++i) {
             const item = event.results[i];
             if (item.isFinal) {
-              this.recordedText += (this.recordedText ? ' ' : '') + item[0].transcript;
+              finalTranscript += (finalTranscript ? ' ' : '') + item[0].transcript.trim();
             } else {
-              interim += item[0].transcript;
+              interim += (interim ? ' ' : '') + item[0].transcript.trim();
             }
           }
-          if (interim && onInterim) {
-            onInterim(interim);
+          this.recordedText = finalTranscript;
+          this.lastInterimText = interim;
+
+          const combinedLive = [this.recordedText, this.lastInterimText]
+            .filter(Boolean)
+            .join(' ')
+            .trim();
+          if (combinedLive && onInterim) {
+            onInterim(combinedLive);
           }
-          // Reset silence timer
+
           if (this.silenceTimer) clearTimeout(this.silenceTimer);
           this.silenceTimer = setTimeout(() => {
-            // After 3.5 seconds of silence, automatically process
-            if (this.isListening && (this.recordedText.trim() || interim.trim())) {
+            if (this.isListening && combinedLive) {
               this.finishRecording(options);
             }
           }, 3500);
@@ -470,13 +518,22 @@ export class STTController {
 
         this.recognition.onerror = (err: any) => {
           console.warn('SpeechRecognition status:', err?.error);
-          if (err?.error === 'not-allowed') {
+          if ((err?.error === 'not-allowed' || err?.error === 'service-not-allowed') && !streamObtained) {
             this.micPermissionDenied = true;
+            if (isEmbeddedIframe) {
+              this.iframePolicyBlocked = true;
+            }
+            this.isListening = false;
+            onStatusChange?.('idle');
+            onError(
+              this.iframePolicyBlocked
+                ? 'The AI Studio embedded preview frame blocked the browser microphone prompt. Open the app in a new tab (button below) to trigger the browser microphone permission popup, or upload an audio clip directly.'
+                : 'Microphone permission is blocked in your browser settings. Click the lock/tune icon in your browser address bar to allow Microphone access.'
+            );
           }
         };
 
         this.recognition.onend = () => {
-          // If still marked as listening and no error, restart recognition if continuous mode was interrupted
           if (this.isListening && !this.micPermissionDenied) {
             try {
               this.recognition.start();
@@ -485,27 +542,33 @@ export class STTController {
         };
 
         this.recognition.start();
+        recognitionStarted = true;
       } catch (err: any) {
         console.warn('SpeechRecognition start notice:', err?.message);
       }
     }
 
-    // If both real mic and SpeechRecognition failed (e.g. strict iframe permissions policy)
-    if (!streamObtained && !this.recognition) {
-      onError?.('Microphone access is restricted in this browser frame. You can use the Quick Voice Prompts or type below.');
+    if (!streamObtained && !recognitionStarted) {
+      this.isListening = false;
+      onStatusChange?.('idle');
+      onError(
+        this.iframePolicyBlocked
+          ? 'The AI Studio embedded preview frame blocked the browser microphone prompt. Open the app in a new tab to enable the browser mic prompt, or upload a voice audio clip.'
+          : 'Microphone access is blocked. Please allow microphone access in your browser address bar or upload an audio clip.'
+      );
     }
   }
 
   public async finishRecording(options: {
     preference: STTEngineType;
     onFinal: (result: STTResult) => void;
+    onError?: (error: string) => void;
     onStatusChange?: (status: 'listening' | 'processing' | 'idle') => void;
   }) {
     if (!this.isListening) return;
     this.isListening = false;
     options.onStatusChange?.('processing');
 
-    // Clean up analyser and audio context
     if (this.animationFrameId) cancelAnimationFrame(this.animationFrameId);
     if (this.silenceTimer) clearTimeout(this.silenceTimer);
 
@@ -521,9 +584,14 @@ export class STTController {
         const audioBlobPromise = new Promise<Blob>((resolve) => {
           if (this.mediaRecorder) {
             this.mediaRecorder.onstop = () => {
-              const blob = new Blob(this.audioChunks, { type: 'audio/webm' });
+              const blob = new Blob(this.audioChunks, { type: this.recordedMimeType });
               resolve(blob);
             };
+            try {
+              if (this.mediaRecorder.state === 'recording') {
+                this.mediaRecorder.requestData();
+              }
+            } catch {}
             this.mediaRecorder.stop();
           } else {
             resolve(new Blob());
@@ -546,7 +614,6 @@ export class STTController {
       }
     }
 
-    // Clean up tracks
     if (this.mediaStream) {
       this.mediaStream.getTracks().forEach((track) => track.stop());
       this.mediaStream = null;
@@ -558,9 +625,11 @@ export class STTController {
       this.audioContext = null;
     }
 
-    let finalPrompt = this.recordedText.trim();
+    let finalPrompt = [this.recordedText.trim(), this.lastInterimText.trim()]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
 
-    // If no client speech was captured but audioBase64 exists, transcribe it on server
     if (!finalPrompt && audioBase64) {
       try {
         const serverResult = await fetch('/api/stt/transcribe', {
@@ -570,6 +639,7 @@ export class STTController {
             textCandidate: '',
             engine: options.preference,
             audioBase64,
+            mimeType: this.recordedMimeType,
             isOnline: true,
           }),
         });
@@ -585,11 +655,12 @@ export class STTController {
       }
     }
 
-    // If still blank (e.g. mic muted or permission blocked), pick realistic phrase for the active model
     if (!finalPrompt) {
-      finalPrompt = options.preference === 'cactus_whisper'
-        ? 'add 2 kg potatoes and 1 liter milk'
-        : 'do kilo aloo aur ek litre dahi add kar do';
+      options.onStatusChange?.('idle');
+      options.onError?.(
+        'No speech detected. Please speak clearly into the microphone or upload an audio clip.'
+      );
+      return;
     }
 
     const result = await transcribeWithRouting(finalPrompt, options.preference, audioBase64);
@@ -600,6 +671,7 @@ export class STTController {
   public async stop(options?: {
     preference: STTEngineType;
     onFinal: (result: STTResult) => void;
+    onError?: (error: string) => void;
     onStatusChange?: (status: 'listening' | 'processing' | 'idle') => void;
   }) {
     if (options) {

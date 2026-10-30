@@ -15,8 +15,6 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
   onClose,
   onPlanUpdated,
 }) => {
-  if (!recipeId) return null;
-
   const [servings, setServings] = useState(initialServings);
   const [graphData, setGraphData] = useState<GraphRecipe | null>(null);
   const [useDesiUnits, setUseDesiUnits] = useState(false);
@@ -44,10 +42,12 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
   };
 
   let detail: any = null;
-  try {
-    detail = store.getRecipeDetail(recipeId, servings);
-  } catch {
-    return null;
+  if (recipeId) {
+    try {
+      detail = store.getRecipeDetail(recipeId, servings);
+    } catch {
+      detail = null;
+    }
   }
 
   const me = store.getMe();
@@ -56,6 +56,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
   );
 
   const handleAddMealToPlan = () => {
+    if (!recipeId) return;
     store.addMeal(planDate, planSlot, recipeId, servings, ['mem_1', 'mem_2']);
     setActionNotice(`Added ${detail.title} to ${planDate} (${planSlot})!`);
     setShowPlanForm(false);
@@ -64,6 +65,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
   };
 
   const handleCookNow = () => {
+    if (!recipeId) return;
     const meal = store.addMeal(
       new Date().toISOString().slice(0, 10),
       'lunch',
@@ -89,6 +91,8 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
     }
     return `${qty} pcs`;
   };
+
+  if (!recipeId || !detail) return null;
 
   return (
     <div

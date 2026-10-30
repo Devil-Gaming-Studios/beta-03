@@ -14,8 +14,6 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
   items,
   isHindi,
 }) => {
-  if (!isOpen) return null;
-
   const [isExported, setIsExported] = useState(false);
   const totalAmount = items.reduce((sum, i) => sum + (i.swiggy_price || i.estimated_price || 40), 0);
 
@@ -26,6 +24,8 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
       window.open('https://www.swiggy.com/instamart', '_blank');
     }, 1200);
   };
+
+  if (!isOpen) return null;
 
   return (
     <div

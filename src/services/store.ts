@@ -833,9 +833,10 @@ class StoreService {
     qty: number,
     targetScope: 'personal' | 'shared' = 'shared',
     reason = 'manual',
-    options?: {
+      options?: {
       stockId?: string;
       name?: string;
+      name_hi?: string;
       location?: 'pantry' | 'fridge';
       unit?: BaseUnit;
       targetScope?: 'personal' | 'shared';
@@ -883,24 +884,30 @@ class StoreService {
 
     if (item) {
       item.qty_base = Math.round(after * 10) / 10;
-      if (options?.location && !item.location) item.location = options.location;
-      if (options?.unit && !item.unit_base) item.unit_base = options.unit;
+      if (options?.location) {
+        item.location = options.location;
+        item.storage_place = options.location;
+      }
+      if (options?.unit) item.unit_base = options.unit;
+      if (options?.name_hi && !item.name_hi) item.name_hi = options.name_hi;
       item.version += 1;
     } else {
       const id = 'stk_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+      const loc = options?.location || 'pantry';
       item = {
         id,
         household_id: hhId,
         ingredient_id: ingredientId,
         name: options?.name || ingredientId.replace('ing_', '').replace(/_/g, ' '),
+        name_hi: options?.name_hi,
         qty_base: Math.round(after * 10) / 10,
         unit_base: options?.unit || 'g',
-        location: options?.location || 'pantry',
+        location: loc,
         owner_user_id: targetOwner,
-        contributed_by: targetOwner ? 'Personal' : 'Shared',
+        contributed_by: targetOwner ? 'Personal (Scanned)' : 'Shared (Scanned)',
         version: 1,
-        storage_place: options?.location || 'pantry',
-        shelf_life_days: 30,
+        storage_place: loc,
+        shelf_life_days: loc === 'fridge' ? 7 : 45,
       };
       this.state.stock[hhId][id] = item;
     }
@@ -945,6 +952,7 @@ class StoreService {
   // --- Ingest Scanned Receipt or Fridge Items ---
   public ingestScannedItems(items: {
     name: string;
+    name_hi?: string;
     qty_base: number;
     unit_base: string;
     location?: string;
@@ -957,14 +965,27 @@ class StoreService {
         .toLowerCase()
         .replace(/[^a-z0-9]/g, '_')
         .replace(/_+/g, '_')
+        .replace(/^_|_$/g, '')
         .slice(0, 30);
-      const ingId = `ing_${slug}`;
+      const ingId = `ing_${slug || 'item'}`;
+      const validUnit: BaseUnit =
+        it.unit_base === 'ml' ? 'ml' : it.unit_base === 'pcs' ? 'pcs' : 'g';
+      const validLoc: 'fridge' | 'pantry' =
+        it.location === 'fridge' ? 'fridge' : 'pantry';
+
       const res = this.adjustStock(
         ingId,
         'add',
         it.qty_base,
         it.targetScope,
-        it.is_estimate ? 'fridge_scan' : 'receipt_ocr'
+        it.is_estimate ? 'fridge_scan' : 'receipt_ocr',
+        {
+          name: it.name,
+          name_hi: it.name_hi,
+          location: validLoc,
+          unit: validUnit,
+          targetScope: it.targetScope,
+        }
       );
       results.push(res);
     }

@@ -5,31 +5,63 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import { WebSocketServer, WebSocket } from 'ws';
-import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
+import { GoogleGenAI, LiveServerMessage, Modality, ThinkingLevel, Type } from '@google/genai';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Load non-empty key-value pairs from .env if present (never overwrite existing env with empty strings)
+try {
+  const envPath = path.resolve(__dirname, '.env');
+  if (fs.existsSync(envPath)) {
+    const lines = fs.readFileSync(envPath, 'utf-8').split(/\r?\n/);
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const eqIdx = trimmed.indexOf('=');
+      if (eqIdx === -1) continue;
+      const key = trimmed.slice(0, eqIdx).trim();
+      const rawVal = trimmed.slice(eqIdx + 1).split('#')[0].trim();
+      if (key && rawVal) {
+        process.env[key] = rawVal;
+      }
+    }
+  }
+} catch {
+  // Ignore .env parse errors
+}
 
 const app = express();
 const server = http.createServer(app);
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = '0.0.0.0';
 
-app.use(express.json());
+app.use(express.json({ limit: '25mb' }));
 
-// Initialize Google GenAI on the server
-const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
-const validModels = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'];
-const envModel = process.env.GEMINI_AGENT_MODEL || process.env.GEMINI_MODEL || '';
-const agentModel = validModels.includes(envModel) ? envModel : 'gemini-2.5-flash';
-const ai = new GoogleGenAI({
-  apiKey: apiKey || undefined,
-  httpOptions: {
-    headers: {
-      'User-Agent': 'aistudio-build',
+function getApiKey(): string {
+  return (
+    process.env.GEMINI_API_KEY ||
+    process.env.GOOGLE_API_KEY ||
+    process.env.VITE_GEMINI_API_KEY ||
+    ''
+  ).trim();
+}
+
+function getAiClient(): GoogleGenAI {
+  const key = getApiKey();
+  return new GoogleGenAI({
+    apiKey: key || undefined,
+    httpOptions: {
+      headers: {
+        'User-Agent': 'aistudio-build',
+      },
     },
-  },
-});
+  });
+}
+
+const agentModel = process.env.GEMINI_MODEL || process.env.GEMINI_AGENT_MODEL || 'gemini-3.5-flash';
+const fallbackTextModel = 'gemini-3.8-flash';
+const transcribeModel = 'gemini-3.5-transcribe';
 
 import { graphService } from './server/graphService';
 
@@ -121,85 +153,179 @@ app.post('/api/graph/rebuild', (req: Request, res: Response) => {
 });
 
 // ---------------------------------------------------------------------------
-// Vision Scanning Endpoint: Receipt OCR & Fridge Scan with Gemini
+// Vision Scanning Endpoint: Real Receipt OCR & Fridge/Pantry Scan with Gemini
 // ---------------------------------------------------------------------------
 app.post('/api/vision/scan', async (req: Request, res: Response): Promise<any> => {
   const { imageBase64, mimeType, kind } = req.body;
 
-  // Fallback defaults if no Gemini key or processing sample
-  const defaultItems = kind === 'receipt'
-    ? [
-        { name: 'Fresh Dahi (Amul Masti)', qty_base: 500, unit_base: 'ml', location: 'fridge', targetScope: 'personal', confidence: 0.96 },
-        { name: 'Aloo (Baby Potatoes)', qty_base: 1500, unit_base: 'g', location: 'pantry', targetScope: 'shared', confidence: 0.94 },
-        { name: 'Chakki Atta (Whole Wheat)', qty_base: 5000, unit_base: 'g', location: 'pantry', targetScope: 'shared', confidence: 0.98 },
-        { name: 'Fresh Paneer Block', qty_base: 200, unit_base: 'g', location: 'fridge', targetScope: 'personal', confidence: 0.92 },
-      ]
-    : [
-        { name: 'Fresh Milk / Doodh', qty_base: 1000, unit_base: 'ml', location: 'fridge', targetScope: 'shared', is_estimate: true, confidence: 0.9 },
-        { name: 'Tomatoes / Tamatar', qty_base: 500, unit_base: 'g', location: 'fridge', targetScope: 'shared', is_estimate: true, confidence: 0.85 },
-        { name: 'Green Chillies & Ginger', qty_base: 100, unit_base: 'g', location: 'fridge', targetScope: 'shared', is_estimate: true, confidence: 0.88 },
-        { name: 'Curd / Dahi', qty_base: 400, unit_base: 'ml', location: 'fridge', targetScope: 'personal', is_estimate: true, confidence: 0.82 },
-      ];
+  if (!imageBase64 || typeof imageBase64 !== 'string') {
+    return res.status(400).json({
+      error: 'Please upload, paste, or capture an image of a receipt or fridge/pantry shelf.',
+    });
+  }
 
-  if (!apiKey || !imageBase64) {
-    return res.json({
-      kind: kind || 'fridge_scan',
-      extractedAt: new Date().toISOString(),
-      items: defaultItems,
-      engine: 'simulated_ocr_vision'
+  const key = getApiKey();
+  if (!key) {
+    return res.status(500).json({
+      error: 'Gemini API key is not configured on the server. Please check Settings > Secrets.',
     });
   }
 
   try {
-    const prompt = kind === 'receipt'
-      ? `You are an Indian grocery receipt OCR engine for KitchenSync. Extract food and pantry items as structured JSON:
-        [
-          { "name": "Item Name", "qty_base": 500, "unit_base": "g"|"ml"|"pcs", "location": "pantry"|"fridge", "targetScope": "personal"|"shared", "confidence": 0.95 }
-        ]
-        Rule: common staple grains/oils default to "shared"; personal snacks/dahi/chocolates default to "personal". Return only JSON.`
-      : `You are an Indian kitchen fridge/pantry scan estimator for KitchenSync. Estimate all visible food ingredients:
-        [
-          { "name": "Item Name", "qty_base": 500, "unit_base": "g"|"ml"|"pcs", "location": "fridge"|"pantry", "targetScope": "shared"|"personal", "is_estimate": true, "confidence": 0.88 }
-        ]
-        Return only JSON array.`;
+    const ai = getAiClient();
+    const headerMatch = imageBase64.match(/^data:([^;]+);base64,/i);
+    const resolvedMimeType =
+      (mimeType && typeof mimeType === 'string' && mimeType.trim()) ||
+      (headerMatch ? headerMatch[1] : 'image/jpeg');
+    const cleanBase64 = imageBase64.replace(/^data:[^;]+;base64,/i, '').trim();
 
-    const cleanBase64 = imageBase64.replace(/^data:image\/[a-z]+;base64,/, '');
+    const prompt =
+      kind === 'receipt'
+        ? `You are a high-precision OCR & grocery receipt parser for Indian households (Blinkit, Zepto, Swiggy Instamart, BigBasket, DMart, Reliance Smart, local kirana paper bills, or handwritten shopping lists).
+Carefully read ALL visible text on the uploaded image.
+1. Extract the store/merchant name (merchantOrSource), bill date (billDate), total bill amount (totalAmount), and a concise summary of the OCR text read from the image (rawTextSummary).
+2. Extract every food, grocery, vegetable, dairy, spice, beverage, or kitchen item listed on the receipt.
+   - Convert quantities into base units:
+     * Weight in grams ("g"): e.g. 1 kg = 1000 g, 500 g = 500 g, 250 gm = 250 g, 5 kg = 5000 g. If multiple packs (e.g. 2 x 500g), multiply to get total qty_base (1000).
+     * Volume in milliliters ("ml"): e.g. 1 L / 1 Litre = 1000 ml, 500 ml = 500 ml, 2 x 500 ml = 1000 ml.
+     * Count in pieces ("pcs"): e.g. 6 pcs, 12 eggs, 1 bunch, 1 packet (only use "pcs" when weight/volume in g/ml is not printed).
+   - Provide the Hindi name (name_hi) in Devanagari alongside the English/brand name (name).
+   - Provide rawLineText with the exact text/pack size read from the receipt line, and price (e.g. "₹45.00") if visible.
+   - Set location to "fridge" for dairy (milk, curd/dahi, paneer, butter, cheese), fresh vegetables/fruits/herbs (tomatoes, coriander, chillies, spinach, ginger), and eggs/meat; set "pantry" for grains, atta, rice, dal, oil, ghee, spices, sugar, salt, dry snacks, and packaged goods.
+   - Set targetScope to "shared" for staple cooking ingredients (atta, rice, dal, oil, spices, onions, potatoes, tomatoes, milk) and "personal" for personal snacks, chocolates, single-serve curd/drinks, or personal items.
+   - If the image is NOT a receipt or has no grocery items, still describe what text/objects you see in rawTextSummary and return items: [].`
+        : `You are a computer vision kitchen inventory analyzer for Indian households.
+Carefully inspect the uploaded photo of a fridge, pantry shelf, countertop, or grocery bag.
+1. Set merchantOrSource to a short label of what the photo shows (e.g. "Refrigerator Shelf", "Pantry Countertop", "Vegetable Basket") and rawTextSummary to a clear description of the visible items and any readable package labels.
+2. Identify every visible food ingredient, vegetable, fruit, dairy packet/tub, bottle, grain jar, or packaged grocery item:
+   - Estimate the quantity in base units: grams ("g") for solid foods/vegetables/grains, milliliters ("ml") for milk/curd/oils/liquids, or pieces ("pcs") for whole countable items like eggs, lemons, packets.
+   - Provide both English name (name) and Hindi name in Devanagari (name_hi).
+   - Provide rawLineText describing the visual appearance or package text (e.g. "1 opened tub ~400ml", "Approx 6 medium tomatoes").
+   - Set location to "fridge" for perishables/dairy/fresh produce and "pantry" for dry goods/grains/spices/oils.
+   - Set targetScope to "shared" for common cooking staples/vegetables and "personal" for individual snacks/drinks.`;
 
-    const response = await ai.models.generateContent({
-      model: agentModel,
-      contents: [
-        {
-          role: 'user',
+    const responseSchema = {
+      type: Type.OBJECT,
+      properties: {
+        merchantOrSource: {
+          type: Type.STRING,
+          description: 'Store/platform name on the receipt or scene title for fridge/pantry photo.',
+        },
+        billDate: {
+          type: Type.STRING,
+          description: 'Date printed on the receipt if visible, otherwise empty string.',
+        },
+        totalAmount: {
+          type: Type.STRING,
+          description: 'Total bill amount printed on the receipt if visible (e.g. ₹340.00), otherwise empty string.',
+        },
+        rawTextSummary: {
+          type: Type.STRING,
+          description: 'Summary of the raw OCR text read from the receipt or visual scene description.',
+        },
+        items: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              name: { type: Type.STRING, description: 'Extracted item name (e.g. Amul Taaza Milk, Chakki Atta, Desi Tomatoes).' },
+              name_hi: { type: Type.STRING, description: 'Hindi name in Devanagari (e.g. दूध, आटा, टमाटर).' },
+              rawLineText: { type: Type.STRING, description: 'Exact line text or pack size read from the receipt/package.' },
+              price: { type: Type.STRING, description: 'Line item price if printed on the receipt (e.g. ₹64), otherwise empty string.' },
+              qty_base: { type: Type.NUMBER, description: 'Total quantity converted to base unit (g, ml, or pcs).' },
+              unit_base: { type: Type.STRING, description: 'Must be one of: g, ml, pcs' },
+              location: { type: Type.STRING, description: 'Must be one of: fridge, pantry' },
+              targetScope: { type: Type.STRING, description: 'Must be one of: shared, personal' },
+              confidence: { type: Type.NUMBER, description: 'OCR/detection confidence from 0.0 to 1.0' },
+              is_estimate: { type: Type.BOOLEAN, description: 'True if visual estimate, false if exact weight/volume read from text' },
+            },
+            required: ['name', 'qty_base', 'unit_base', 'location', 'targetScope'],
+          },
+        },
+      },
+      required: ['merchantOrSource', 'rawTextSummary', 'items'],
+    };
+
+    let response;
+    let usedModel = agentModel;
+    try {
+      response = await ai.models.generateContent({
+        model: agentModel,
+        contents: {
           parts: [
-            { text: prompt },
             {
               inlineData: {
                 data: cleanBase64,
-                mimeType: mimeType || 'image/jpeg',
+                mimeType: resolvedMimeType,
               },
             },
+            { text: prompt },
           ],
         },
-      ],
-      config: {
-        responseMimeType: 'application/json',
-      },
-    });
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema,
+          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+        },
+      });
+    } catch (primaryErr: any) {
+      console.warn(`Primary vision model (${agentModel}) error, trying ${fallbackTextModel}:`, primaryErr?.message);
+      usedModel = fallbackTextModel;
+      response = await ai.models.generateContent({
+        model: fallbackTextModel,
+        contents: {
+          parts: [
+            {
+              inlineData: {
+                data: cleanBase64,
+                mimeType: resolvedMimeType,
+              },
+            },
+            { text: prompt },
+          ],
+        },
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema,
+          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+        },
+      });
+    }
 
-    const parsed = JSON.parse(response.text || '[]');
+    const rawOutput = (response.text || '{}').trim();
+    const cleanedJson = rawOutput.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
+    const parsed = JSON.parse(cleanedJson);
+
+    const rawItems = Array.isArray(parsed.items) ? parsed.items : Array.isArray(parsed) ? parsed : [];
+    const normalizedItems = rawItems.map((it: any) => ({
+      name: String(it.name || 'Scanned Item').trim(),
+      name_hi: it.name_hi ? String(it.name_hi).trim() : undefined,
+      rawLineText: it.rawLineText ? String(it.rawLineText).trim() : undefined,
+      price: it.price ? String(it.price).trim() : undefined,
+      qty_base: Math.max(1, Number(it.qty_base) || 1),
+      unit_base: ['g', 'ml', 'pcs'].includes(String(it.unit_base).toLowerCase())
+        ? String(it.unit_base).toLowerCase()
+        : 'g',
+      location: String(it.location).toLowerCase() === 'fridge' ? 'fridge' : 'pantry',
+      targetScope: String(it.targetScope).toLowerCase() === 'personal' ? 'personal' : 'shared',
+      confidence: typeof it.confidence === 'number' ? it.confidence : 0.92,
+      is_estimate: Boolean(it.is_estimate ?? (kind !== 'receipt')),
+    }));
+
     return res.json({
-      kind: kind || 'vision_scan',
+      kind: kind || 'receipt',
       extractedAt: new Date().toISOString(),
-      items: Array.isArray(parsed) ? parsed : defaultItems,
-      engine: 'gemini_multimodal_vision'
+      merchantOrSource: parsed.merchantOrSource || (kind === 'receipt' ? 'Scanned Receipt' : 'Fridge / Pantry Scan'),
+      billDate: parsed.billDate || '',
+      totalAmount: parsed.totalAmount || '',
+      rawTextSummary: parsed.rawTextSummary || '',
+      items: normalizedItems,
+      engine: usedModel,
     });
   } catch (err: any) {
-    console.warn('Gemini vision scan failed, using fallback:', err?.message);
-    return res.json({
-      kind: kind || 'vision_scan',
-      extractedAt: new Date().toISOString(),
-      items: defaultItems,
-      engine: 'fallback_ocr'
+    console.error('Gemini vision scan failed:', err);
+    return res.status(500).json({
+      error: `Vision OCR analysis failed: ${err?.message || 'Unable to process image'}. Please try a clearer image.`,
     });
   }
 });
@@ -210,7 +336,7 @@ app.post('/api/vision/scan', async (req: Request, res: Response): Promise<any> =
 const SARVAM_API_KEY = process.env.SARVAM_API_KEY || '';
 
 app.post('/api/stt/transcribe', async (req: Request, res: Response): Promise<any> => {
-  const { textCandidate, engine, languageHint, audioBase64 } = req.body;
+  const { textCandidate, engine, languageHint, audioBase64, mimeType } = req.body;
   const input = (textCandidate || '').trim();
 
   // Detect language if not provided
@@ -302,41 +428,64 @@ app.post('/api/stt/transcribe', async (req: Request, res: Response): Promise<any
       }
     }
 
-    // If Sarvam didn't return a transcript and input was blank, use Gemini multimodal audio
-    if (!fallbackTriggered && apiKey && (!finalTranscript || finalTranscript === input)) {
+    // If Sarvam didn't return a transcript and input was blank, use Gemini audio transcription
+    const key = getApiKey();
+    if (!fallbackTriggered && key && (!finalTranscript || finalTranscript === input)) {
       try {
-        const cleanBase64 = audioBase64.replace(/^data:audio\/[a-z0-9_-]+;base64,/, '');
-        const geminiAudio = await ai.models.generateContent({
-          model: agentModel,
-          contents: [
-            {
-              role: 'user',
+        const ai = getAiClient();
+        const cleanBase64 = audioBase64.replace(/^data:[^;]+;base64,/i, '').trim();
+        const cleanMimeType = (mimeType || 'audio/webm').split(';')[0].trim() || 'audio/webm';
+
+        let transcribedText = '';
+        try {
+          const transcribeRes = await ai.models.generateContent({
+            model: transcribeModel,
+            contents: {
               parts: [
-                {
-                  text: `You are an Indian kitchen speech-to-text engine for KitchenSync.
-The user spoke in ${detectedLang === 'en' ? 'English' : 'Hindi, Hinglish, or English'}.
-Transcribe the speech accurately into natural text (e.g. "do kilo aloo aur ek litre dahi add kar do", "atta khatam ho gaya", "add 2 kg potatoes").
-Output ONLY valid JSON:
-{"transcript": "transcribed text", "language": "${detectedLang}", "confidence": 0.95}`
-                },
                 {
                   inlineData: {
                     data: cleanBase64,
-                    mimeType: 'audio/webm',
+                    mimeType: cleanMimeType,
                   },
+                },
+                {
+                  text: `Transcribe the spoken words in this audio into text (${detectedLang === 'en' ? 'English' : 'Hindi, Hinglish, or English'}). Return only the exact words spoken, or an empty string if silent.`,
                 },
               ],
             },
-          ],
-          config: {
-            responseMimeType: 'application/json',
-          },
-        });
+          });
+          transcribedText = (transcribeRes.text || '').trim();
+        } catch {
+          const fallbackRes = await ai.models.generateContent({
+            model: agentModel,
+            contents: {
+              parts: [
+                {
+                  inlineData: {
+                    data: cleanBase64,
+                    mimeType: cleanMimeType,
+                  },
+                },
+                {
+                  text: `You are an Indian kitchen speech-to-text engine for KitchenSync.
+Transcribe the spoken words in the audio accurately into text.
+IMPORTANT: Do NOT invent or guess words if the audio is silent or contains only background noise; if no clear speech is heard, return {"transcript": "", "language": "${detectedLang}", "confidence": 0.0}.
+Output ONLY valid JSON:
+{"transcript": "transcribed text", "language": "${detectedLang}", "confidence": 0.95}`,
+                },
+              ],
+            },
+            config: {
+              responseMimeType: 'application/json',
+            },
+          });
+          const parsed = JSON.parse(fallbackRes.text || '{}');
+          transcribedText = (parsed.transcript || '').trim();
+        }
 
-        const parsed = JSON.parse(geminiAudio.text || '{}');
-        if (parsed.transcript && parsed.transcript.trim()) {
-          finalTranscript = parsed.transcript.trim();
-          baseScore = parsed.confidence || 0.95;
+        if (transcribedText) {
+          finalTranscript = transcribedText;
+          baseScore = 0.95;
           fallbackTriggered = true;
         }
       } catch (geminiErr: any) {
@@ -418,6 +567,7 @@ app.post('/api/chat', async (req: Request, res: Response): Promise<any> => {
   const prompt = `${contextBlock}\n\nUSER_DATA_TO_PROCESS:\n<transcript confidence="0.95" engine="typed">${text}</transcript>`;
 
   try {
+    const ai = getAiClient();
     let response;
     try {
       response = await ai.models.generateContent({
@@ -426,22 +576,20 @@ app.post('/api/chat', async (req: Request, res: Response): Promise<any> => {
         config: {
           systemInstruction,
           responseMimeType: 'application/json',
+          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
         },
       });
     } catch (modelErr: any) {
-      if (agentModel !== 'gemini-2.5-flash') {
-        console.warn(`Falling back to gemini-2.5-flash from ${agentModel}:`, modelErr?.message);
-        response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
-          contents: prompt,
-          config: {
-            systemInstruction,
-            responseMimeType: 'application/json',
-          },
-        });
-      } else {
-        throw modelErr;
-      }
+      console.warn(`Falling back to ${fallbackTextModel} from ${agentModel}:`, modelErr?.message);
+      response = await ai.models.generateContent({
+        model: fallbackTextModel,
+        contents: prompt,
+        config: {
+          systemInstruction,
+          responseMimeType: 'application/json',
+          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+        },
+      });
     }
 
     const outputText = response.text || '{}';
@@ -755,6 +903,7 @@ app.post('/api/chat/stream', async (req: Request, res: Response): Promise<any> =
   const prompt = `${contextBlock}\n\nUSER_DATA_TO_PROCESS:\n<transcript confidence="0.95" engine="typed">${text}</transcript>`;
 
   try {
+    const ai = getAiClient();
     const stream = await ai.models.generateContentStream({
       model: agentModel,
       contents: prompt,
@@ -789,6 +938,7 @@ wss.on('connection', async (clientWs: WebSocket) => {
   console.log('Client connected to /live WebSocket');
 
   try {
+    const ai = getAiClient();
     const session = await ai.live.connect({
       model: 'gemini-3.8-live',
       config: {

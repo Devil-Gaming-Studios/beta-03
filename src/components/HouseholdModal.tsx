@@ -18,8 +18,6 @@ export const HouseholdModal: React.FC<HouseholdModalProps> = ({
   members,
   onRefresh,
 }) => {
-  if (!isOpen) return null;
-
   const [hhName, setHhName] = useState(household.name);
   const [hasFridge, setHasFridge] = useState(household.has_fridge);
   const [language, setLanguage] = useState<AppLanguage>(household.language);
@@ -63,6 +61,8 @@ export const HouseholdModal: React.FC<HouseholdModalProps> = ({
     store.switchHousehold(id, userId);
     onRefresh();
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="modal-overlay" onClick={onClose}>

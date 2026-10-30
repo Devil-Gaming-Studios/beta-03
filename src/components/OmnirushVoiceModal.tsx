@@ -7,6 +7,7 @@ import {
   STTEngineType,
   STTResult,
   transcribeWithRouting,
+  transcribeAudioFile,
 } from '../services/sttService';
 
 interface ChatMessage {
@@ -31,8 +32,6 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
   isHindi: initialHindi,
   autoStart = false,
 }) => {
-  if (!isOpen) return null;
-
   const [input, setInput] = useState('');
   const [selectedEngine, setSelectedEngine] = useState<STTEngineType>('auto');
   const [isRecording, setIsRecording] = useState(false);
@@ -61,13 +60,21 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
   }, [messages, isRecording, loading]);
 
   useEffect(() => {
+    if (!isOpen) {
+      sttController.stop();
+      setIsRecording(false);
+      setRecordingStatus('idle');
+      setInterimText('');
+      setVolume(0);
+      return;
+    }
     if (autoStart) {
       handleStartRecording();
     }
     return () => {
       sttController.stop();
     };
-  }, [autoStart]);
+  }, [isOpen, autoStart]);
 
   const handleStartRecording = async () => {
     setError(null);
@@ -79,8 +86,14 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
     try {
       await sttController.start({
         preference: selectedEngine,
-        onStatusChange: (s) => setRecordingStatus(s),
-        onInterim: (text) => setInterimText(text),
+        onStatusChange: (s) => {
+          setRecordingStatus(s);
+          if (s === 'idle') setIsRecording(false);
+        },
+        onInterim: (text) => {
+          setInterimText(text);
+          setInput(text);
+        },
         onVolumeChange: (vol) => setVolume(vol),
         onFinal: (result) => {
           setIsRecording(false);
@@ -91,6 +104,10 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
           setVolume(0);
         },
         onError: (err) => {
+          setIsRecording(false);
+          setRecordingStatus('idle');
+          setInterimText('');
+          setVolume(0);
           setMicNotice(err);
         },
       });
@@ -105,7 +122,10 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
     setRecordingStatus('processing');
     await sttController.stop({
       preference: selectedEngine,
-      onStatusChange: (s) => setRecordingStatus(s),
+      onStatusChange: (s) => {
+        setRecordingStatus(s);
+        if (s === 'idle') setIsRecording(false);
+      },
       onFinal: (result) => {
         setIsRecording(false);
         setRecordingStatus('idle');
@@ -113,6 +133,13 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
         setSttMeta(result);
         setInterimText('');
         setVolume(0);
+      },
+      onError: (err) => {
+        setIsRecording(false);
+        setRecordingStatus('idle');
+        setInterimText('');
+        setVolume(0);
+        setMicNotice(err);
       },
     });
   };
@@ -122,6 +149,24 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
       await handleStopRecording();
     } else {
       await handleStartRecording();
+    }
+  };
+
+  const handleAudioFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    setError(null);
+    setMicNotice(null);
+    setRecordingStatus('processing');
+    try {
+      const result = await transcribeAudioFile(file, selectedEngine);
+      setInput(result.transcript);
+      setSttMeta(result);
+    } catch (err: any) {
+      setMicNotice(err.message || 'Could not transcribe audio file.');
+    } finally {
+      setRecordingStatus('idle');
     }
   };
 
@@ -219,6 +264,8 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
     { label: '🌾 Atta khatam ho gaya 500g', prompt: 'atta khatam ho gaya 500g', engine: 'shruti' as STTEngineType },
     { label: '🌶️ Add green chillies to Poha', prompt: 'add green chillies to Poha recipe', engine: 'shruti' as STTEngineType },
   ];
+
+  if (!isOpen) return null;
 
   return (
     <div
@@ -531,20 +578,20 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
         </div>
 
         {/* Live Mic Recording Banner with Real-Time Waveform */}
-        {isRecording && (
+        {isRecording && recordingStatus === 'listening' && (
           <div className="flex items-center justify-between p-2.5 bg-[#fef2f2] border border-[#fca5a5] rounded-xl shrink-0">
-            <div className="flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-[#ba1a1a] animate-ping"></span>
-              <div className="flex flex-col">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="w-3 h-3 rounded-full bg-[#ba1a1a] animate-ping shrink-0"></span>
+              <div className="flex flex-col min-w-0">
                 <span className="text-[12px] font-bold text-[#ba1a1a]">
                   Listening ({selectedEngine === 'cactus_whisper' ? 'Cactus Whisper' : 'Udgam Labs Shruti'})...
                 </span>
-                <span className="text-[11px] text-[#727972]">
+                <span className="text-[11px] text-[#727972] truncate">
                   {interimText ? `"${interimText}"` : 'Speak your kitchen command now'}
                 </span>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               <div className="flex items-center gap-1 h-5">
                 {[30, 60, 100, 80, 40].map((f, i) => (
                   <div
@@ -561,8 +608,73 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
                 className="px-2.5 py-1 rounded-lg bg-[#ba1a1a] text-white text-[11px] font-bold cursor-pointer"
                 onClick={handleStopRecording}
               >
-                Stop
+                Stop &amp; Transcribe
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Transcribing Processing Indicator */}
+        {recordingStatus === 'processing' && (
+          <div className="flex items-center gap-2.5 p-2.5 bg-[#E8F0EC] border border-[#137333]/30 rounded-xl text-[12px] text-[#1A3826] font-semibold shrink-0">
+            <span className="w-3.5 h-3.5 border-2 border-[#1A3826]/30 border-t-[#1A3826] rounded-full animate-spin shrink-0"></span>
+            <span>Transcribing voice audio...</span>
+          </div>
+        )}
+
+        {/* STT Result Metadata Pill */}
+        {sttMeta && !isRecording && recordingStatus === 'idle' && (
+          <div className="flex items-center justify-between px-3 py-1.5 bg-[#f4f7f5] border border-[#d6e3da] rounded-xl text-[11px] text-[#1A3826] shrink-0">
+            <span className="font-semibold">
+              🎙️ {sttMeta.engine} ({Math.round(sttMeta.confidence * 100)}% confidence)
+            </span>
+            <button
+              type="button"
+              className="text-[#727972] hover:text-[#1a1c1a] text-[10px] font-semibold cursor-pointer"
+              onClick={() => setSttMeta(null)}
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
+        {/* Microphone Permission / Iframe Policy Notice */}
+        {micNotice && (
+          <div className="p-3 bg-[#FEF7E0] border border-[#B06000]/30 rounded-xl text-[11.5px] text-[#B06000] flex flex-col gap-2 shrink-0">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-[16px] shrink-0">mic_off</span>
+                <span>{micNotice}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMicNotice(null)}
+                className="text-[#B06000] hover:opacity-75 shrink-0 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[16px]">close</span>
+              </button>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap pt-0.5">
+              <a
+                href={typeof window !== 'undefined' ? window.location.href : '#'}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-2.5 py-1 rounded-lg bg-[#1A3826] text-white text-[11px] font-bold flex items-center gap-1 hover:bg-[#132a1d] no-underline"
+              >
+                <span className="material-symbols-outlined text-[14px]">open_in_new</span>
+                <span>Open App in New Tab (Enables Mic Popup)</span>
+              </a>
+              <label className="px-2.5 py-1 rounded-lg bg-white border border-[#B06000]/40 text-[#1a1c1a] text-[11px] font-bold flex items-center gap-1 cursor-pointer hover:bg-[#f4f4f0]">
+                <span className="material-symbols-outlined text-[14px]">upload_file</span>
+                <span>Upload / Record Audio File</span>
+                <input
+                  type="file"
+                  accept="audio/*,video/webm"
+                  capture="user"
+                  className="hidden"
+                  onChange={handleAudioFileUpload}
+                />
+              </label>
             </div>
           </div>
         )}
@@ -575,7 +687,7 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
           }}
           className="flex items-center gap-2 shrink-0 pt-1"
         >
-          {/* Mic Button */}
+          {/* Live Mic Button */}
           <button
             type="button"
             onClick={handleToggleRecord}
@@ -584,12 +696,28 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
                 ? 'bg-[#ba1a1a] text-white ring-2 ring-[#ba1a1a]/40 animate-pulse'
                 : 'bg-[#1A3826] text-white hover:bg-[#132a1d]'
             }`}
-            title={isRecording ? 'Stop Recording' : 'Speak with Shruti / Cactus Whisper'}
+            title={isRecording ? 'Stop Recording' : 'Speak with Live Microphone'}
           >
             <span className="material-symbols-outlined text-[22px]">
               {isRecording ? 'stop' : 'mic'}
             </span>
           </button>
+
+          {/* Upload / Record Audio File Button (works inside restricted iframes) */}
+          <label
+            className="w-10 h-10 rounded-full bg-[#f4f4f0] border border-[#E6E4DD] text-[#1A3826] hover:bg-[#e8e8e5] flex items-center justify-center shrink-0 cursor-pointer transition-all"
+            title="Upload or capture a voice audio file for Gemini STT transcription"
+          >
+            <span className="material-symbols-outlined text-[19px]">audio_file</span>
+            <input
+              type="file"
+              accept="audio/*,video/webm"
+              capture="user"
+              className="hidden"
+              onChange={handleAudioFileUpload}
+              disabled={loading || recordingStatus === 'processing'}
+            />
+          </label>
 
           {/* Text Input */}
           <div className="relative flex-1">

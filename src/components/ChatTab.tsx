@@ -42,6 +42,10 @@ export const ChatTab: React.FC<ChatTabProps> = ({ onRefresh }) => {
           setText(result.transcript);
           setSttMeta(result);
         },
+        onError: (err) => {
+          setIsRecording(false);
+          setError(err);
+        },
       });
       return;
     }

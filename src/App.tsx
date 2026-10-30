@@ -9,11 +9,13 @@ import { ShopScreen } from './components/ShopScreen';
 import { HouseholdScreen } from './components/HouseholdScreen';
 import { OmnirushVoiceModal } from './components/OmnirushVoiceModal';
 import { RecipeModal } from './components/RecipeModal';
+import { ScanModal } from './components/ScanModal';
 
 export const App: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<NavTab>('home');
   const [isHindi, setIsHindi] = useState(false);
   const [isVoiceOpen, setIsVoiceOpen] = useState(false);
+  const [scanModalMode, setScanModalMode] = useState<'receipt' | 'fridge' | null>(null);
   const [viewRecipe, setViewRecipe] = useState<{ id: string; servings: number } | null>(null);
 
   const toggleLanguage = () => {
@@ -37,6 +39,7 @@ export const App: React.FC = () => {
             isHindi={isHindi}
             onNavigate={(tab) => setCurrentTab(tab)}
             onOpenVoice={() => setIsVoiceOpen(true)}
+            onOpenScan={(mode) => setScanModalMode(mode)}
           />
         )}
 
@@ -91,6 +94,18 @@ export const App: React.FC = () => {
       <OmnirushVoiceModal
         isOpen={isVoiceOpen}
         onClose={() => setIsVoiceOpen(false)}
+        isHindi={isHindi}
+      />
+
+      {/* Real Gemini Vision OCR & Fridge Scanner Modal */}
+      <ScanModal
+        isOpen={scanModalMode !== null}
+        initialMode={scanModalMode || 'receipt'}
+        onClose={() => setScanModalMode(null)}
+        onItemsIngested={() => {
+          setScanModalMode(null);
+          setCurrentTab('stock');
+        }}
         isHindi={isHindi}
       />
 
