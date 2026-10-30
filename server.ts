@@ -19,7 +19,9 @@ app.use(express.json());
 
 // Initialize Google GenAI on the server
 const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
-const agentModel = process.env.GEMINI_AGENT_MODEL || process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+const validModels = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-2.0-flash'];
+const envModel = process.env.GEMINI_AGENT_MODEL || process.env.GEMINI_MODEL || '';
+const agentModel = validModels.includes(envModel) ? envModel : 'gemini-2.5-flash';
 const ai = new GoogleGenAI({
   apiKey: apiKey || undefined,
   httpOptions: {
@@ -448,11 +450,39 @@ app.post('/api/chat', async (req: Request, res: Response): Promise<any> => {
 
     return res.json(parsed);
   } catch (error: any) {
-    console.error('Server Gemini Error in /api/chat:', error);
-    return res.status(500).json({
-      error: 'gemini_server_error',
-      message: error.message || 'Failed to generate response on server',
-    });
+    console.warn('Server Gemini call unavailable or offline, generating Graph RAG response:', error?.message);
+    
+    // Server-side fallback grounded in Graph RAG
+    const topSuggestion = reachableList[0] || retrievedList[0];
+    const isDinner = text.toLowerCase().includes('dinner') || text.toLowerCase().includes('raat');
+    const slot = isDinner ? 'dinner' : 'lunch';
+
+    const fallbackResponse = {
+      mode: mode || 'chat',
+      message: topSuggestion
+        ? `Aapke kitchen stock ke hisaab se Graph RAG recommend karta hai: "${topSuggestion.name}" (~${topSuggestion.time || 25} min). Kya ise ${slot} me add karein?`
+        : `Omnirush assistant: Kitchen inventory processed for "${text}".`,
+      proposal: topSuggestion
+        ? {
+            intent: 'edit_plan',
+            items: [],
+            plan_changes: [
+              {
+                meal_date: new Date().toISOString().slice(0, 10),
+                slot: slot,
+                household_recipe_id: topSuggestion.id,
+                servings: 2,
+                recipe_title: topSuggestion.name,
+              },
+            ],
+            recipe: null,
+          }
+        : null,
+      unmatched: [],
+      warnings: ['Offline Graph RAG mode active'],
+    };
+
+    return res.json(fallbackResponse);
   }
 });
 
