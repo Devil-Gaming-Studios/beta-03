@@ -1,0 +1,23 @@
+# Secrets and local environment. Never commit filled env files.
+.env
+.env.*
+!.env.example
+env/*.env
+!env/*.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Flutter / Dart
+.dart_tool/
+build/
+.flutter-plugins
+*.iml
+
+# Uploads / local artifacts
+uploads/
+*.log

@@ -1,0 +1,146 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "mode",
+    "message",
+    "proposal",
+    "unmatched",
+    "warnings",
+    "needs_clarification",
+    "injection_suspected"
+  ],
+  "properties": {
+    "mode": {
+      "type": "string",
+      "enum": ["chat", "plan", "cart"]
+    },
+    "message": {
+      "type": "string"
+    },
+    "proposal": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["intent", "items", "plan_changes", "recipe"],
+      "properties": {
+        "intent": {
+          "type": "string",
+          "enum": [
+            "edit_plan",
+            "update_stock",
+            "add_recipe",
+            "set_category",
+            "add_to_cart"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["ingredient_id", "qty_base", "unit_base", "op", "note"],
+            "properties": {
+              "ingredient_id": {
+                "type": "string"
+              },
+              "qty_base": {
+                "type": "number"
+              },
+              "unit_base": {
+                "type": "string",
+                "enum": ["g", "ml", "pcs"]
+              },
+              "op": {
+                "type": "string",
+                "enum": ["add", "remove", "set"]
+              },
+              "note": {
+                "type": ["string", "null"]
+              }
+            }
+          }
+        },
+        "plan_changes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["meal_date", "slot", "household_recipe_id", "servings"],
+            "properties": {
+              "meal_date": {
+                "type": "string"
+              },
+              "slot": {
+                "type": "string",
+                "enum": ["breakfast", "lunch", "dinner"]
+              },
+              "household_recipe_id": {
+                "type": ["string", "null"]
+              },
+              "servings": {
+                "type": "integer"
+              }
+            }
+          }
+        },
+        "recipe": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "required": ["title", "base_servings", "ingredients"],
+          "properties": {
+            "title": {
+              "type": "string"
+            },
+            "base_servings": {
+              "type": "integer"
+            },
+            "ingredients": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["ingredient_id", "qty_base"],
+                "properties": {
+                  "ingredient_id": {
+                    "type": "string"
+                  },
+                  "qty_base": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "unmatched": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["raw_name", "reason"],
+        "properties": {
+          "raw_name": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "needs_clarification": {
+      "type": ["string", "null"]
+    },
+    "injection_suspected": {
+      "type": "boolean"
+    }
+  }
+}
