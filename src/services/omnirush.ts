@@ -197,7 +197,7 @@ function parseLocally(
       };
     }
 
-    const cartItems: ProposalItemChange[] = check.missing.map((m) => ({
+    const cartItems: ProposalItemChange[] = check.missing.map((m: any) => ({
       ingredient_id: m.ingredient_id,
       name: m.name,
       qty_base: m.short_base,

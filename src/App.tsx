@@ -3,7 +3,9 @@ import { KitchenSyncHeader } from './components/KitchenSyncHeader';
 import { KitchenSyncNavbar, NavTab } from './components/KitchenSyncNavbar';
 import { HomeScreen } from './components/HomeScreen';
 import { PlannerScreen } from './components/PlannerScreen';
+import { RecipesScreen } from './components/RecipesScreen';
 import { StockScreen } from './components/StockScreen';
+import { ShopScreen } from './components/ShopScreen';
 import { HouseholdScreen } from './components/HouseholdScreen';
 import { OmnirushVoiceModal } from './components/OmnirushVoiceModal';
 import { RecipeModal } from './components/RecipeModal';
@@ -42,6 +44,17 @@ export const App: React.FC = () => {
             isHindi={isHindi}
             onOpenVoice={() => setIsVoiceOpen(true)}
             onViewRecipe={(id, servings) => setViewRecipe({ id, servings })}
+            onOpenRecipesTab={() => setCurrentTab('recipes')}
+          />
+        )}
+
+        {currentTab === 'recipes' && (
+          <RecipesScreen
+            isHindi={isHindi}
+            onViewRecipe={(id, servings) => setViewRecipe({ id, servings })}
+            onAddToPlan={(id) => {
+              setViewRecipe({ id, servings: 2 });
+            }}
           />
         )}
 
@@ -49,6 +62,12 @@ export const App: React.FC = () => {
           <StockScreen
             isHindi={isHindi}
             onOpenVoice={() => setIsVoiceOpen(true)}
+          />
+        )}
+
+        {currentTab === 'shop' && (
+          <ShopScreen
+            isHindi={isHindi}
           />
         )}
 

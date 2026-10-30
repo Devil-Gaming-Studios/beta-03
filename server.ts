@@ -29,6 +29,8 @@ const ai = new GoogleGenAI({
   },
 });
 
+import { graphService } from './server/graphService';
+
 // Read system prompt from prompts/omnirush.system.txt if available
 let systemInstruction = `You are Omnirush, the assistant inside Mast Meals, a household meal, recipe and kitchen-stock app for Indian households. You help with meal plans, recipes, stock and shopping lists.
 Return only valid JSON matching the format:
@@ -55,6 +57,146 @@ try {
 }
 
 // ---------------------------------------------------------------------------
+// Graph RAG API Endpoints
+// ---------------------------------------------------------------------------
+app.get('/api/graph/stats', (_req: Request, res: Response) => {
+  return res.json(graphService.getStats());
+});
+
+app.get('/api/graph/recipes', (req: Request, res: Response) => {
+  const { query, diet_pref, is_beginner, cuisine, course, max_time, high_protein, page, limit } = req.query;
+  const result = graphService.searchRecipes({
+    query: typeof query === 'string' ? query : undefined,
+    diet_pref: diet_pref === 'veg' ? 'veg' : diet_pref === 'nonveg' ? 'nonveg' : undefined,
+    is_beginner: is_beginner === 'true' || is_beginner === '1',
+    cuisine: typeof cuisine === 'string' ? cuisine : undefined,
+    course: typeof course === 'string' ? course : undefined,
+    max_time: max_time ? Number(max_time) : undefined,
+    high_protein: high_protein === 'true',
+    page: page ? Number(page) : 1,
+    limit: limit ? Number(limit) : 20,
+  });
+  return res.json(result);
+});
+
+app.get('/api/graph/recipes/:id', (req: Request, res: Response): any => {
+  const recipe = graphService.getRecipeById(req.params.id);
+  if (!recipe) return res.status(404).json({ error: 'Recipe not found in Graph RAG' });
+  return res.json(recipe);
+});
+
+app.post('/api/graph/suggest-from-stock', (req: Request, res: Response) => {
+  const { stock, diet_pref, is_beginner, course, limit } = req.body;
+  const stockList = Array.isArray(stock) ? stock : [];
+  const suggestions = graphService.suggestFromStock(stockList, {
+    diet_pref: diet_pref === 'veg' ? 'veg' : 'nonveg',
+    is_beginner: Boolean(is_beginner),
+    course: typeof course === 'string' ? course : undefined,
+    limit: limit ? Number(limit) : 10,
+  });
+  return res.json(suggestions);
+});
+
+app.post('/api/graph/substitutions', (req: Request, res: Response) => {
+  const { ingredient } = req.body;
+  const subs = graphService.getSubstitutions(String(ingredient || ''));
+  return res.json({ substitutions: subs });
+});
+
+app.post('/api/graph/rebuild', (req: Request, res: Response) => {
+  try {
+    const stats = graphService.rebuild(req.body.csvPath);
+    return res.json({ success: true, stats });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message || 'Failed to rebuild graph' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Vision Scanning Endpoint: Receipt OCR & Fridge Scan with Gemini
+// ---------------------------------------------------------------------------
+app.post('/api/vision/scan', async (req: Request, res: Response): Promise<any> => {
+  const { imageBase64, mimeType, kind } = req.body;
+
+  // Fallback defaults if no Gemini key or processing sample
+  const defaultItems = kind === 'receipt'
+    ? [
+        { name: 'Fresh Dahi (Amul Masti)', qty_base: 500, unit_base: 'ml', location: 'fridge', targetScope: 'personal', confidence: 0.96 },
+        { name: 'Aloo (Baby Potatoes)', qty_base: 1500, unit_base: 'g', location: 'pantry', targetScope: 'shared', confidence: 0.94 },
+        { name: 'Chakki Atta (Whole Wheat)', qty_base: 5000, unit_base: 'g', location: 'pantry', targetScope: 'shared', confidence: 0.98 },
+        { name: 'Fresh Paneer Block', qty_base: 200, unit_base: 'g', location: 'fridge', targetScope: 'personal', confidence: 0.92 },
+      ]
+    : [
+        { name: 'Fresh Milk / Doodh', qty_base: 1000, unit_base: 'ml', location: 'fridge', targetScope: 'shared', is_estimate: true, confidence: 0.9 },
+        { name: 'Tomatoes / Tamatar', qty_base: 500, unit_base: 'g', location: 'fridge', targetScope: 'shared', is_estimate: true, confidence: 0.85 },
+        { name: 'Green Chillies & Ginger', qty_base: 100, unit_base: 'g', location: 'fridge', targetScope: 'shared', is_estimate: true, confidence: 0.88 },
+        { name: 'Curd / Dahi', qty_base: 400, unit_base: 'ml', location: 'fridge', targetScope: 'personal', is_estimate: true, confidence: 0.82 },
+      ];
+
+  if (!apiKey || !imageBase64) {
+    return res.json({
+      kind: kind || 'fridge_scan',
+      extractedAt: new Date().toISOString(),
+      items: defaultItems,
+      engine: 'simulated_ocr_vision'
+    });
+  }
+
+  try {
+    const prompt = kind === 'receipt'
+      ? `You are an Indian grocery receipt OCR engine for KitchenSync. Extract food and pantry items as structured JSON:
+        [
+          { "name": "Item Name", "qty_base": 500, "unit_base": "g"|"ml"|"pcs", "location": "pantry"|"fridge", "targetScope": "personal"|"shared", "confidence": 0.95 }
+        ]
+        Rule: common staple grains/oils default to "shared"; personal snacks/dahi/chocolates default to "personal". Return only JSON.`
+      : `You are an Indian kitchen fridge/pantry scan estimator for KitchenSync. Estimate all visible food ingredients:
+        [
+          { "name": "Item Name", "qty_base": 500, "unit_base": "g"|"ml"|"pcs", "location": "fridge"|"pantry", "targetScope": "shared"|"personal", "is_estimate": true, "confidence": 0.88 }
+        ]
+        Return only JSON array.`;
+
+    const cleanBase64 = imageBase64.replace(/^data:image\/[a-z]+;base64,/, '');
+
+    const response = await ai.models.generateContent({
+      model: agentModel,
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            { text: prompt },
+            {
+              inlineData: {
+                data: cleanBase64,
+                mimeType: mimeType || 'image/jpeg',
+              },
+            },
+          ],
+        },
+      ],
+      config: {
+        responseMimeType: 'application/json',
+      },
+    });
+
+    const parsed = JSON.parse(response.text || '[]');
+    return res.json({
+      kind: kind || 'vision_scan',
+      extractedAt: new Date().toISOString(),
+      items: Array.isArray(parsed) ? parsed : defaultItems,
+      engine: 'gemini_multimodal_vision'
+    });
+  } catch (err: any) {
+    console.warn('Gemini vision scan failed, using fallback:', err?.message);
+    return res.json({
+      kind: kind || 'vision_scan',
+      extractedAt: new Date().toISOString(),
+      items: defaultItems,
+      engine: 'fallback_ocr'
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // 1. Server-Side Standard Endpoint: POST /api/chat
 // ---------------------------------------------------------------------------
 app.post('/api/chat', async (req: Request, res: Response): Promise<any> => {
@@ -64,12 +206,43 @@ app.post('/api/chat', async (req: Request, res: Response): Promise<any> => {
     return res.status(400).json({ error: 'Text prompt is required' });
   }
 
+  // Graph RAG Retrieval
+  const stockNames = Array.isArray(stock) ? stock.map((s: any) => s.name || s.ingredient_id) : [];
+  const graphSuggestions = graphService.suggestFromStock(stockNames, {
+    diet_pref: household?.diet_pref === 'nonveg' ? 'nonveg' : 'veg',
+    is_beginner: Boolean(household?.is_beginner),
+    limit: 4,
+  });
+  const searchMatches = graphService.searchRecipes({
+    query: text,
+    diet_pref: household?.diet_pref === 'nonveg' ? 'nonveg' : 'veg',
+    is_beginner: Boolean(household?.is_beginner),
+    limit: 4,
+  });
+
+  const reachableList = graphSuggestions.readyToCook.concat(graphSuggestions.missingOne).map((s) => ({
+    id: s.recipe.id,
+    name: s.recipe.name,
+    time: s.recipe.totalTime,
+    missing: s.missingItems.map((m) => m.name),
+  }));
+
+  const retrievedList = searchMatches.recipes.map((r) => ({
+    id: r.id,
+    name: r.name,
+    servings: r.servings,
+    time: r.totalTime,
+    protein_g: r.nutrientsEstimated.protein_g,
+    ingredients: r.ingredients.map((i) => ({ name: i.name, qty: i.qty_base, unit: i.unit_base })),
+  }));
+
   const contextBlock = `CONTEXT (server-generated, trusted):
 - mode: ${mode || 'chat'}
 - language_hint: hi-en
 - household: ${JSON.stringify(household || {})}
 - stock: ${JSON.stringify(stock || [])}
-- recipes: ${JSON.stringify(recipes || [])}
+- graph_rag_stock_recommendations: ${JSON.stringify(reachableList)}
+- graph_rag_retrieved_recipes: ${JSON.stringify(retrievedList)}
 - ingredient_aliases: ${JSON.stringify(ingredient_aliases || [])}
 - today: ${new Date().toISOString().slice(0, 10)}`;
 

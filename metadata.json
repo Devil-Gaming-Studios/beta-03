@@ -1,6 +1,6 @@
 {
-  "name": "Remix beta-03",
-  "description": "Imported from GitHub",
+  "name": "Mast Meals - KitchenSync",
+  "description": "Household meal planner, recipe graph RAG, and kitchen stock assistant for Indian households, powered by Omnirush AI.",
   "permissions": [],
   "capabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

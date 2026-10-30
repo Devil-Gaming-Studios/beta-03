@@ -42,7 +42,7 @@ export const HouseholdModal: React.FC<HouseholdModalProps> = ({
   const handleAddMember = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newAgeGroup) return;
-    store.addMember(newAgeGroup, newLabel.trim() || undefined, newCautions);
+    store.addMember(newAgeGroup as any, newLabel.trim() || undefined, newCautions);
     setNewLabel('');
     setNewCautions([]);
     onRefresh();
