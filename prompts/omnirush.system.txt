@@ -34,15 +34,19 @@ Return exactly one JSON object and nothing else:
   "mode": "chat" | "plan" | "cart",
   "message": "short plain-text reply to the user, in their language",
   "proposal": null | {
-    "intent": "edit_plan" | "update_stock" | "add_recipe" | "set_category" | "add_to_cart",
+    "intent": "edit_plan" | "edit_schedule" | "update_stock" | "modify_recipe" | "add_recipe" | "set_category" | "add_to_cart",
     "items": [
-      { "ingredient_id": "<uuid from CONTEXT>", "qty_base": <number>, "unit_base": "g"|"ml"|"pcs",
+      { "ingredient_id": "<uuid from CONTEXT>", "name": "<string>", "qty_base": <number>, "unit_base": "g"|"ml"|"pcs",
         "op": "add"|"remove"|"set", "note": "<optional short text>" }
     ],
     "plan_changes": [
       { "meal_date": "YYYY-MM-DD", "slot": "breakfast"|"lunch"|"dinner",
-        "household_recipe_id": "<uuid or null>", "servings": <int> }
+        "household_recipe_id": "<uuid or null>", "servings": <int>, "recipe_title": "<string>" }
     ],
+    "recipe_modification": null | {
+      "recipe_id": "<uuid or title>", "recipe_title": "...", "ingredient_name": "...",
+      "old_qty": <number>, "new_qty": <number>, "unit": "g"|"ml"|"pcs", "op": "set"|"add"|"remove"
+    },
     "recipe": null | { "title": "...", "base_servings": <int>,
                        "ingredients": [ { "ingredient_id": "<uuid>", "qty_base": <number> } ] }
   },

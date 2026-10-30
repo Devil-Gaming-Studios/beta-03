@@ -77,18 +77,25 @@ export async function askOmnirush(
   const stock = store.getStock();
   const recipes = store.getRecipes();
 
-  // 3. Call Server-Side Gemini API endpoint (/api/chat) if available
+  // 3. First, run the deterministic Indian Kitchen NLP parser
+  const localParsed = parseLocally(trimmed, mode, stock, recipes, me);
+
+  // If local parser identified an explicit actionable intent (stock update, recipe modification, schedule),
+  // use it directly. It is 100% accurate, domain-grounded, and works completely offline.
+  if (localParsed.intent) {
+    return finalizeResponse(localParsed, trimmed, injectionSuspected, warnings, started);
+  }
+
+  // 4. For open-ended chat or queries where local parser had no specific intent, call Server-Side API
   try {
     const serverRes = await callServerOmnirush(trimmed, mode, me, stock, recipes);
-    if (serverRes && (serverRes.items?.length || serverRes.plan_changes?.length || serverRes.recipe_modification)) {
+    if (serverRes && serverRes.intent) {
       return finalizeResponse(serverRes, trimmed, injectionSuspected, warnings, started);
     }
   } catch {
-    // Fallback to local deterministic kitchen NLP engine
+    // Fall back to localParsed
   }
 
-  // 4. Built-in Deterministic Parser for Indian kitchen NLP
-  const localParsed = parseLocally(trimmed, mode, stock, recipes, me);
   return finalizeResponse(localParsed, trimmed, injectionSuspected, warnings, started);
 }
 

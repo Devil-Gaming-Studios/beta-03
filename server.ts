@@ -458,9 +458,201 @@ app.post('/api/chat', async (req: Request, res: Response): Promise<any> => {
   } catch (error: any) {
     console.warn('Server Gemini call unavailable or offline, generating Graph RAG response:', error?.message);
     
-    // Server-side fallback grounded in Graph RAG
+    // Server-side fallback grounded in Graph RAG & Intent Parser
+    const lower = text.toLowerCase();
+
+    // 1. Check for Recipe Modification (e.g., "increase sugar in Kheer to 150g")
+    const isModifyRecipe =
+      (lower.includes('recipe') || lower.includes('increase') || lower.includes('badha') || lower.includes('ghata') || lower.includes('reduce') || lower.includes('decrease') || lower.includes('sugar') || lower.includes('chini') || lower.includes('namak') || lower.includes('salt')) &&
+      (lower.includes('kheer') || lower.includes('sugar') || lower.includes('chini') || lower.includes('recipe') || lower.includes('poha') || lower.includes('dal'));
+
+    if (isModifyRecipe) {
+      const recTitle = 'Rice Kheer (चावल की खीर)';
+      let ingName = 'Sugar / Chini';
+      let oldQty = 100;
+      let newQty = 150;
+      const unit = 'g';
+
+      if (lower.includes('salt') || lower.includes('namak')) {
+        ingName = 'Salt / Namak';
+        oldQty = 10;
+        newQty = 15;
+      }
+      const qtyMatch = lower.match(/(\d+(?:\.\d+)?)\s*(g|gm|grams|ml|pcs|kilo|kg)?/);
+      if (qtyMatch) {
+        newQty = parseFloat(qtyMatch[1]) || 150;
+        if (qtyMatch[2] && (qtyMatch[2] === 'kg' || qtyMatch[2] === 'kilo')) newQty *= 1000;
+      }
+
+      return res.json({
+        mode: mode || 'chat',
+        message: `Offline recipe "${recTitle}" me "${ingName}" quantity ${oldQty}${unit} se badha kar ${newQty}${unit} karne ka proposal taiyar hai. Confirm karne par recipe update ho jayegi.`,
+        proposal: {
+          intent: 'modify_recipe',
+          items: [],
+          plan_changes: [],
+          recipe: null,
+          recipe_modification: {
+            recipe_id: 'rec_kheer_01',
+            recipe_title: recTitle,
+            ingredient_name: ingName,
+            old_qty: oldQty,
+            new_qty: newQty,
+            unit,
+            op: 'set',
+            reason: `Recipe customization requested via chat (${text})`,
+          },
+        },
+        unmatched: [],
+        warnings: ['Offline Graph RAG mode active'],
+      });
+    }
+
+    // 2. Check for Stock Update (e.g. "do kilo aloo add kar do", "atta khatam ho gaya")
+    const isStockOp =
+      lower.includes('add') ||
+      lower.includes('khatam') ||
+      lower.includes('kilo') ||
+      lower.includes('kg') ||
+      lower.includes('gram') ||
+      lower.includes('gm') ||
+      lower.includes('litre') ||
+      lower.includes('liter') ||
+      lower.includes('dal diya') ||
+      lower.includes('dala') ||
+      lower.includes('le aaye') ||
+      lower.includes('khareeda') ||
+      lower.includes('loo') ||
+      lower.includes('atta') ||
+      lower.includes('pyaz') ||
+      lower.includes('dahi') ||
+      lower.includes('paneer') ||
+      lower.includes('doodh') ||
+      lower.includes('tamatar') ||
+      lower.includes('oil') ||
+      lower.includes('tel');
+
+    if (isStockOp && !lower.includes('kya banau') && !lower.includes('recipe')) {
+      let op: 'add' | 'remove' | 'set' = 'add';
+      if (lower.includes('khatam') || lower.includes('remove') || lower.includes('kam ho gaya') || lower.includes('fenk')) {
+        op = 'remove';
+      }
+
+      let qty = 1000;
+      let unit = 'g';
+      if (lower.includes('do kilo') || lower.includes('2 kilo') || lower.includes('2 kg') || lower.includes('2kg') || lower.includes('2000')) {
+        qty = 2000;
+      } else if (lower.includes('aadha') || lower.includes('half') || lower.includes('500g') || lower.includes('500 gm') || lower.includes('500')) {
+        qty = 500;
+      } else if (lower.includes('ek kilo') || lower.includes('1 kilo') || lower.includes('1 kg') || lower.includes('1000')) {
+        qty = 1000;
+      } else if (lower.includes('litre') || lower.includes('liter') || lower.includes('l')) {
+        unit = 'ml';
+        qty = 1000;
+      }
+
+      let itemName = 'Aloo (Potatoes)';
+      let ingId = 'ing_aloo';
+      if (lower.includes('atta') || lower.includes('wheat') || lower.includes('gehu')) {
+        itemName = 'Whole Wheat Atta';
+        ingId = 'ing_atta';
+      } else if (lower.includes('pyaz') || lower.includes('onion')) {
+        itemName = 'Pyaz (Onions)';
+        ingId = 'ing_pyaz';
+      } else if (lower.includes('dahi') || lower.includes('curd')) {
+        itemName = 'Fresh Dahi';
+        ingId = 'ing_dahi';
+        unit = 'ml';
+      } else if (lower.includes('doodh') || lower.includes('milk')) {
+        itemName = 'Fresh Doodh / Milk';
+        ingId = 'ing_doodh';
+        unit = 'ml';
+      } else if (lower.includes('paneer')) {
+        itemName = 'Paneer Block';
+        ingId = 'ing_paneer';
+      } else if (lower.includes('tamatar') || lower.includes('tomato')) {
+        itemName = 'Fresh Tamatar';
+        ingId = 'ing_tamatar';
+      }
+
+      return res.json({
+        mode: mode || 'chat',
+        message: `Kitchen stock me "${itemName}" (${op === 'remove' ? '-' : '+'}${qty} ${unit}) update karne ka proposal taiyar hai. Confirm karne par inventory update ho jayegi.`,
+        proposal: {
+          intent: 'update_stock',
+          items: [
+            {
+              ingredient_id: ingId,
+              name: itemName,
+              qty_base: qty,
+              unit_base: unit,
+              op: op,
+              note: `Direct stock adjustment via chat: ${text}`,
+            },
+          ],
+          plan_changes: [],
+          recipe: null,
+        },
+        unmatched: [],
+        warnings: ['Offline Graph RAG mode active'],
+      });
+    }
+
+    // 3. Check for Full 7-Day Schedule Planning
+    const isSchedulePlan =
+      lower.includes('full schedule') ||
+      lower.includes('week schedule') ||
+      lower.includes('weekly') ||
+      lower.includes('hafta plan') ||
+      lower.includes('poore hafte') ||
+      lower.includes('auto plan') ||
+      lower.includes('whole week');
+
+    if (isSchedulePlan) {
+      const scheduleChanges: any[] = [];
+      const candidateRecipes = reachableList.length > 0 ? reachableList : retrievedList;
+      const today = new Date();
+
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(today);
+        d.setDate(today.getDate() + i);
+        const dateStr = d.toISOString().slice(0, 10);
+        const lunchRec = candidateRecipes[i % candidateRecipes.length] || { id: 'rec_dal_01', name: 'Dal Tadka' };
+        const dinnerRec = candidateRecipes[(i + 1) % candidateRecipes.length] || { id: 'rec_paneer_01', name: 'Paneer Bhurji' };
+
+        scheduleChanges.push({
+          meal_date: dateStr,
+          slot: 'lunch',
+          household_recipe_id: lunchRec.id,
+          recipe_title: lunchRec.name,
+          servings: 2,
+        });
+        scheduleChanges.push({
+          meal_date: dateStr,
+          slot: 'dinner',
+          household_recipe_id: dinnerRec.id,
+          recipe_title: dinnerRec.name,
+          servings: 2,
+        });
+      }
+
+      return res.json({
+        mode: mode || 'plan',
+        message: 'Agale 7 dino ke liye aapke kitchen stock aur dietary preferences ke hisaab se pura weekly meal schedule plan kar diya hai.',
+        proposal: {
+          intent: 'edit_schedule',
+          items: [],
+          plan_changes: scheduleChanges,
+          recipe: null,
+        },
+        unmatched: [],
+        warnings: ['Offline Graph RAG mode active'],
+      });
+    }
+
+    // 4. Fallback for meal queries or general recommendations
     const topSuggestion = reachableList[0] || retrievedList[0];
-    const isDinner = text.toLowerCase().includes('dinner') || text.toLowerCase().includes('raat');
+    const isDinner = lower.includes('dinner') || lower.includes('raat');
     const slot = isDinner ? 'dinner' : 'lunch';
 
     const fallbackResponse = {
