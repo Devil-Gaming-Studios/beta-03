@@ -262,34 +262,78 @@ app.post('/api/stt/transcribe', async (req: Request, res: Response): Promise<any
   let fallbackTriggered = false;
 
   // Cloud fallback: Sarvam Saaras v3 if confidence < 0.75 or requested
-  if ((baseScore < 0.75 || targetEngine === 'sarvam_saaras') && SARVAM_API_KEY && audioBase64) {
-    try {
-      // Call Sarvam AI Saaras v3 STT API if audio is supplied
-      const sarvamRes = await fetch('https://api.sarvam.ai/speech-to-text', {
-        method: 'POST',
-        headers: {
-          'api-subscription-key': SARVAM_API_KEY,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'saaras:v3',
-          audio: audioBase64,
-          language_code: detectedLang === 'en' ? 'en-IN' : 'hi-IN',
-          with_diacritics: false,
-        }),
-      });
+  if ((baseScore < 0.75 || targetEngine === 'sarvam_saaras' || !input) && audioBase64) {
+    if (SARVAM_API_KEY) {
+      try {
+        // Call Sarvam AI Saaras v3 STT API if audio is supplied
+        const sarvamRes = await fetch('https://api.sarvam.ai/speech-to-text', {
+          method: 'POST',
+          headers: {
+            'api-subscription-key': SARVAM_API_KEY,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'saaras:v3',
+            audio: audioBase64,
+            language_code: detectedLang === 'en' ? 'en-IN' : 'hi-IN',
+            with_diacritics: false,
+          }),
+        });
 
-      if (sarvamRes.ok) {
-        const sarvamData = await sarvamRes.json();
-        if (sarvamData.transcript) {
-          finalTranscript = sarvamData.transcript;
-          finalEngine = 'sarvam_saaras';
-          fallbackTriggered = true;
-          baseScore = 0.95;
+        if (sarvamRes.ok) {
+          const sarvamData = await sarvamRes.json();
+          if (sarvamData.transcript) {
+            finalTranscript = sarvamData.transcript;
+            finalEngine = 'sarvam_saaras';
+            fallbackTriggered = true;
+            baseScore = 0.95;
+          }
         }
+      } catch (e: any) {
+        console.warn('Sarvam API call error, falling back to local/Gemini model:', e?.message);
       }
-    } catch (e: any) {
-      console.warn('Sarvam API call error, falling back to local model:', e?.message);
+    }
+
+    // If Sarvam didn't return a transcript and input was blank, use Gemini multimodal audio
+    if (!fallbackTriggered && apiKey && (!finalTranscript || finalTranscript === input)) {
+      try {
+        const cleanBase64 = audioBase64.replace(/^data:audio\/[a-z0-9_-]+;base64,/, '');
+        const geminiAudio = await ai.models.generateContent({
+          model: agentModel,
+          contents: [
+            {
+              role: 'user',
+              parts: [
+                {
+                  text: `You are an Indian kitchen speech-to-text engine for KitchenSync.
+The user spoke in ${detectedLang === 'en' ? 'English' : 'Hindi, Hinglish, or English'}.
+Transcribe the speech accurately into natural text (e.g. "do kilo aloo aur ek litre dahi add kar do", "atta khatam ho gaya", "add 2 kg potatoes").
+Output ONLY valid JSON:
+{"transcript": "transcribed text", "language": "${detectedLang}", "confidence": 0.95}`
+                },
+                {
+                  inlineData: {
+                    data: cleanBase64,
+                    mimeType: 'audio/webm',
+                  },
+                },
+              ],
+            },
+          ],
+          config: {
+            responseMimeType: 'application/json',
+          },
+        });
+
+        const parsed = JSON.parse(geminiAudio.text || '{}');
+        if (parsed.transcript && parsed.transcript.trim()) {
+          finalTranscript = parsed.transcript.trim();
+          baseScore = parsed.confidence || 0.95;
+          fallbackTriggered = true;
+        }
+      } catch (geminiErr: any) {
+        console.warn('Gemini audio transcription notice:', geminiErr?.message);
+      }
     }
   }
 

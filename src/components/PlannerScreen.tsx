@@ -109,14 +109,24 @@ export const PlannerScreen: React.FC<PlannerScreenProps> = ({
             </span>
           </div>
 
-          <button
-            className="px-3.5 py-2 rounded-full bg-[#1A3826] text-white text-[12px] font-semibold flex items-center gap-1.5 shadow-xs active:scale-95 transition-all hover:bg-[#132a1d]"
-            onClick={handleAutoFillWeek}
-            title="Auto-generate 7-day meal plan from kitchen stock"
-          >
-            <span className="material-symbols-outlined text-[18px] text-[#c8ebd1]">auto_awesome</span>
-            <span>{isHindi ? 'AI सुझाव' : 'AI Auto-Plan'}</span>
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              className="w-9 h-9 rounded-full bg-[#1A3826] text-white flex items-center justify-center shadow-xs active:scale-95 transition-all hover:bg-[#132a1d] cursor-pointer"
+              onClick={onOpenVoice}
+              title="Voice Plan with Shruti / Cactus Whisper"
+            >
+              <span className="material-symbols-outlined text-[19px]">mic</span>
+            </button>
+
+            <button
+              className="px-3 py-2 rounded-full bg-[#1A3826] text-white text-[12px] font-semibold flex items-center gap-1.5 shadow-xs active:scale-95 transition-all hover:bg-[#132a1d] cursor-pointer"
+              onClick={handleAutoFillWeek}
+              title="Auto-generate 7-day meal plan from kitchen stock"
+            >
+              <span className="material-symbols-outlined text-[17px] text-[#c8ebd1]">auto_awesome</span>
+              <span>{isHindi ? 'AI सुझाव' : 'AI Auto-Plan'}</span>
+            </button>
+          </div>
         </div>
 
         {/* Household Info Strip */}

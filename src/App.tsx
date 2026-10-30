@@ -27,6 +27,7 @@ export const App: React.FC = () => {
         isHindi={isHindi}
         onToggleLang={toggleLanguage}
         onOpenProfile={() => setCurrentTab('household')}
+        onOpenVoice={() => setIsVoiceOpen(true)}
       />
 
       {/* Main Content Area */}

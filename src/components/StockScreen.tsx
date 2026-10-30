@@ -117,18 +117,26 @@ export const StockScreen: React.FC<StockScreenProps> = ({ isHindi, onOpenVoice }
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <button
-              className="px-3.5 py-2 rounded-full bg-[#1A3826] text-white text-[12px] font-semibold flex items-center gap-1.5 shadow-xs active:scale-95 transition-all hover:bg-[#132a1d]"
+              className="w-9 h-9 rounded-full bg-[#1A3826] text-white flex items-center justify-center shadow-xs active:scale-95 transition-all hover:bg-[#132a1d] cursor-pointer"
+              onClick={onOpenVoice}
+              title="Voice Update Stock (Shruti / Cactus Whisper)"
+            >
+              <span className="material-symbols-outlined text-[19px]">mic</span>
+            </button>
+
+            <button
+              className="px-3 py-2 rounded-full bg-[#1A3826] text-white text-[12px] font-semibold flex items-center gap-1.5 shadow-xs active:scale-95 transition-all hover:bg-[#132a1d] cursor-pointer"
               onClick={() => setIsScanOpen(true)}
               title="Scan Receipt or Fridge with Vision AI"
             >
-              <span className="material-symbols-outlined text-[18px] text-[#c8ebd1]">document_scanner</span>
+              <span className="material-symbols-outlined text-[17px] text-[#c8ebd1]">document_scanner</span>
               <span>{isHindi ? 'स्कैन करें' : 'AI Scan'}</span>
             </button>
 
             <button
-              className="w-9 h-9 rounded-full bg-white border border-[#E6E4DD] flex items-center justify-center text-[#1A3826] hover:bg-[#f4f4f0]"
+              className="w-9 h-9 rounded-full bg-white border border-[#E6E4DD] flex items-center justify-center text-[#1A3826] hover:bg-[#f4f4f0] cursor-pointer"
               onClick={() => setShowAddModal(true)}
               title="Add Item Manually"
             >

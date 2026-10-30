@@ -74,6 +74,37 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ isHindi, onNavigate, onO
           </div>
           <span className="material-symbols-outlined text-[#727972] text-[18px]">verified_user</span>
         </div>
+
+        {/* Voice Assistant Hero Card */}
+        <div
+          onClick={onOpenVoice}
+          className="p-3.5 rounded-2xl bg-gradient-to-r from-[#1A3826] to-[#254d35] text-white flex items-center justify-between gap-3 shadow-md cursor-pointer hover:opacity-95 active:scale-[0.99] transition-all"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-full bg-white/15 flex items-center justify-center shrink-0 border border-white/20">
+              <span className="material-symbols-outlined text-[24px] text-white">mic</span>
+            </div>
+            <div className="flex flex-col">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[14px] font-bold">Omnirush Voice Assistant</span>
+                <span className="text-[10px] bg-white/20 text-[#c8ebd1] font-semibold px-2 py-0.2 rounded-full">
+                  Offline STT
+                </span>
+              </div>
+              <span className="text-[11px] text-white/80">
+                {isHindi
+                  ? 'बोलें: "2 किलो आलू और 1L दही जोड़ दो" • Shruti & Cactus'
+                  : 'Tap to speak: "add 2 kg potatoes" or Hinglish • Shruti & Cactus'}
+              </span>
+            </div>
+          </div>
+          <div
+            className="w-8 h-8 rounded-full bg-white text-[#1A3826] flex items-center justify-center shrink-0 shadow-xs"
+            title="Start Voice Assistant"
+          >
+            <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+          </div>
+        </div>
       </section>
 
       {/* Smart Pantry Alert Ribbon: Warm Cream Card */}

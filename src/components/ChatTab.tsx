@@ -35,8 +35,14 @@ export const ChatTab: React.FC<ChatTabProps> = ({ onRefresh }) => {
 
   const handleToggleVoice = async () => {
     if (isRecording) {
-      sttController.stop();
-      setIsRecording(false);
+      sttController.stop({
+        preference: selectedEngine,
+        onFinal: (result) => {
+          setIsRecording(false);
+          setText(result.transcript);
+          setSttMeta(result);
+        },
+      });
       return;
     }
 
