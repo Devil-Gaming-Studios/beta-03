@@ -17,6 +17,8 @@ The prompt itself contains the behaviour rules. This file covers the plumbing ar
 
 Receipt OCR, fridge scan and Gmail parsing are separate tool-less calls ([../prompts/companion-extractions.txt](../prompts/companion-extractions.txt)) and never run under the agent prompt.
 
+Open question: [02 §3.1](02-voice-and-chat.md) gives dictated recipes their own tool-less extraction call and a checklist screen with per-ingredient Add/Remove, while the agent contract here still carries an `add_recipe` intent. Decide which path owns "add a recipe" and whether `add_recipe` remains reachable from chat; if both exist, they should share one confirm surface or the checklist.
+
 ## Model facts (checked against Google's docs, 30 Oct 2026)
 
 Sources: [models](https://ai.google.dev/gemini-api/docs/models), [Interactions API](https://ai.google.dev/gemini-api/docs/interactions-overview), [structured outputs](https://ai.google.dev/gemini-api/docs/structured-output), [function calling](https://ai.google.dev/gemini-api/docs/function-calling), [Gemini 3 guide](https://ai.google.dev/gemini-api/docs/gemini-3), [changelog](https://ai.google.dev/gemini-api/docs/changelog).
@@ -30,6 +32,15 @@ Sources: [models](https://ai.google.dev/gemini-api/docs/models), [Interactions A
 - Structured outputs are configured with `response_format: {"type": "text", "mime_type": "application/json", "schema": ...}`, and Gemini 3 can combine that with function calling in the same request.
 - Schema subset quirks that matter for our contract: `"type": ["string","null"]` is supported for nullable fields, `additionalProperties` and `enum` are honoured, `minItems`/`maxItems`/`minimum`/`maximum` are enforced, but `minLength`, `maxLength`, `minProperties`, `maxProperties` and `uniqueItems` are stripped without an error. Very branchy or deeply nested schemas can be rejected with `400 INVALID_ARGUMENT`. That is why the schema stays inline and shallow, and why string-length and item-count limits live in code.
 - Read `interaction.output_text` for the JSON. Tool calls arrive as steps with `type: "function_call"` and carry `name` and `arguments`.
+
+## Local testing with llama 3.1
+
+`backend/app.py` runs the same prompt against a local llama 3.1 through Ollama, behind `LLM_PROVIDER=ollama`. Two things that were measured, not assumed:
+
+- Do **not** pass the full schema as Ollama's `format` for this model. Grammar-constrained decoding made llama3.1 8B emit the cheapest valid shape, `proposal: null`, with a chatty message. Plain `format: "json"` plus server-side normalisation (fill omitted keys, then validate with `jsonschema`) produced correct ids, quantities and units. That is why `OLLAMA_FORMAT` defaults to `json`.
+- Latency is 7 to 28 seconds per turn on CPU, so `LLM_TIMEOUT_SECONDS` is 300 and the client shows a spinner.
+
+Expect weaker instruction following than Gemini Flash: the same request can be answered with a proposal one run and a clarifying question the next, and Hindi numerals in Hinglish ("do kilo", "ek litre") are frequently misread. That is a model-size limit, not a prompt bug. The confirm card shows projected stock per item (`1500 → 3500 g`) precisely so a misread quantity is visible before anything is written.
 
 ## Request shape
 

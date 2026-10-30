@@ -21,3 +21,12 @@ build/
 # Uploads / local artifacts
 uploads/
 *.log
+logs/
+
+# Android build output and signed test artifacts
+android/build/
+android/keystore/
+*.apk
+
+# Python bytecode in the test backend
+backend/__pycache__/

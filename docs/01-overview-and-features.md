@@ -1,4 +1,4 @@
-# KitchenSync 01: Overview and Features
+# Mast Meals 01: Overview and Features
 
 **Problem Statement 5.** A phone app that connects the meal plan, recipes and kitchen stock into one loop for Indian households.
 
@@ -83,4 +83,4 @@
 
 ---
 
-**KitchenSync doc series:** 01 Overview and features · 02 Voice and chat · 03 Architecture · 04 Database schema · 05 Security and authorization · 06 Prompt injection defense · 07 Omnirush agent prompts · 08 .env configuration · 09 Constraints and sources
+**Mast Meals doc series:** 01 Overview and features · 02 Voice and chat · 03 Architecture · 04 Database schema · 05 Security and authorization · 06 Prompt injection defense · 07 Omnirush agent prompts · 08 .env configuration · 09 Constraints and sources
