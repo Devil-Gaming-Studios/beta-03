@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
+<meta content="mobile_blank" name="shell-type"/>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+    @layer base {
+      html, body {
+        width: 100vw;
+        margin: 0;
+        padding: 0;
+        background-color: #faf9f6;
+      }
+      body {
+        overscroll-behavior: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
+      .pt-safe { padding-top: env(safe-area-inset-top, 0px); }
+    }
+    ::-webkit-scrollbar { display: none; }
+  </style>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary": "#1a3826",
+            "primary-container": "#244d34",
+            "on-primary": "#ffffff",
+            "secondary": "#3b684a",
+            "surface": "#faf9f6",
+            "surface-card": "#ffffff",
+            "surface-container-low": "#f4f4f0",
+            "surface-container": "#eeeeea",
+            "surface-container-high": "#e8e8e5",
+            "surface-container-highest": "#e2e3df",
+            "on-surface": "#1a1c1a",
+            "on-surface-variant": "#5a625b",
+            "outline": "#727972",
+            "outline-variant": "#d5d8d3",
+            "border-subtle": "#e6e5e0",
+            "sage-wash": "#edf2ee",
+            "sage-tint": "#e8f0ec",
+            "accent-bronze": "#a25922",
+            "dietary-veg": "#137333",
+            "dietary-nonveg": "#9e2a2b"
+          },
+          fontFamily: {
+            sans: ["Noto Sans", "sans-serif"],
+          }
+        }
+      }
+    };
+  </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-surface font-sans text-on-surface flex flex-col min-h-screen pt-safe pb-safe antialiased">
+<main class="flex flex-col relative w-full bg-surface min-h-screen max-w-md mx-auto">
+<div class="flex flex-col w-full pb-8">
+<!-- Top Offline / Synced Status Header -->
+<div class="px-5 pt-4 pb-2 flex items-center justify-between">
+<div class="inline-flex items-center gap-2 bg-[#f0f4f1] border border-border-subtle/80 px-3 py-1.5 rounded-full shadow-xs">
+<span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+<span class="text-[12px] font-medium text-[#2d4838] tracking-tight">Sync Active • सिंक सक्रिय</span>
+</div>
+<span class="text-[11px] text-on-surface-variant tracking-widest uppercase font-bold">KitchenSync</span>
+</div>
+<!-- Onboarding Progress Section -->
+<div class="px-5 pt-2 pb-3">
+<div class="flex items-center justify-between mb-2">
+<span class="text-[13px] text-primary font-bold tracking-tight">Step 2 of 5: खान-पान (Diet) &amp; Setup</span>
+<span class="text-[12px] text-on-surface-variant font-medium">40%</span>
+</div>
+<!-- Progress Track -->
+<div class="w-full h-1.5 bg-[#e5e7e3] rounded-full overflow-hidden">
+<div class="h-full bg-primary rounded-full transition-all duration-500 ease-out" style="width: 40%"></div>
+</div>
+</div>
+<!-- Screen Header Titles -->
+<div class="px-5 mb-4">
+<h1 class="text-[26px] leading-[32px] text-on-surface font-bold tracking-tight">
+          Select Your Diet Preference
+          <span class="block text-[17px] leading-[24px] text-on-surface-variant font-medium mt-0.5">अपनी आहार शैली चुनें</span>
+</h1>
+<div class="mt-3 flex items-start gap-2.5 bg-surface-card border border-border-subtle p-3 rounded-xl shadow-xs">
+<span class="material-symbols-outlined text-primary text-[19px] shrink-0 mt-0.5" style="font-variation-settings: 'FILL' 1;">verified_user</span>
+<p class="text-[12px] text-on-surface-variant leading-relaxed">
+            Strict adherence guarantee. We will never suggest, cross-contaminate, or display kitchen items outside your choice.
+          </p>
+</div>
+</div>
+<!-- Diet Cards Section -->
+<div class="px-5 flex flex-col gap-3 mb-5" id="diet-group">
+<!-- Pure Vegetarian Card (Selected by Default) -->
+<div class="relative p-4 rounded-2xl cursor-pointer transition-all duration-200 bg-surface-card shadow-sm border-[1.5px] border-primary ring-1 ring-primary/20" id="card-veg" onclick="selectDiet('veg')">
+<div class="flex items-start justify-between gap-3">
+<div class="flex items-start gap-3">
+<!-- Official FSSAI Veg Symbol -->
+<div class="w-6 h-6 rounded-md bg-white border border-[#137333] flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+<div class="w-2.5 h-2.5 rounded-full bg-[#137333]"></div>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-2 flex-wrap">
+<span class="text-[16px] text-on-surface font-bold leading-tight">Pure Vegetarian</span>
+<span class="bg-[#e8f0ec] text-[#1a3826] border border-[#d2e2d8] px-2 py-0.5 rounded-full text-[11px] font-semibold">Zero Non-veg</span>
+</div>
+<span class="text-[12px] text-on-surface-variant mt-0.5 font-medium">शुद्ध शाकाहारी • No eggs, fish or meat</span>
+</div>
+</div>
+<!-- Radio Visual -->
+<div class="w-6 h-6 rounded-full bg-primary flex items-center justify-center shrink-0 shadow-xs" id="radio-veg">
+<span class="material-symbols-outlined text-white text-[16px] font-bold">check</span>
+</div>
+</div>
+<!-- Feature Pill Badges -->
+<div class="mt-3 pt-2.5 border-t border-border-subtle/80 flex items-center justify-between">
+<div class="flex items-center gap-2 flex-wrap text-on-surface-variant text-[12px]">
+<span class="inline-flex items-center gap-1 font-medium text-[#2d4838]">
+<span class="material-symbols-outlined text-[15px] text-primary" style="font-variation-settings: 'FILL' 1;">eco</span>
+                Fresh Greens
+              </span>
+<span class="text-[#cfd3ce] font-bold">•</span>
+<span class="inline-flex items-center gap-1 font-medium text-[#2d4838]">
+<span class="material-symbols-outlined text-[15px] text-primary" style="font-variation-settings: 'FILL' 1;">nutrition</span>
+                Paneer &amp; Dal
+              </span>
+<span class="text-[#cfd3ce] font-bold">•</span>
+<span class="inline-flex items-center gap-1 font-medium text-[#2d4838]">
+<span class="material-symbols-outlined text-[15px] text-primary" style="font-variation-settings: 'FILL' 1;">soup_kitchen</span>
+                Pure Ghee
+              </span>
+</div>
+</div>
+</div>
+<!-- Non-Vegetarian Card -->
+<div class="relative p-4 rounded-2xl cursor-pointer transition-all duration-200 bg-surface-card border border-border-subtle shadow-xs opacity-95 hover:border-gray-300" id="card-nonveg" onclick="selectDiet('nonveg')">
+<div class="flex items-start justify-between gap-3">
+<div class="flex items-start gap-3">
+<!-- Official FSSAI Non-Veg Symbol -->
+<div class="w-6 h-6 rounded-md bg-white border border-[#9e2a2b] flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+<div class="w-2.5 h-2.5 rounded-full bg-[#9e2a2b]"></div>
+</div>
+<div class="flex flex-col">
+<div class="flex items-center gap-2 flex-wrap">
+<span class="text-[16px] text-on-surface font-bold leading-tight">Non-Vegetarian</span>
+<span class="bg-[#f2f2ef] text-on-surface-variant border border-border-subtle px-2 py-0.5 rounded-full text-[11px] font-medium">Omnivore</span>
+</div>
+<span class="text-[12px] text-on-surface-variant mt-0.5 font-medium">माँसाहारी • Eggs, Poultry, Fish &amp; Veggies</span>
+</div>
+</div>
+<!-- Radio Visual -->
+<div class="w-6 h-6 rounded-full border border-gray-300 bg-white flex items-center justify-center shrink-0" id="radio-nonveg">
+<span class="w-2 h-2 rounded-full bg-transparent"></span>
+</div>
+</div>
+<!-- Feature Pill Badges -->
+<div class="mt-3 pt-2.5 border-t border-border-subtle/80 flex items-center justify-between">
+<div class="flex items-center gap-2 flex-wrap text-on-surface-variant text-[12px]">
+<span class="inline-flex items-center gap-1">
+<span class="material-symbols-outlined text-[15px] text-accent-bronze" style="font-variation-settings: 'FILL' 1;">egg</span>
+                Farm Eggs
+              </span>
+<span class="text-[#cfd3ce] font-bold">•</span>
+<span class="inline-flex items-center gap-1">
+<span class="material-symbols-outlined text-[15px] text-accent-bronze" style="font-variation-settings: 'FILL' 1;">set_meal</span>
+                Fish &amp; Meat
+              </span>
+<span class="text-[#cfd3ce] font-bold">•</span>
+<span class="inline-flex items-center gap-1">
+<span class="material-symbols-outlined text-[15px] text-accent-bronze" style="font-variation-settings: 'FILL' 1;">restaurant</span>
+                All Veg Dishes
+              </span>
+</div>
+</div>
+</div>
+</div>
+<!-- Beginner Friendly Micro-Learning Toggle -->
+<div class="px-5 mb-5">
+<div class="p-3.5 rounded-2xl bg-surface-card border border-border-subtle transition-all duration-200 cursor-pointer shadow-xs" id="beginner-box" onclick="toggleBeginner()">
+<div class="flex items-start gap-3">
+<div class="w-5 h-5 rounded-md border border-gray-300 bg-white flex items-center justify-center shrink-0 mt-0.5 transition-colors" id="beginner-checkbox">
+<span class="material-symbols-outlined text-white text-[15px] hidden font-bold" id="beginner-check-icon">check</span>
+</div>
+<div class="flex-1">
+<span class="text-[14px] text-on-surface font-semibold block leading-tight">
+                I'm a beginner in cooking
+              </span>
+<span class="text-[12px] text-on-surface-variant font-medium block mt-0.5">
+                मैं खाना बनाना सीख रहा हूँ (शुरुआती स्तर)
+              </span>
+<p class="text-[12px] text-on-surface-variant mt-1.5 leading-relaxed">
+                Unlocks simple 15-min recipes, visual timers, and step-by-step cues explaining techniques like <span class="text-on-surface font-semibold">Tadka (तड़का)</span>, slow sautéing, and simmering.
+              </p>
+</div>
+</div>
+</div>
+</div>
+<!-- Household Setup Selector -->
+<div class="px-5 mb-5">
+<div class="flex items-center justify-between mb-2">
+<div>
+<h2 class="text-[15px] text-on-surface font-bold">Household Profile</h2>
+<span class="text-[12px] text-on-surface-variant font-medium">घर की संरचना चुनें</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant text-[18px]">groups</span>
+</div>
+<!-- Household Option Cards -->
+<div class="flex flex-col gap-2.5" id="household-options">
+<!-- Option 1: Pre-Selected -->
+<div class="p-3.5 rounded-2xl bg-[#f0f5f2] border border-[#cbdcd0] shadow-xs flex items-center justify-between cursor-pointer transition-all" id="house-opt-1" onclick="selectHousehold('house-opt-1')">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-[20px]" style="font-variation-settings: 'FILL' 1;">apartment</span>
+<div>
+<span class="text-[13px] text-on-surface font-bold block leading-tight">Hostel Room (2 friends)</span>
+<span class="text-[12px] text-on-surface-variant">Shared with Divyansh &amp; Rohan</span>
+</div>
+</div>
+<div class="w-5 h-5 rounded-full bg-primary flex items-center justify-center shrink-0 shadow-2xs">
+<span class="w-2 h-2 rounded-full bg-white"></span>
+</div>
+</div>
+<!-- Option 2 -->
+<div class="p-3.5 rounded-2xl bg-surface-card border border-border-subtle shadow-xs flex items-center justify-between cursor-pointer transition-all hover:border-gray-300" id="house-opt-2" onclick="selectHousehold('house-opt-2')">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-on-surface-variant text-[20px]">domain</span>
+<div>
+<span class="text-[13px] text-on-surface font-semibold block leading-tight">Bachelor Flat (3-4 roommates)</span>
+<span class="text-[12px] text-on-surface-variant">Combined pantry tracking</span>
+</div>
+</div>
+<div class="w-5 h-5 rounded-full border border-gray-300 bg-white flex items-center justify-center shrink-0">
+<span class="w-2 h-2 rounded-full bg-transparent"></span>
+</div>
+</div>
+<!-- Option 3 -->
+<div class="p-3.5 rounded-2xl bg-surface-card border border-border-subtle shadow-xs flex items-center justify-between cursor-pointer transition-all hover:border-gray-300" id="house-opt-3" onclick="selectHousehold('house-opt-3')">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-on-surface-variant text-[20px]">cottage</span>
+<div>
+<span class="text-[13px] text-on-surface font-semibold block leading-tight">Family Household</span>
+<span class="text-[12px] text-on-surface-variant">Parents, elders, diverse spice preferences</span>
+</div>
+</div>
+<div class="w-5 h-5 rounded-full border border-gray-300 bg-white flex items-center justify-center shrink-0">
+<span class="w-2 h-2 rounded-full bg-transparent"></span>
+</div>
+</div>
+</div>
+<!-- Multi-Diet Safety Assurance Notice -->
+<div class="mt-3 bg-[#f7f5f0] border border-[#e8e4dc] p-3 rounded-xl flex items-start gap-2.5">
+<span class="material-symbols-outlined text-accent-bronze text-[18px] shrink-0 mt-0.5" style="font-variation-settings: 'FILL' 1;">shield</span>
+<p class="text-[12px] text-[#4b453c] leading-relaxed">
+<strong class="font-bold text-[#2e2b26]">Mutual Respect Guarantee:</strong> Non-veg purchases and meal suggestions will never leak into vegetarian members' recipe feed or stock reminders.
+          </p>
+</div>
+</div>
+<!-- Primary Action Footer -->
+<div class="px-5 pt-1">
+<button class="w-full bg-primary hover:bg-primary-container text-white py-3.5 px-6 rounded-2xl text-[14px] font-bold shadow-sm active:scale-[0.99] transition-all flex items-center justify-center gap-2 text-center" onclick="handleContinue()">
+<span>Continue / आगे बढ़ें</span>
+<span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</button>
+<p class="text-center text-[12px] text-on-surface-variant mt-2.5">
+          You can update dietary filters and spice levels anytime in Kitchen Settings.
+        </p>
+</div>
+</div>
+</main>
+<script>
+    let currentDiet = 'veg';
+    let isBeginner = false;
+
+    function selectDiet(type) {
+      currentDiet = type;
+      const vegCard = document.getElementById('card-veg');
+      const nonvegCard = document.getElementById('card-nonveg');
+      const radioVeg = document.getElementById('radio-veg');
+      const radioNonveg = document.getElementById('radio-nonveg');
+
+      if (type === 'veg') {
+        vegCard.className = "relative p-4 rounded-2xl cursor-pointer transition-all duration-200 bg-surface-card shadow-sm border-[1.5px] border-primary ring-1 ring-primary/20";
+        nonvegCard.className = "relative p-4 rounded-2xl cursor-pointer transition-all duration-200 bg-surface-card border border-border-subtle shadow-xs opacity-95 hover:border-gray-300";
+        radioVeg.className = "w-6 h-6 rounded-full bg-primary flex items-center justify-center shrink-0 shadow-xs";
+        radioVeg.innerHTML = `<span class="material-symbols-outlined text-white text-[16px] font-bold">check</span>`;
+        radioNonveg.className = "w-6 h-6 rounded-full border border-gray-300 bg-white flex items-center justify-center shrink-0";
+        radioNonveg.innerHTML = `<span class="w-2 h-2 rounded-full bg-transparent"></span>`;
+      } else {
+        nonvegCard.className = "relative p-4 rounded-2xl cursor-pointer transition-all duration-200 bg-surface-card shadow-sm border-[1.5px] border-[#9e2a2b] ring-1 ring-[#9e2a2b]/20";
+        vegCard.className = "relative p-4 rounded-2xl cursor-pointer transition-all duration-200 bg-surface-card border border-border-subtle shadow-xs opacity-95 hover:border-gray-300";
+        radioNonveg.className = "w-6 h-6 rounded-full bg-[#9e2a2b] flex items-center justify-center shrink-0 shadow-xs";
+        radioNonveg.innerHTML = `<span class="material-symbols-outlined text-white text-[16px] font-bold">check</span>`;
+        radioVeg.className = "w-6 h-6 rounded-full border border-gray-300 bg-white flex items-center justify-center shrink-0";
+        radioVeg.innerHTML = `<span class="w-2 h-2 rounded-full bg-transparent"></span>`;
+      }
+    }
+
+    function toggleBeginner() {
+      isBeginner = !isBeginner;
+      const checkbox = document.getElementById('beginner-checkbox');
+      const checkIcon = document.getElementById('beginner-check-icon');
+      const container = document.getElementById('beginner-box');
+
+      if (isBeginner) {
+        checkbox.classList.remove('border-gray-300', 'bg-white');
+        checkbox.classList.add('bg-primary', 'border-primary');
+        checkIcon.classList.remove('hidden');
+        container.classList.add('bg-[#f0f5f2]', 'border-[#cbdcd0]');
+        container.classList.remove('bg-surface-card', 'border-border-subtle');
+      } else {
+        checkbox.classList.add('border-gray-300', 'bg-white');
+        checkbox.classList.remove('bg-primary', 'border-primary');
+        checkIcon.classList.add('hidden');
+        container.classList.remove('bg-[#f0f5f2]', 'border-[#cbdcd0]');
+        container.classList.add('bg-surface-card', 'border-border-subtle');
+      }
+    }
+
+    function selectHousehold(id) {
+      const options = ['house-opt-1', 'house-opt-2', 'house-opt-3'];
+      options.forEach(optId => {
+        const el = document.getElementById(optId);
+        const iconCircle = el.querySelector('div:last-child');
+        const leadingIcon = el.querySelector('span:first-child');
+        if (optId === id) {
+          el.className = "p-3.5 rounded-2xl bg-[#f0f5f2] border border-[#cbdcd0] shadow-xs flex items-center justify-between cursor-pointer transition-all";
+          iconCircle.className = "w-5 h-5 rounded-full bg-primary flex items-center justify-center shrink-0 shadow-2xs";
+          iconCircle.innerHTML = `<span class="w-2 h-2 rounded-full bg-white"></span>`;
+          leadingIcon.className = "material-symbols-outlined text-primary text-[20px]";
+        } else {
+          el.className = "p-3.5 rounded-2xl bg-surface-card border border-border-subtle shadow-xs flex items-center justify-between cursor-pointer transition-all hover:border-gray-300";
+          iconCircle.className = "w-5 h-5 rounded-full border border-gray-300 bg-white flex items-center justify-center shrink-0";
+          iconCircle.innerHTML = `<span class="w-2 h-2 rounded-full bg-transparent"></span>`;
+          leadingIcon.className = "material-symbols-outlined text-on-surface-variant text-[20px]";
+        }
+      });
+    }
+
+    function handleContinue() {
+      const btn = document.querySelector('button');
+      btn.innerHTML = `<span class="material-symbols-outlined animate-spin text-[18px]">progress_activity</span><span>Saving Diet Setup...</span>`;
+      setTimeout(() => {
+        btn.innerHTML = `<span>Saved • Setup Complete!</span><span class="material-symbols-outlined text-[18px]">done_all</span>`;
+      }, 600);
+    }
+  </script>
+</body></html>

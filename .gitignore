@@ -5,6 +5,18 @@
 env/*.env
 !env/*.env.example
 
+# Node / Web
+node_modules/
+dist/
+dist-ssr/
+.cache/
+.aistudio/
+*.local
+.DS_Store
+*.tsbuildinfo
+
+
+
 # Python
 __pycache__/
 *.py[cod]

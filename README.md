@@ -1,94 +1,41 @@
-# Mast Meals: Omnirush prompt and env artifacts
+# Mast Meals (React)
 
-Landing for the Omnirush agent spec: the prompts, the JSON contract, and the environment
-templates for the FastAPI backend and the Flutter app.
+Connecting the meal plan, recipes, and kitchen stock into one seamless loop for Indian households, with Omnirush AI assistant.
 
-| Path | What it is |
-|---|---|
-| [prompts/omnirush.system.txt](prompts/omnirush.system.txt) | Agent system prompt. Paste verbatim as `system_instruction`; keep it byte-stable for caching |
-| [prompts/companion-extractions.txt](prompts/companion-extractions.txt) | Tool-less receipt OCR, recipe extraction and Gmail parser prompts |
-| [schemas/omnirush_output.schema.json](schemas/omnirush_output.schema.json) | Strict structured-output schema for the agent's single JSON object |
-| [docs/01-overview-and-features.md](docs/01-overview-and-features.md) | Product scope: the baseline loop and features 2.1 to 2.12 |
-| [docs/omnirush-agent.md](docs/omnirush-agent.md) | Modes, verified `gemini-3-flash-preview` request contract, server enforcement, demo test cases |
-| [.env.example](.env.example) | Backend template: every key, empty values, defaults in comments |
-| [env/flutter.env.example](env/flutter.env.example) | Flutter template: public values only |
-| [.gitignore](.gitignore) | Keeps `.env` and build output out of the repo |
-| [docs/gap-analysis.md](docs/gap-analysis.md) | Audit of the full spec against this repo: built / partial / missing / blocked |
-| [backend/app.py](backend/app.py) | Local test API: auth, plan loop, stock, chat, confirm-only writes, serves the UI at `/` |
-| [backend/db.py](backend/db.py) | SQLite store mirroring the spec's core tables, plus reference seeds |
-| [backend/smoke_test.py](backend/smoke_test.py) | 23 end-to-end checks: auth, isolation, rotation, deduction, shopping list |
-| [android/](android) | WebView shell source + `build.sh` that builds and signs the test APK |
-| [MastMeals-test.apk](MastMeals-test.apk) | Signed debug APK of the test shell (not committed) |
+Rewritten as a React SPA on Vite, preserving the complete baseline loop, data models, design aesthetic, and security principles.
 
-## Doc series
+## Features
 
-| Doc | Landed in |
-|---|---|
-| 01 Overview and features | [docs/01-overview-and-features.md](docs/01-overview-and-features.md) |
-| 02 Voice and chat | [docs/02-voice-and-chat.md](docs/02-voice-and-chat.md) |
-| 03 Architecture | not yet |
-| 04 Database schema | not yet |
-| 05 Security and authorization | not yet |
-| 06 Prompt injection defense | partly: "Server-side enforcement" in [docs/omnirush-agent.md](docs/omnirush-agent.md) |
-| 07 Omnirush agent prompts | [prompts/omnirush.system.txt](prompts/omnirush.system.txt), [prompts/companion-extractions.txt](prompts/companion-extractions.txt), [schemas/omnirush_output.schema.json](schemas/omnirush_output.schema.json), request contract in the agent doc |
-| 08 .env configuration | [.env.example](.env.example), [env/flutter.env.example](env/flutter.env.example) |
-| 09 Constraints and sources | not yet |
+- **Weekly Meal Planner (`Plan` tab)**:
+  - Weekly schedule (breakfast, lunch, dinner) with serving size scaling (1..20 servings).
+  - Shortage alerts: flags missing ingredients for planned meals.
+  - "Mark done": automatically deducts recipe ingredients from stock with duplicate deduction prevention.
+  - "Skip": records skipped meals without stock deduction.
+  - Recipe inspector: displays scaled ingredient requirements, nutrition profiles (calories, protein, carbs, fat, sodium), and diet caution guidance.
 
-A local `.env` was generated with development-only secrets (`JWT_SIGNING_SECRET`,
-`REFRESH_TOKEN_HASH_PEPPER`, `TOKEN_ENCRYPTION_KEYS`). It is gitignored, and the agent
-model is set to `gemini-3-flash-preview`. Provider keys and database URLs are left blank
-until you fill them.
+- **Kitchen Stock Inventory (`Stock` tab)**:
+  - Real-time inventory with base units (`g`, `ml`, `pcs`), storage locations (`pantry`, `fridge`), and shelf-life indicators.
+  - Stock adjustment interface: `add`, `remove`, and `set` operations.
 
-## Local test harness (llama 3.1)
+- **Automated Shopping List (`Shop` tab)**:
+  - Generates shopping list from plan shortages across the scheduled week.
+  - Price comparison estimates (Blinkit, Zepto, Swiggy Instamart) with timestamps.
+  - Swiggy Instamart cart handoff simulation (cart-only per safety spec, no automatic orders).
 
-This is a test harness, not the product app: a FastAPI backend running the real Omnirush prompt
-against local llama 3.1, plus a WebView shell APK that loads its UI. The Flutter client from
-doc 02 is still unbuilt, and Flutter is not installed on this machine.
+- **Omnirush Assistant (`Chat` tab)**:
+  - Multilingual voice/text assistant supporting English, Hindi (Devanagari), and Hinglish (e.g., `"do kilo aloo aur ek litre dahi add kar do"`).
+  - Modes: `chat` (inventory edits), `plan` (weekly meal suggestions), and `cart` (shopping cart proposals).
+  - Strict **confirm-before-write safety**: AI proposals are rendered as interactive cards with projected stock before and after changes.
+  - Injection screening and ingredient verification against canonical reference data.
+
+- **Household Profile & Multi-Tenant Isolation**:
+  - Household settings (refrigerator availability, app language).
+  - Member management with age groups (kids, adults, elderly) and diet cautions (`diabetes`, `frequent upset stomach`, `heart conditions`).
+  - Cross-household isolation testing (Alpha and Beta households).
+
+## Development
 
 ```bash
-pip install -r backend/requirements.txt          # fastapi, uvicorn, httpx, jsonschema
-ollama list                                      # llama3.1:latest must be present
-cd backend && python -m uvicorn app:app --host 0.0.0.0 --port 8000
-bash android/build.sh                            # rebuilds and re-signs the APK
+npm run dev      # Starts dev server on port 3000
+npm run build    # Compiles TypeScript and builds production bundle
 ```
-
-Auth: `POST /auth/dev-login` returns a 15-minute access token and a rotating refresh token;
-the UI signs itself in automatically. Every `/api/*` call needs `Authorization: Bearer <token>`, and
-the household comes from that token, never the request body.
-
-Endpoints: `GET /health`, `GET/POST /api/plan*`, `GET /api/recipes`, `GET /api/stock`,
-`POST /api/stock/adjust`, `GET /api/plan/check`, `POST /api/shopping-list/generate`,
-`GET /api/sync`, `POST /api/chat`, `POST /api/confirm`, UI at `/`. Writes from the model happen
-only from a stored pending action; the model's JSON is never applied directly.
-
-`python smoke_test.py` (from `backend/`, with the server running) exercises auth and the plan loop.
-
-Installing on a phone:
-
-```bash
-adb install -r MastMeals-test.apk       # or copy the file to the device
-```
-
-On first launch the app asks for the backend URL. On the same Wi-Fi use
-`http://<laptop-lan-ip>:8000` (`ipconfig` for the IPv4 address; 10.48.5.48 on this machine at
-the time of writing). Over USB, run `adb reverse tcp:8000 tcp:8000` and enter
-`http://127.0.0.1:8000`. The gear button in the corner reopens the URL dialog.
-
-The APK is signed with a throwaway test keystore (`mastmeals` / `mastmeals`) for sideloading
-only. Test state is in memory: restarting the backend resets stock to the seed values.
-
-## Before deployment
-
-- [x] Every spec B1 key present in `.env.example` with empty values
-- [x] `.env` in `.gitignore`; templates tracked
-- [x] Dev secrets generated (32+ random bytes)
-- [ ] Different secrets for production — re-generate, do not copy the dev `.env`
-- [ ] Create the limited-privilege Postgres app user and point `DATABASE_URL` at it
-- [ ] Get the Swiggy MCP client id approved before filling `SWIGGY_MCP_CLIENT_ID`
-- [ ] Set `APP_ENV=production` and `DOCS_ENABLED=false` for deployment
-- [ ] Rotate keys after any suspected leak
-
-Parameter constraints that bite in practice (details in the docs): the agent runs on
-Gemini's Interactions API, `store` defaults to true there so it must be sent as false,
-`thinking_level` defaults to `high` so it must be set deliberately, and temperature
-should be left at its default rather than tuned.

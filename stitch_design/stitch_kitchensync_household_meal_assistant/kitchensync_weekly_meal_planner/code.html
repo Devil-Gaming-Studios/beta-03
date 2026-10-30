@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+
+<html lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><meta content="mobile_tab" name="shell-type"/><link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{width:100vw;margin:0;padding:0;background-color:#faf9f6;}body{overscroll-behavior:none;-webkit-tap-highlight-color:transparent;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = {
+  darkMode: "class",
+  theme: {
+    extend: {
+      colors: {
+        "surface-bright": "#faf9f6",
+        "outline-variant": "#c2c8c1",
+        "on-primary-fixed-variant": "#2f4d3a",
+        "secondary-container": "#b7e9c3",
+        "secondary-fixed-dim": "#a1d2ad",
+        "surface-container-lowest": "#ffffff",
+        "sage-wash": "#EDF2EE",
+        "on-tertiary": "#ffffff",
+        "background": "#faf9f6",
+        "dietary-veg": "#137333",
+        "surface-container": "#eeeeea",
+        "surface-container-high": "#e8e8e5",
+        "tertiary": "#3b0d00",
+        "error-container": "#ffdad6",
+        "surface-container-highest": "#e2e3df",
+        "inverse-surface": "#2f312f",
+        "surface-dim": "#dadad7",
+        "on-secondary-fixed": "#00210f",
+        "on-tertiary-fixed-variant": "#822801",
+        "on-tertiary-fixed": "#390c00",
+        "canvas-subtle": "#F5F4EF",
+        "inverse-on-surface": "#f1f1ed",
+        "border-strong": "#D5D2C7",
+        "surface-variant": "#e2e3df",
+        "error": "#ba1a1a",
+        "primary-container": "#1a3826",
+        "primary-fixed-dim": "#adcfb5",
+        "surface-tint": "#466550",
+        "on-surface-variant": "#424843",
+        "primary-fixed": "#c8ebd1",
+        "on-secondary": "#ffffff",
+        "on-surface": "#1a1c1a",
+        "secondary-fixed": "#bceec8",
+        "dietary-egg": "#D97706",
+        "surface-card": "#FFFFFF",
+        "on-error": "#ffffff",
+        "on-secondary-container": "#3d6a4c",
+        "on-background": "#1a1c1a",
+        "primary": "#032212",
+        "surface": "#faf9f6",
+        "on-primary-fixed": "#022111",
+        "sage-muted": "#6E8879",
+        "on-primary": "#ffffff",
+        "canvas-base": "#FBFBF9",
+        "on-error-container": "#93000a",
+        "on-tertiary-container": "#ef774d",
+        "inverse-primary": "#adcfb5",
+        "accent-cider": "#B45309",
+        "on-secondary-fixed-variant": "#224f33",
+        "surface-container-low": "#f4f4f0",
+        "secondary": "#3b684a",
+        "on-primary-container": "#81a28a",
+        "tertiary-fixed": "#ffdbcf",
+        "terracotta-soft": "#FBF1ED",
+        "tertiary-fixed-dim": "#ffb59c",
+        "tertiary-container": "#5f1a00",
+        "border-subtle": "#E6E4DD",
+        "outline": "#727972",
+        "dietary-nonveg": "#9E2A2B"
+      },
+      borderRadius: {
+        "DEFAULT": "0.25rem",
+        "lg": "0.5rem",
+        "xl": "0.75rem",
+        "full": "9999px"
+      },
+      spacing: {
+        "space-xl": "2rem",
+        "margin": "1rem",
+        "space-md": "0.75rem",
+        "gutter-tablet": "1.5rem",
+        "space-xs": "0.25rem",
+        "gutter": "1rem",
+        "space-sm": "0.5rem",
+        "margin-desktop": "2.5rem",
+        "space-lg": "1.25rem",
+        "margin-tablet": "1.5rem"
+      },
+      fontFamily: {
+        "headline-sm": ["Noto Sans"],
+        "headline-lg-mobile": ["Noto Sans"],
+        "label-lg": ["Noto Sans"],
+        "label-md": ["Noto Sans"],
+        "label-bilingual": ["Noto Sans"],
+        "body-md": ["Noto Sans"],
+        "headline-md": ["Noto Sans"],
+        "headline-lg": ["Noto Sans"],
+        "body-lg": ["Noto Sans"],
+        "body-sm": ["Noto Sans"],
+        "title-md": ["Noto Sans"]
+      },
+      fontSize: {
+        "headline-sm": ["18px", { "lineHeight": "26px", "fontWeight": "600" }],
+        "headline-lg-mobile": ["26px", { "lineHeight": "34px", "letterSpacing": "-0.015em", "fontWeight": "600" }],
+        "label-lg": ["14px", { "lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "500" }],
+        "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500" }],
+        "label-bilingual": ["12px", { "lineHeight": "18px", "fontWeight": "500" }],
+        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+        "headline-md": ["22px", { "lineHeight": "30px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+        "headline-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "600" }],
+        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+        "body-sm": ["12px", { "lineHeight": "18px", "fontWeight": "400" }],
+        "title-md": ["15px", { "lineHeight": "22px", "fontWeight": "600" }]
+      }
+    }
+  }
+};</script><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head><body class="bg-surface font-body-md text-on-surface flex flex-col min-h-screen selection:bg-secondary-container selection:text-on-secondary-container"><header class="fixed top-0 inset-x-0 z-50 bg-surface/90 backdrop-blur-xl border-b border-border-subtle pt-safe"><div class="h-16 px-margin flex items-center justify-between gap-space-sm"><div class="flex items-center gap-space-sm"><img alt="KitchenSync Logo" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDJTSmI7D5flyHg8j7_KcMP3FhgR0Q6dtlH0V_4_0nMT3ky-qpyB_8czpFrBER4bRsAsttvOONILRI_iwuxgbL3j1wJuoGX0NsgLqg2qQfJ1DTVZzHB40KeJn8Jms-GB2QRWpv_GLeDnZJnf1k_jb_JD0BfPBlHDO81tdtDwUD-0oI1Gyy2ybT_vB1x6Ni_kH10RP_y6rhgfVby0HVcnNROWJgNDYLX1gNpFDzwA-8"/><div class="flex flex-col"><div class="flex items-center gap-1.5"><span class="font-title-md text-title-md text-on-surface tracking-tight leading-none font-semibold">KitchenSync</span><button aria-label="Toggle bilingual English or Hindi" class="min-h-[44px] px-2.5 py-0.5 rounded-full bg-surface-container-high border border-border-subtle text-on-surface font-label-bilingual text-label-bilingual flex items-center justify-center hover:bg-surface-variant transition-colors" type="button"><span class="text-primary-container font-bold">EN</span><span class="text-outline text-[10px] mx-0.5">/</span><span class="text-on-surface-variant font-medium">हिं</span></button></div></div></div><div class="flex items-center gap-space-xs"><div class="hidden sm:flex items-center gap-1 px-2.5 py-1 rounded-full bg-sage-wash border border-border-subtle text-primary-container font-label-md text-label-md"><span class="w-1.5 h-1.5 rounded-full bg-secondary"></span><span>Synced</span></div><button aria-label="Divyansh Profile" class="min-w-[44px] min-h-[44px] flex items-center justify-center p-0.5 rounded-full hover:opacity-90 transition-opacity" type="button"><img alt="Profile" class="w-8 h-8 rounded-full object-cover ring-2 ring-border-strong" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAvWXKJqQoUyHSDnCIHVnIPJaGAsId8KUD21MHq0Z223bcJLiGwxrVQTjwuHcqLu9DUpm-Qf4B3k7T9xj2NVcBW9BQEpTfeQCj8ous3n0dwktB3ynX6zav0uFmxBzhpnqF6A4CtPhJtIzhSpZJ8lnnqWaTsZtaruPM6OJmmmhRhRSETa1IdHJVUfG_U6HyTUcs5qtYM09dKWQfbrO8nie6fqwgrJLqMuRgJe9r3ZPU"/></button></div></div></header><main class="flex flex-col relative w-full pt-16 pb-24 bg-surface min-h-screen"><div class="flex flex-col w-full">
+<!-- AI Suggest Header & Household Bar -->
+<section class="px-margin pt-space-sm pb-space-xs flex flex-col gap-space-sm">
+<div class="flex items-center justify-between gap-space-sm">
+<div class="flex flex-col">
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface tracking-tight">
+          साप्ताहिक भोजन योजना
+        </h1>
+<span class="font-label-bilingual text-label-bilingual text-on-surface-variant">Weekly Meal Planner</span>
+</div>
+<button aria-label="AI मील प्लान बनाएं" class="min-h-[44px] px-3.5 py-1.5 rounded-full bg-primary-container text-surface-container-lowest shadow-sm flex items-center gap-2 active:scale-95 transition-transform border border-primary-container/80" type="button">
+<span class="material-symbols-outlined text-[18px] text-primary-fixed">auto_awesome</span>
+<div class="flex flex-col text-left">
+<span class="font-label-lg text-label-lg leading-tight font-medium text-white">Suggest Week</span>
+<span class="font-label-bilingual text-label-bilingual text-primary-fixed-dim leading-none">AI मील प्लान</span>
+</div>
+</button>
+</div>
+<!-- Household Switcher Strip -->
+<div class="bg-surface-card border border-border-subtle rounded-2xl p-3 flex items-center justify-between shadow-xs">
+<div class="flex items-center gap-2.5 min-w-0">
+<div class="w-9 h-9 rounded-full bg-sage-wash flex items-center justify-center text-primary-container shadow-xs">
+<span class="material-symbols-outlined text-[20px]">apartment</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-1.5">
+<span class="font-title-md text-title-md text-on-surface truncate font-semibold">Hostel Flat 402</span>
+<span class="px-1.5 py-0.5 rounded bg-surface-container text-on-surface-variant font-label-bilingual text-[10px]">2 Diners</span>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface-variant truncate">Divyansh (Veg) &amp; Rohan (Flexi-diet)</span>
+</div>
+</div>
+<button aria-label="Switch household profile" class="min-w-[44px] min-h-[44px] flex items-center justify-center text-on-surface-variant hover:text-on-surface" type="button">
+<span class="material-symbols-outlined text-[20px]">swap_horiz</span>
+</button>
+</div>
+</section>
+<!-- Horizontal 7-Day Calendar Strip -->
+<section class="py-space-sm pl-margin overflow-x-auto no-scrollbar">
+<div aria-label="Weekly schedule calendar days" class="flex items-center gap-2 pr-margin" role="tablist">
+<!-- Mon 21 -->
+<button aria-selected="false" class="flex flex-col items-center justify-center min-w-[54px] py-2 px-1.5 rounded-2xl bg-surface-card border border-border-subtle text-on-surface-variant active:scale-95 transition-all" role="tab" type="button">
+<span class="font-label-bilingual text-label-bilingual opacity-80">सोम / M</span>
+<span class="font-headline-sm text-headline-sm mt-0.5 text-on-surface">21</span>
+<span class="w-1.5 h-1.5 rounded-full bg-sage-muted/50 mt-1"></span>
+</button>
+<!-- Tue 22 -->
+<button aria-selected="false" class="flex flex-col items-center justify-center min-w-[54px] py-2 px-1.5 rounded-2xl bg-surface-card border border-border-subtle text-on-surface-variant active:scale-95 transition-all" role="tab" type="button">
+<span class="font-label-bilingual text-label-bilingual opacity-80">मंगल / T</span>
+<span class="font-headline-sm text-headline-sm mt-0.5 text-on-surface">22</span>
+<span class="w-1.5 h-1.5 rounded-full bg-sage-muted/50 mt-1"></span>
+</button>
+<!-- Wed 23 -->
+<button aria-selected="false" class="flex flex-col items-center justify-center min-w-[54px] py-2 px-1.5 rounded-2xl bg-surface-card border border-border-subtle text-on-surface-variant active:scale-95 transition-all" role="tab" type="button">
+<span class="font-label-bilingual text-label-bilingual opacity-80">बुध / W</span>
+<span class="font-headline-sm text-headline-sm mt-0.5 text-on-surface">23</span>
+<span class="w-1.5 h-1.5 rounded-full bg-accent-cider/60 mt-1"></span>
+</button>
+<!-- Thu 24 - Today Active -->
+<button aria-selected="true" class="flex flex-col items-center justify-center min-w-[62px] py-2.5 px-2 rounded-2xl bg-primary-container text-white shadow-sm active:scale-95 transition-all ring-1 ring-primary-container" role="tab" type="button">
+<span class="font-label-bilingual text-label-bilingual text-primary-fixed font-medium">आज • Thu</span>
+<span class="font-headline-md text-headline-md leading-none mt-0.5 text-white">24</span>
+<div class="flex items-center gap-1 mt-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary-fixed"></span>
+<span class="w-1.5 h-1.5 rounded-full bg-secondary-container"></span>
+</div>
+</button>
+<!-- Fri 25 -->
+<button aria-selected="false" class="flex flex-col items-center justify-center min-w-[54px] py-2 px-1.5 rounded-2xl bg-surface-card border border-border-subtle text-on-surface-variant active:scale-95 transition-all" role="tab" type="button">
+<span class="font-label-bilingual text-label-bilingual opacity-80">शुक्र / F</span>
+<span class="font-headline-sm text-headline-sm mt-0.5 text-on-surface">25</span>
+<span class="w-1.5 h-1.5 rounded-full bg-sage-muted/50 mt-1"></span>
+</button>
+<!-- Sat 26 -->
+<button aria-selected="false" class="flex flex-col items-center justify-center min-w-[54px] py-2 px-1.5 rounded-2xl bg-surface-card border border-border-subtle text-on-surface-variant active:scale-95 transition-all" role="tab" type="button">
+<span class="font-label-bilingual text-label-bilingual opacity-80">शनि / S</span>
+<span class="font-headline-sm text-headline-sm mt-0.5 text-on-surface">26</span>
+<span class="w-1.5 h-1.5 rounded-full bg-border-strong mt-1"></span>
+</button>
+<!-- Sun 27 -->
+<button aria-selected="false" class="flex flex-col items-center justify-center min-w-[54px] py-2 px-1.5 rounded-2xl bg-surface-card border border-border-subtle text-on-surface-variant active:scale-95 transition-all" role="tab" type="button">
+<span class="font-label-bilingual text-label-bilingual opacity-80">रवि / S</span>
+<span class="font-headline-sm text-headline-sm mt-0.5 text-on-surface">27</span>
+<span class="w-1.5 h-1.5 rounded-full bg-border-strong mt-1"></span>
+</button>
+</div>
+</section>
+<!-- Day Macro Progress / Nutrition Banner -->
+<section class="px-margin py-space-xs">
+<div class="bg-surface-card border border-border-subtle rounded-2xl p-3.5 flex items-center justify-between gap-3 shadow-xs">
+<div class="flex items-center gap-3">
+<div class="relative w-11 h-11 flex items-center justify-center">
+<svg class="w-11 h-11 -rotate-90" viewbox="0 0 36 36">
+<path class="text-surface-container" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-width="3"></path>
+<path class="text-secondary" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" stroke="currentColor" stroke-dasharray="78, 100" stroke-linecap="round" stroke-width="3"></path>
+</svg>
+<span class="absolute font-label-bilingual text-label-bilingual font-semibold text-on-surface">78%</span>
+</div>
+<div class="flex flex-col">
+<span class="font-title-md text-title-md text-on-surface font-semibold">Thursday Target: 68g Protein</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">52g planned today • High legume &amp; egg balance</span>
+</div>
+</div>
+<span class="px-2.5 py-1 rounded-full bg-sage-wash text-secondary font-label-bilingual text-label-bilingual border border-border-subtle">संतुलित आहार</span>
+</div>
+</section>
+<!-- 3-Slot Meal Schedule Cards -->
+<section class="px-margin py-space-sm flex flex-col gap-3.5">
+<!-- 1. BREAKFAST CARD -->
+<article class="bg-surface-card border border-border-subtle rounded-2xl p-3.5 shadow-xs flex flex-col gap-3">
+<div class="flex items-start justify-between gap-2">
+<div class="flex items-center gap-2">
+<span class="px-2.5 py-1 rounded-md bg-canvas-subtle text-on-surface-variant font-label-md text-label-md uppercase tracking-wider border border-border-subtle">
+            नाश्ता • 08:30 AM
+          </span>
+<!-- FSSAI Green Veg Indicator -->
+<div class="w-4 h-4 rounded-[3px] bg-surface-container-lowest flex items-center justify-center p-[2px] shadow-2xs" style="box-shadow: inset 0 0 0 1.5px #137333;" title="Vegetarian">
+<div class="w-2 h-2 rounded-full" style="background-color: #137333;"></div>
+</div>
+</div>
+<!-- Stock OK Badge -->
+<div class="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-sage-wash text-secondary font-label-bilingual text-label-bilingual border border-border-subtle">
+<span class="material-symbols-outlined text-[14px]">check_circle</span>
+<span>Stock OK</span>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<div class="w-16 h-16 rounded-xl overflow-hidden shrink-0 bg-surface-container border border-border-subtle">
+<img class="w-full h-full object-cover" data-alt="Golden crisp sprouted moong chilla savory pancake garnished with fresh green coriander leaves and grated paneer on a modern stoneware plate in warm morning kitchen light." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBAVh7nvBcsMSIKDRaXFFqFdsl3NuXM42quvVpSto5lO9fjtXfGOiCmBzvXzDfURgoF8_vCvSiV6HSia-NzcbbVNzt6oIl7W9wf1lAZzLhus6QcFw-DY2Z6bAg3IritzvmHkJL9zuSDBAjalmNRceodN2EFkCsSQlzReXiaKl8cVHtnkMWyeDnV2cNLxc5cuqRvlXurm9Woe4DvVnSSI8N7zJ67GHxAdmk6HEwP-t0"/>
+</div>
+<div class="flex flex-col min-w-0 flex-1">
+<h2 class="font-title-md text-title-md text-on-surface truncate font-semibold">Sprouted Moong Chilla</h2>
+<span class="font-label-bilingual text-label-bilingual text-on-surface-variant">मूंग दाल चीला व हरी चटनी</span>
+<div class="flex items-center gap-2 mt-1">
+<span class="px-2 py-0.5 rounded-full bg-sage-wash text-secondary font-label-md text-label-md border border-border-subtle">
+              18g Protein
+            </span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Shared prep</span>
+</div>
+</div>
+</div>
+<div class="bg-canvas-subtle rounded-xl px-3 py-2 flex items-center justify-between border border-border-subtle">
+<div class="flex items-center gap-1.5">
+<span class="font-body-sm text-body-sm text-on-surface-variant">Diners:</span>
+<div class="flex -space-x-1.5 items-center">
+<div class="w-6 h-6 rounded-full bg-primary-container text-white flex items-center justify-center font-label-bilingual text-[10px] ring-2 ring-surface-container-lowest">
+              D
+            </div>
+<div class="w-6 h-6 rounded-full bg-secondary text-white flex items-center justify-center font-label-bilingual text-[10px] ring-2 ring-surface-container-lowest">
+              R
+            </div>
+</div>
+<span class="font-label-bilingual text-label-bilingual text-on-surface ml-1 font-medium">Divyansh + Rohan</span>
+</div>
+<button class="min-h-[44px] min-w-[44px] flex items-center justify-center text-primary-container font-label-bilingual text-label-bilingual hover:opacity-80 font-medium" type="button">
+<span>Edit</span>
+<span class="material-symbols-outlined text-[16px]">chevron_right</span>
+</button>
+</div>
+</article>
+<!-- 2. LUNCH CARD (Mixed Diet Feature: Green Veg Base + Non-Veg Addon for Rohan) -->
+<article class="bg-surface-card border border-border-subtle rounded-2xl p-3.5 shadow-xs flex flex-col gap-3 relative overflow-hidden">
+<div class="flex items-start justify-between gap-2 pt-0.5">
+<div class="flex items-center gap-2">
+<span class="px-2.5 py-1 rounded-md bg-canvas-subtle text-on-surface-variant font-label-md text-label-md uppercase tracking-wider border border-border-subtle">
+            दोपहर भोजन • 01:15 PM
+          </span>
+<!-- FSSAI Green Veg Indicator for the base meal -->
+<div class="w-4 h-4 rounded-[3px] bg-surface-container-lowest flex items-center justify-center p-[2px]" style="box-shadow: inset 0 0 0 1.5px #137333;" title="Vegetarian Base">
+<div class="w-2 h-2 rounded-full" style="background-color: #137333;"></div>
+</div>
+</div>
+<span class="px-2.5 py-0.5 rounded-full bg-sage-wash text-secondary font-label-bilingual text-label-bilingual flex items-center gap-1 border border-border-subtle">
+<span class="material-symbols-outlined text-[14px]">done_all</span> Ready to cook
+</span>
+</div>
+<div class="flex items-center gap-3">
+<div class="w-16 h-16 rounded-xl overflow-hidden shrink-0 bg-surface-container border border-border-subtle">
+<img class="w-full h-full object-cover" data-alt="A steaming clay bowl of authentic North Indian Punjabi rajma masala with fragrant cumin basmati rice, accompanied by sliced onions and fresh lemon wedges, shot in natural domestic daylight." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAFcRMX3PoOloNYvB-Qk4FdADAyUPPvur9EiYD7b0CgPTaFMlZZdqk1g7VmW7URd-JIFy6-JS8cOYBSwZ1wmd6daZjlkwG3UnHIiTs7ma11kmRFLCaVRb2qCrnmNBZjjOaroRYA4QKxFb78rBqJ-N2jRHK8ziCAwEiO7DfnojYwKFFAWtSQ0WuJUk6WlWSfp5QvMPZWvb1S98Wqk9gXpfsAoFsVWjEsCX-9p7VNg5o"/>
+</div>
+<div class="flex flex-col min-w-0 flex-1">
+<div class="flex items-center gap-1.5">
+<h2 class="font-title-md text-title-md text-on-surface truncate font-semibold">Home-style Rajma Chawal</h2>
+</div>
+<span class="font-label-bilingual text-label-bilingual text-on-surface-variant">राजमा चावल (Veg Base for both)</span>
+<div class="flex items-center gap-2 mt-1">
+<span class="px-2 py-0.5 rounded-full bg-sage-wash text-secondary font-label-md text-label-md border border-border-subtle">
+              24g Protein
+            </span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Shared Masala Base</span>
+</div>
+</div>
+</div>
+<!-- Mixed Diet Sub-Card: Non-veg add-on note -->
+<div class="bg-terracotta-soft border border-border-subtle rounded-xl p-2.5 flex items-center justify-between gap-2">
+<div class="flex items-center gap-2 min-w-0">
+<!-- FSSAI Non-Veg Indicator -->
+<div class="w-4 h-4 rounded-[3px] bg-surface-container-lowest flex items-center justify-center p-[2px] shrink-0" style="box-shadow: inset 0 0 0 1.5px #9E2A2B;" title="Non-Vegetarian Add-on">
+<div class="w-2 h-2 rounded-full" style="background-color: #9E2A2B;"></div>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-1.5 flex-wrap">
+<span class="font-label-lg text-label-lg text-on-surface font-medium">Boiled Eggs (2 pcs)</span>
+<span class="px-2 py-0.5 rounded-full bg-surface-card text-accent-cider font-label-bilingual text-[10px] border border-border-subtle font-medium">Rohan Only</span>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface-variant truncate">अलग बर्तन में उबाले जाएंगे • Boiled in separate kettle</span>
+</div>
+</div>
+<span class="font-label-md text-label-md text-accent-cider font-semibold shrink-0">+12g Pro</span>
+</div>
+<!-- Diners Participation Bar -->
+<div class="flex items-center justify-between pt-1">
+<div class="flex items-center gap-2">
+<div class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-canvas-subtle border border-border-subtle text-on-surface font-label-bilingual text-label-bilingual">
+<span class="w-2 h-2 rounded-full bg-primary-container"></span>
+<span>Divyansh (Veg Base + Dahi)</span>
+</div>
+<div class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-canvas-subtle border border-border-subtle text-on-surface font-label-bilingual text-label-bilingual">
+<span class="w-2 h-2 rounded-full bg-secondary"></span>
+<span>Rohan (+Eggs)</span>
+</div>
+</div>
+</div>
+</article>
+<!-- 3. DINNER CARD (Missing Ingredient Alert) -->
+<article class="bg-surface-card border border-border-subtle rounded-2xl p-3.5 shadow-xs flex flex-col gap-3">
+<div class="flex items-start justify-between gap-2">
+<div class="flex items-center gap-2">
+<span class="px-2.5 py-1 rounded-md bg-canvas-subtle text-on-surface-variant font-label-md text-label-md uppercase tracking-wider border border-border-subtle">
+            रात का खाना • 08:45 PM
+          </span>
+<!-- FSSAI Green Veg Indicator -->
+<div class="w-4 h-4 rounded-[3px] bg-surface-container-lowest flex items-center justify-center p-[2px]" style="box-shadow: inset 0 0 0 1.5px #137333;" title="Vegetarian">
+<div class="w-2 h-2 rounded-full" style="background-color: #137333;"></div>
+</div>
+</div>
+<!-- Missing Stock Pill Warning (Muted Terracotta / Rose Tint) -->
+<div class="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#FFF1EC] text-[#9A3412] border border-[#F5D5C8] font-label-bilingual text-label-bilingual">
+<span class="material-symbols-outlined text-[14px]">production_quantity_limits</span>
+<span>1 सामान कम है</span>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<div class="w-16 h-16 rounded-xl overflow-hidden shrink-0 bg-surface-container border border-border-subtle">
+<img class="w-full h-full object-cover" data-alt="Traditional Indian aloo gobi sabzi with fresh ginger juliennes and hot puffed whole wheat phulkas in a brass tiffin katori, rustic kitchen background." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAStHgI9CL8ZC_rc6y0c7mo3zNwvAQNzNj3zjbQHSqPJeewBPoN03tinqL5bDYuAYDklJeEP9psQuUz5teg0EAoQFs8-sfcUYa_lh_MXRxAcTEFzEtCR_KCDVbFp9ZIt1fdbKrkBcSgM6U6_rTCTQgAIwMVzPgOWLgWJ_ajxpoLTCv42KqdcTSh5Aldi_9AhvCgWOStSQpEQS9bnGsAwsUc9eabqLDHNgpnD15oETs"/>
+</div>
+<div class="flex flex-col min-w-0 flex-1">
+<h2 class="font-title-md text-title-md text-on-surface truncate font-semibold">Aloo Gobi &amp; Phulka</h2>
+<span class="font-label-bilingual text-label-bilingual text-on-surface-variant">आलू गोभी की सूखी सब्जी व फुल्के</span>
+<div class="flex items-center gap-2 mt-1">
+<span class="px-2 py-0.5 rounded-full bg-canvas-subtle text-on-surface font-label-md text-label-md border border-border-subtle">
+              14g Protein
+            </span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Shared 2 Diners</span>
+</div>
+</div>
+</div>
+<!-- Missing Item Quick Action Box (Subtle Warm Tint) -->
+<div class="bg-[#FFF8F5] border border-[#F5D5C8] rounded-xl p-2.5 flex items-center justify-between gap-2">
+<div class="flex items-center gap-2 min-w-0">
+<span class="material-symbols-outlined text-[#9A3412] text-[18px]">shopping_basket</span>
+<div class="flex flex-col min-w-0">
+<span class="font-label-lg text-label-lg text-[#9A3412] truncate font-medium">Missing: 250g Paneer (पनीर)</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Needed for protein supplement</span>
+</div>
+</div>
+<button aria-label="Add missing paneer to grocery cart" class="min-h-[44px] px-3 py-1.5 rounded-lg bg-surface-card border border-border-subtle text-primary-container font-label-bilingual text-label-bilingual flex items-center gap-1 active:scale-95 transition-transform font-medium" type="button">
+<span class="material-symbols-outlined text-[16px]">add_shopping_cart</span>
+<span>Add to cart</span>
+</button>
+</div>
+</article>
+</section>
+<!-- Meal Action Drawer / Sheet Preview -->
+<section class="mt-space-sm px-margin pb-space-lg">
+<div class="bg-surface-card border border-border-subtle rounded-3xl p-4 shadow-sm flex flex-col gap-3.5">
+<!-- Drawer Pull Handle / Header -->
+<div class="flex flex-col items-center gap-1.5 cursor-pointer">
+<div class="w-10 h-1 bg-border-strong rounded-full"></div>
+<div class="w-full flex items-center justify-between pt-1">
+<div class="flex items-center gap-2">
+<span class="w-2.5 h-2.5 rounded-full bg-secondary"></span>
+<span class="font-title-md text-title-md text-on-surface font-semibold">Cooking Now: Lunch (दोपहर का खाना)</span>
+</div>
+<span class="font-label-bilingual text-label-bilingual text-on-surface-variant">Live Cook Mode</span>
+</div>
+</div>
+<!-- Servings Stepper & Diners Selection Grid -->
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+<!-- Servings Stepper -->
+<div class="bg-canvas-subtle border border-border-subtle rounded-2xl p-2.5 flex items-center justify-between">
+<div class="flex flex-col pl-1">
+<span class="font-label-md text-label-md text-on-surface-variant">Servings</span>
+<span class="font-label-bilingual text-label-bilingual text-on-surface font-medium">खुराक / हिस्से</span>
+</div>
+<div class="flex items-center gap-1 bg-surface-card rounded-xl p-1 border border-border-subtle">
+<button aria-label="Decrease servings" class="w-11 h-11 flex items-center justify-center rounded-lg bg-canvas-subtle text-on-surface active:scale-95 transition-transform" type="button">
+<span class="material-symbols-outlined text-[20px]">remove</span>
+</button>
+<span class="min-w-[48px] text-center font-headline-sm text-headline-sm text-on-surface">2</span>
+<button aria-label="Increase servings" class="w-11 h-11 flex items-center justify-center rounded-lg bg-canvas-subtle text-on-surface active:scale-95 transition-transform" type="button">
+<span class="material-symbols-outlined text-[20px]">add</span>
+</button>
+</div>
+</div>
+<!-- Diners Checkboxes Selector -->
+<div class="bg-canvas-subtle border border-border-subtle rounded-2xl p-2.5 flex items-center justify-between gap-2">
+<!-- Divyansh Toggle -->
+<label class="flex-1 flex items-center gap-2 p-1.5 rounded-xl bg-surface-card border border-border-subtle cursor-pointer">
+<input checked="" class="w-4 h-4 rounded text-primary-container focus:ring-0 accent-primary-container cursor-pointer" type="checkbox"/>
+<div class="flex flex-col min-w-0">
+<span class="font-label-lg text-label-lg text-on-surface truncate font-medium">Divyansh</span>
+<span class="font-body-sm text-[10px] text-primary-container font-semibold">Veg Only</span>
+</div>
+</label>
+<!-- Rohan Toggle -->
+<label class="flex-1 flex items-center gap-2 p-1.5 rounded-xl bg-surface-card border border-border-subtle cursor-pointer">
+<input checked="" class="w-4 h-4 rounded text-secondary focus:ring-0 accent-secondary cursor-pointer" type="checkbox"/>
+<div class="flex flex-col min-w-0">
+<span class="font-label-lg text-label-lg text-on-surface truncate font-medium">Rohan</span>
+<span class="font-body-sm text-[10px] text-secondary font-semibold">+2 Eggs</span>
+</div>
+</label>
+</div>
+</div>
+<!-- Deduction Preview Note -->
+<div class="bg-sage-wash border border-border-subtle rounded-xl p-3 flex items-start gap-2.5 text-on-surface-variant">
+<span class="material-symbols-outlined text-primary-container text-[20px] shrink-0 mt-0.5">inventory</span>
+<div class="flex flex-col text-left min-w-0">
+<span class="font-label-bilingual text-label-bilingual text-on-surface font-semibold">
+            स्टॉक कटौती पूर्वावलोकन (Stock Auto-deduct on cook):
+          </span>
+<span class="font-body-sm text-body-sm text-on-surface-variant mt-0.5">
+            Deducts <strong class="text-on-surface font-semibold">200g Rajma</strong> from Shared Stock, <strong class="text-on-surface font-semibold">1 katori Dahi</strong> from Divyansh's pantry, and <strong class="text-on-surface font-semibold">2 Eggs</strong> from Rohan's personal rack.
+          </span>
+</div>
+</div>
+<!-- Big Primary Cook Action CTA -->
+<button aria-label="खाना बन गया / Mark meal as cooked" class="w-full min-h-[52px] py-3.5 px-4 rounded-2xl bg-primary-container text-white font-label-lg text-label-lg shadow-sm flex items-center justify-center gap-2 active:scale-98 transition-transform border border-primary-container" type="button">
+<span class="material-symbols-outlined text-[24px]">task_alt</span>
+<div class="flex items-center gap-1.5">
+<span class="tracking-wide font-medium">Mark as Cooked</span>
+<span class="opacity-80">•</span>
+<span class="font-label-bilingual text-label-bilingual font-semibold">खाना बन गया</span>
+</div>
+</button>
+</div>
+</section>
+</div></main><nav class="fixed bottom-0 inset-x-0 z-50 pb-safe bg-surface/90 backdrop-blur-xl border-t border-border-subtle" data-active-classes="text-primary-container font-semibold [&amp;_span.indicator]:scale-100 [&amp;_span.indicator]:bg-sage-wash"><div class="flex justify-around items-center h-20 px-2 max-w-lg mx-auto relative"><a class="group flex flex-col items-center justify-center min-w-[56px] min-h-[48px] py-1 text-on-surface-variant hover:text-on-surface transition-all" data-path="home" href="#"><span class="indicator w-12 h-7 rounded-full flex items-center justify-center transition-all duration-200"><span class="material-symbols-outlined text-[24px]">cottage</span></span><span class="font-label-bilingual text-label-bilingual mt-0.5 text-center leading-tight">होम<span class="block text-[10px] opacity-75">Home</span></span></a><a aria-current="page" class="group flex flex-col items-center justify-center min-w-[56px] min-h-[48px] py-1 transition-all text-primary-container font-semibold [&amp;_span.indicator]:scale-100 [&amp;_span.indicator]:bg-sage-wash" data-path="meal-planner" href="#"><span class="indicator w-12 h-7 rounded-full flex items-center justify-center transition-all duration-200"><span class="material-symbols-outlined text-[24px]">calendar_month</span></span><span class="font-label-bilingual text-label-bilingual mt-0.5 text-center leading-tight">प्लानर<span class="block text-[10px] opacity-75">Plan</span></span></a><div class="flex flex-col items-center justify-center -mt-6"><a aria-label="बोलें / Ask AI Voice Action" class="flex flex-col items-center justify-center w-14 h-14 rounded-full bg-primary-container text-white shadow-md shadow-primary-container/20 ring-4 ring-surface active:scale-95 transition-transform" data-path="voice-ask-ai" href="#"><span class="material-symbols-outlined text-[28px] text-white">mic</span></a><span class="font-label-bilingual text-label-bilingual text-on-surface font-medium mt-1">बोलें AI</span></div><a class="group flex flex-col items-center justify-center min-w-[56px] min-h-[48px] py-1 text-on-surface-variant hover:text-on-surface transition-all" data-path="pantry-stock" href="#"><span class="indicator w-12 h-7 rounded-full flex items-center justify-center transition-all duration-200"><span class="material-symbols-outlined text-[24px]">kitchen</span></span><span class="font-label-bilingual text-label-bilingual mt-0.5 text-center leading-tight">स्टॉक<span class="block text-[10px] opacity-75">Stock</span></span></a><a class="group flex flex-col items-center justify-center min-w-[56px] min-h-[48px] py-1 text-on-surface-variant hover:text-on-surface transition-all" data-path="household-settings" href="#"><span class="indicator w-12 h-7 rounded-full flex items-center justify-center transition-all duration-200"><span class="material-symbols-outlined text-[24px]">group</span></span><span class="font-label-bilingual text-label-bilingual mt-0.5 text-center leading-tight">घर &amp; सेटिंग्स<span class="block text-[10px] opacity-75">House</span></span></a></div><div class="w-full flex justify-center pb-1"><div class="w-32 h-1 bg-border-strong rounded-full"></div></div></nav></body></html>
