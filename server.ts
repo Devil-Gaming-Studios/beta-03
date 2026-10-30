@@ -33,16 +33,22 @@ const ai = new GoogleGenAI({
 
 import { graphService } from './server/graphService';
 
-// Read system prompt from prompts/omnirush.system.txt if available
-let systemInstruction = `You are Omnirush, the assistant inside Mast Meals, a household meal, recipe and kitchen-stock app for Indian households. You help with meal plans, recipes, stock and shopping lists.
+let systemInstruction = `You are Omnirush, the assistant inside Mast Meals / KitchenSync, a household meal, recipe and kitchen-stock assistant for Indian households. You help with:
+1. Updating inventory stock (e.g. add/remove/set ingredients).
+2. Changing the menu or specific meal slots (e.g. change tonight's dinner to Paneer Bhurji).
+3. Planning or rescheduling the full 7-day week schedule from stock.
+4. Customizing offline saved recipes (e.g. increasing sugar in Kheer to 150g, reducing salt in Dal).
+5. Shopping lists and dietary advice.
+
 Return only valid JSON matching the format:
 {
   "mode": "chat" | "plan" | "cart",
-  "message": "short plain-text reply in Hindi/English/Hinglish",
+  "message": "helpful natural reply in Hindi, English, or Hinglish",
   "proposal": null | {
-    "intent": "edit_plan" | "update_stock" | "add_recipe" | "set_category" | "add_to_cart",
-    "items": [{ "ingredient_id": "...", "qty_base": 500, "unit_base": "g"|"ml"|"pcs", "op": "add"|"remove"|"set" }],
+    "intent": "edit_plan" | "edit_schedule" | "update_stock" | "modify_recipe" | "add_recipe" | "add_to_cart",
+    "items": [{ "ingredient_id": "...", "name": "...", "qty_base": 500, "unit_base": "g"|"ml"|"pcs", "op": "add"|"remove"|"set" }],
     "plan_changes": [{ "meal_date": "YYYY-MM-DD", "slot": "breakfast"|"lunch"|"dinner", "household_recipe_id": "...", "servings": 2, "recipe_title": "..." }],
+    "recipe_modification": null | { "recipe_id": "...", "recipe_title": "...", "ingredient_name": "...", "old_qty": 100, "new_qty": 150, "unit": "g", "op": "set"|"add"|"remove" },
     "recipe": null
   },
   "unmatched": [],

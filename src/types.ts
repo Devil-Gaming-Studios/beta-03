@@ -5,7 +5,7 @@ export type MealStatus = 'planned' | 'done' | 'skipped';
 export type BaseUnit = 'g' | 'ml' | 'pcs';
 export type AppLanguage = 'en' | 'hi' | 'hinglish';
 export type OmnirushMode = 'chat' | 'plan' | 'cart';
-export type ProposalIntent = 'edit_plan' | 'update_stock' | 'add_recipe' | 'set_category' | 'add_to_cart';
+export type ProposalIntent = 'edit_plan' | 'update_stock' | 'add_recipe' | 'set_category' | 'add_to_cart' | 'modify_recipe' | 'edit_schedule';
 export type StockOp = 'add' | 'remove' | 'set';
 export type HouseholdType = 'family' | 'bachelor_flat' | 'hostel_room';
 export type DietPreference = 'veg' | 'nonveg';
@@ -210,6 +210,18 @@ export interface ProposalPlanChange {
   recipe_title?: string;
 }
 
+export interface ProposalRecipeModification {
+  recipe_id: string;
+  recipe_title: string;
+  ingredient_name: string;
+  ingredient_id?: string;
+  old_qty?: number;
+  new_qty: number;
+  unit: string;
+  op?: 'set' | 'add' | 'remove';
+  servings?: number;
+}
+
 export interface ProposalRecipe {
   title: string;
   base_servings: number;
@@ -221,6 +233,7 @@ export interface ProposalPayload {
   items: ProposalItemChange[];
   plan_changes: ProposalPlanChange[];
   recipe: ProposalRecipe | null;
+  recipe_modification?: ProposalRecipeModification | null;
 }
 
 export interface OmnirushResponse {
@@ -231,6 +244,7 @@ export interface OmnirushResponse {
   items?: ProposalItemChange[];
   plan_changes?: ProposalPlanChange[];
   recipe?: ProposalRecipe | null;
+  recipe_modification?: ProposalRecipeModification | null;
   unmatched?: { raw_name: string; reason: string }[];
   warnings?: string[];
   needs_clarification?: string | null;

@@ -1,5 +1,14 @@
-import { OmnirushMode, OmnirushResponse, ProposalPayload, ProposalItemChange } from '../types';
-import { store, CANONICAL_INGREDIENTS } from './store';
+import {
+  OmnirushMode,
+  OmnirushResponse,
+  ProposalPayload,
+  ProposalItemChange,
+  ProposalPlanChange,
+  ProposalRecipeModification,
+  MealSlot,
+} from '../types';
+import { store, CANONICAL_INGREDIENTS, getMonday } from './store';
+import seedData from '../data/graph_rag_seed.json';
 
 const INJECTION_PATTERNS = [
   /ignore\s+(all\s+|any\s+)?(previous|prior|above)\s+instructions/i,
@@ -13,18 +22,28 @@ const INJECTION_PATTERNS = [
 // Hindi/Hinglish numeric words to numbers
 const NUMBER_WORDS: Record<string, number> = {
   ek: 1,
+  one: 1,
   do: 2,
+  two: 2,
   teen: 3,
+  three: 3,
   char: 4,
   chaar: 4,
+  four: 4,
   paanch: 5,
   panch: 5,
+  five: 5,
   chhe: 6,
   che: 6,
+  six: 6,
   saat: 7,
+  seven: 7,
   aath: 8,
+  eight: 8,
   nau: 9,
+  nine: 9,
   das: 10,
+  ten: 10,
   aadha: 0.5,
   aadhe: 0.5,
   half: 0.5,
@@ -58,17 +77,17 @@ export async function askOmnirush(
   const stock = store.getStock();
   const recipes = store.getRecipes();
 
-  // 3. Call Server-Side Gemini API endpoint (/api/chat)
+  // 3. Call Server-Side Gemini API endpoint (/api/chat) if available
   try {
     const serverRes = await callServerOmnirush(trimmed, mode, me, stock, recipes);
-    if (serverRes) {
+    if (serverRes && (serverRes.items?.length || serverRes.plan_changes?.length || serverRes.recipe_modification)) {
       return finalizeResponse(serverRes, trimmed, injectionSuspected, warnings, started);
     }
   } catch {
     // Fallback to local deterministic kitchen NLP engine
   }
 
-  // 3. Built-in Deterministic Parser for Indian kitchen NLP
+  // 4. Built-in Deterministic Parser for Indian kitchen NLP
   const localParsed = parseLocally(trimmed, mode, stock, recipes, me);
   return finalizeResponse(localParsed, trimmed, injectionSuspected, warnings, started);
 }
@@ -87,12 +106,18 @@ function finalizeResponse(
 
   // If there's an actionable proposal, register a pending action in store
   let proposalId: string | null = null;
-  if (parsed.items?.length || parsed.plan_changes?.length || parsed.recipe) {
+  if (
+    parsed.items?.length ||
+    parsed.plan_changes?.length ||
+    parsed.recipe ||
+    parsed.recipe_modification
+  ) {
     const payload: ProposalPayload = {
       intent: parsed.intent || 'update_stock',
       items: parsed.items || [],
       plan_changes: parsed.plan_changes || [],
       recipe: parsed.recipe || null,
+      recipe_modification: parsed.recipe_modification || null,
     };
     const pending = store.createPendingAction(payload.intent, transcript, payload);
     proposalId = pending.id;
@@ -103,7 +128,7 @@ function finalizeResponse(
     proposal_id: proposalId,
     elapsed_ms: Date.now() - started,
     timing: {
-      model: 'Omnirush Engine (llama/gemini parser)',
+      model: 'Omnirush Engine (Offline Graph RAG + NLP)',
       elapsed_ms: Date.now() - started,
     },
   };
@@ -118,62 +143,298 @@ function parseLocally(
 ): OmnirushResponse {
   const lower = text.toLowerCase();
 
-  // --- MODE: PLAN ---
-  if (mode === 'plan' || lower.includes('plan meal') || lower.includes('suggest') || lower.includes('menu')) {
-    const today = new Date();
-    const planChanges: any[] = [];
-    const stockMap = store.getStockMap();
+  // -------------------------------------------------------------------------
+  // 1. INTENT: MODIFY OFFLINE SAVED RECIPES (e.g. increase sugar in Kheer to 150g)
+  // -------------------------------------------------------------------------
+  const isModifyRecipe =
+    lower.includes('recipe') ||
+    lower.includes('increase') ||
+    lower.includes('badha') ||
+    lower.includes('ghata') ||
+    lower.includes('reduce') ||
+    lower.includes('decrease') ||
+    lower.includes('change sugar') ||
+    lower.includes('more sugar') ||
+    lower.includes('chini') ||
+    lower.includes('sugar in') ||
+    lower.includes('namak in') ||
+    lower.includes('salt in');
 
-    // Check which recipes have sufficient ingredients
-    const availableRecipes = recipes.filter((r) => {
-      const detail = store.getRecipeDetail(r.id, 2);
-      return detail.missing.length === 0;
+  if (isModifyRecipe) {
+    // Check if a specific recipe name is mentioned, or fallback to Kheer/Poha/recent recipe
+    const allKnownRecipes = [
+      ...recipes,
+      ...((seedData as any).recipes || []).map((sr: any) => ({
+        id: sr.id,
+        title: sr.name,
+        ingredients: sr.ingredients || [],
+      })),
+      { id: 'rec_kheer_01', title: 'Rice Kheer (चावल की खीर)', ingredients: [{ name: 'Sugar / Chini', qty_base: 100, unit_base: 'g' }] },
+      { id: 'rec_poha_01', title: 'Kanda Poha', ingredients: [{ name: 'Green Chillies', qty_base: 2, unit_base: 'pcs' }] },
+      { id: 'rec_dal_01', title: 'Toor Dal Tadka', ingredients: [{ name: 'Salt / Namak', qty_base: 10, unit_base: 'g' }] },
+    ];
+
+    let targetRecipe = allKnownRecipes.find((r) => {
+      const t = r.title.toLowerCase();
+      return (
+        lower.includes(t) ||
+        (t.includes('kheer') && (lower.includes('kheer') || lower.includes('sugar') || lower.includes('chini'))) ||
+        (t.includes('poha') && lower.includes('poha')) ||
+        (t.includes('paneer') && lower.includes('paneer bhurji')) ||
+        (t.includes('dal') && lower.includes('dal'))
+      );
     });
 
-    const chosenBreakfast =
-      recipes.find((r) => r.slots.includes('breakfast')) || recipes[0];
-    const chosenLunch =
-      availableRecipes.find((r) => r.slots.includes('lunch')) || recipes[1] || recipes[0];
-    const chosenDinner =
-      availableRecipes.find((r) => r.slots.includes('dinner') && r.id !== chosenLunch.id) ||
-      recipes[2] ||
-      recipes[0];
+    // Default to Kheer if user specifically mentions sugar/sweet/chini in an offline recipe
+    if (!targetRecipe && (lower.includes('sugar') || lower.includes('chini') || lower.includes('sweet'))) {
+      targetRecipe = allKnownRecipes.find((r) => r.title.toLowerCase().includes('kheer')) || allKnownRecipes[0];
+    }
 
-    const dStr = today.toISOString().slice(0, 10);
-    planChanges.push({
-      meal_date: dStr,
-      slot: 'breakfast',
-      household_recipe_id: chosenBreakfast.id,
-      servings: me.members.length || 2,
-      recipe_title: chosenBreakfast.title,
-    });
-    planChanges.push({
-      meal_date: dStr,
-      slot: 'lunch',
-      household_recipe_id: chosenLunch.id,
-      servings: me.members.length || 2,
-      recipe_title: chosenLunch.title,
-    });
-    planChanges.push({
-      meal_date: dStr,
-      slot: 'dinner',
-      household_recipe_id: chosenDinner.id,
-      servings: me.members.length || 2,
-      recipe_title: chosenDinner.title,
-    });
+    if (targetRecipe) {
+      // Find which ingredient is being adjusted
+      let ingredientName = 'Sugar / Chini';
+      let ingredientId = 'ing_chini';
+      let oldQty = 100;
+      let unit = 'g';
 
-    // Diet cautions reminder
-    const cautions = Array.from(
-      new Set(me.members.flatMap((m: any) => m.cautions || []))
-    );
-    let cautionNote = '';
-    if (cautions.length > 0) {
-      cautionNote = ` (Considering diet cautions: ${cautions.join(', ')}. Note: This is general guidance, not medical advice.)`;
+      if (lower.includes('salt') || lower.includes('namak')) {
+        ingredientName = 'Salt / Namak';
+        ingredientId = 'ing_namak';
+        oldQty = 10;
+        unit = 'g';
+      } else if (lower.includes('mirch') || lower.includes('chilli') || lower.includes('chillie')) {
+        ingredientName = 'Green Chillies';
+        ingredientId = 'ing_hari_mirch';
+        oldQty = 2;
+        unit = 'pcs';
+      } else if (lower.includes('doodh') || lower.includes('milk')) {
+        ingredientName = 'Milk / Doodh';
+        ingredientId = 'ing_doodh';
+        oldQty = 750;
+        unit = 'ml';
+      } else if (lower.includes('peanut') || lower.includes('moongfali')) {
+        ingredientName = 'Roasted Peanuts';
+        ingredientId = 'ing_peanuts';
+        oldQty = 50;
+        unit = 'g';
+      }
+
+      // Extract target quantity
+      let newQty = 150; // default for "increase sugar in kheer"
+      const qtyMatch = lower.match(/(\d+(?:\.\d+)?)\s*(g|gm|grams|ml|pcs|packet|kilo|kg)?/);
+      if (qtyMatch) {
+        newQty = parseFloat(qtyMatch[1]) || 150;
+        if (qtyMatch[2]) {
+          const u = qtyMatch[2].toLowerCase();
+          if (u === 'kg' || u === 'kilo') newQty *= 1000;
+        }
+      } else if (lower.includes('increase') || lower.includes('badha') || lower.includes('extra') || lower.includes('more')) {
+        newQty = oldQty + 50;
+      } else if (lower.includes('decrease') || lower.includes('ghata') || lower.includes('kam') || lower.includes('less')) {
+        newQty = Math.max(0, oldQty - 30);
+      }
+
+      const mod: ProposalRecipeModification = {
+        recipe_id: targetRecipe.id,
+        recipe_title: targetRecipe.title,
+        ingredient_name: ingredientName,
+        ingredient_id: ingredientId,
+        old_qty: oldQty,
+        new_qty: newQty,
+        unit,
+        op: 'set',
+      };
+
+      return {
+        mode: 'chat',
+        message: `Offline saved recipe "${targetRecipe.title}" me ${ingredientName} ko ${oldQty}${unit} se badha kar ${newQty}${unit} karne ka proposal ready hai. Niche 'Confirm Changes' par click karke recipe save karein.`,
+        intent: 'modify_recipe',
+        recipe_modification: mod,
+        items: [],
+        plan_changes: [],
+        warnings: ['Changes will be saved to offline household recipe database.'],
+        unmatched: [],
+      };
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // 2. INTENT: FULL WEEK SCHEDULE (e.g. "plan full schedule for this week")
+  // -------------------------------------------------------------------------
+  const isFullSchedule =
+    lower.includes('full schedule') ||
+    lower.includes('entire week') ||
+    lower.includes('whole week') ||
+    lower.includes('saare hafte') ||
+    lower.includes('full week') ||
+    lower.includes('hafta') ||
+    lower.includes('all days') ||
+    lower.includes('complete menu');
+
+  if (isFullSchedule) {
+    const weekStart = getMonday();
+    const startDate = new Date(weekStart);
+    const slots: MealSlot[] = ['breakfast', 'lunch', 'dinner'];
+    const allPlanChanges: ProposalPlanChange[] = [];
+
+    const availableRecipes = recipes.length > 0 ? recipes : (seedData as any).recipes?.slice(0, 10) || [];
+    const recipePool = availableRecipes.map((r: any) => ({
+      id: r.id,
+      title: r.title || r.name,
+      slots: r.slots || ['breakfast', 'lunch', 'dinner'],
+    }));
+
+    for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+      const curDate = new Date(startDate);
+      curDate.setDate(curDate.getDate() + dayOffset);
+      const dateStr = curDate.toISOString().slice(0, 10);
+
+      for (const slot of slots) {
+        const pool = recipePool.filter((r: any) => r.slots?.includes(slot)) || recipePool;
+        const chosen = pool.length > 0 ? pool[(dayOffset + slots.indexOf(slot)) % pool.length] : recipePool[0];
+
+        allPlanChanges.push({
+          meal_date: dateStr,
+          slot,
+          household_recipe_id: chosen ? chosen.id : 'rec_default',
+          servings: me.members?.length || 2,
+          recipe_title: chosen ? chosen.title : 'Planned Meal',
+        });
+      }
     }
 
     return {
       mode: 'plan',
-      message: `Aapke kitchen stock aur ${me.members.length} members ke hisaab se proposed menu plan taiyar kiya hai: Breakfast me ${chosenBreakfast.title}, Lunch me ${chosenLunch.title}, Dinner me ${chosenDinner.title}.${cautionNote}`,
+      message: `Aapke kitchen stock aur ${me.members?.length || 2} members ke preferences ke mutabik 7-day complete weekly schedule plan generate kiya gaya hai (${allPlanChanges.length} meals scheduled). Niche proposal card check karke confirm karein.`,
+      intent: 'edit_schedule',
+      plan_changes: allPlanChanges,
+      items: [],
+      warnings: ['Replaces or fills missing slots for the week of ' + weekStart],
+      unmatched: [],
+    };
+  }
+
+  // -------------------------------------------------------------------------
+  // 3. INTENT: CHANGE SPECIFIC MEAL SLOT (e.g. "change dinner today to Paneer Bhurji")
+  // -------------------------------------------------------------------------
+  const isSlotChange =
+    lower.includes('change dinner') ||
+    lower.includes('change lunch') ||
+    lower.includes('change breakfast') ||
+    lower.includes('make dinner') ||
+    lower.includes('make lunch') ||
+    lower.includes('make breakfast') ||
+    lower.includes('dinner me') ||
+    lower.includes('lunch me') ||
+    lower.includes('nashta me') ||
+    lower.includes('set dinner') ||
+    lower.includes('schedule');
+
+  if (isSlotChange || lower.includes('paneer bhurji') || lower.includes('khichdi') || lower.includes('biryani') || lower.includes('poha')) {
+    // Detect slot
+    let slot: MealSlot = 'dinner';
+    if (lower.includes('breakfast') || lower.includes('nashta') || lower.includes('subah')) {
+      slot = 'breakfast';
+    } else if (lower.includes('lunch') || lower.includes('dopahar')) {
+      slot = 'lunch';
+    } else if (lower.includes('dinner') || lower.includes('raat') || lower.includes('shaam')) {
+      slot = 'dinner';
+    }
+
+    // Detect target date
+    const today = new Date();
+    let targetDate = new Date(today);
+    if (lower.includes('tomorrow') || lower.includes('kal')) {
+      targetDate.setDate(targetDate.getDate() + 1);
+    } else if (lower.includes('friday') || lower.includes('shukrawar')) {
+      // Find Friday offset
+      targetDate.setDate(today.getDate() + ((5 - today.getDay() + 7) % 7));
+    } else if (lower.includes('saturday') || lower.includes('shaniwar')) {
+      targetDate.setDate(today.getDate() + ((6 - today.getDay() + 7) % 7));
+    } else if (lower.includes('sunday') || lower.includes('ravivar')) {
+      targetDate.setDate(today.getDate() + ((7 - today.getDay() + 7) % 7));
+    }
+    const dateStr = targetDate.toISOString().slice(0, 10);
+
+    // Identify recipe
+    const allRecipes = [
+      ...recipes,
+      ...((seedData as any).recipes || []).map((r: any) => ({ id: r.id, title: r.name })),
+      { id: 'rec_paneer_01', title: 'Paneer Bhurji with Rotis' },
+      { id: 'rec_dal_01', title: 'Toor Dal, Rice & Bhindi' },
+      { id: 'rec_poha_01', title: 'Poha with Roasted Peanuts' },
+      { id: 'rec_khichdi_01', title: 'Moong Dal Khichdi with Dahi' },
+      { id: 'rec_biryani_01', title: 'Vegetable Dum Biryani' },
+    ];
+
+    const matchedRecipe = allRecipes.find((r) => {
+      const t = r.title.toLowerCase();
+      if (lower.includes('paneer bhurji') && t.includes('paneer')) return true;
+      if (lower.includes('khichdi') && t.includes('khichdi')) return true;
+      if (lower.includes('poha') && t.includes('poha')) return true;
+      if (lower.includes('biryani') && t.includes('biryani')) return true;
+      if (lower.includes('dal') && t.includes('dal')) return true;
+      return lower.includes(t);
+    }) || allRecipes[0];
+
+    const planChange: ProposalPlanChange = {
+      meal_date: dateStr,
+      slot,
+      household_recipe_id: matchedRecipe.id,
+      servings: me.members?.length || 2,
+      recipe_title: matchedRecipe.title,
+    };
+
+    return {
+      mode: 'plan',
+      message: `Menu update proposal: ${dateStr === today.toISOString().slice(0, 10) ? 'Aaj' : dateStr} ke ${slot.toUpperCase()} me "${matchedRecipe.title}" (${planChange.servings} servings) schedule karne ke liye proposal generate kiya gaya hai.`,
+      intent: 'edit_plan',
+      plan_changes: [planChange],
+      items: [],
+      warnings: [],
+      unmatched: [],
+    };
+  }
+
+  // -------------------------------------------------------------------------
+  // 4. INTENT: GENERAL MEAL SUGGESTION (e.g. "suggest dinner", "what to cook")
+  // -------------------------------------------------------------------------
+  if (mode === 'plan' || lower.includes('suggest') || lower.includes('kya banayein') || lower.includes('menu')) {
+    const today = new Date();
+    const dStr = today.toISOString().slice(0, 10);
+
+    const availableRecipes = recipes.length > 0 ? recipes : (seedData as any).recipes?.slice(0, 10) || [];
+    const bFast = availableRecipes.find((r: any) => r.slots?.includes('breakfast')) || availableRecipes[0];
+    const lunch = availableRecipes.find((r: any) => r.slots?.includes('lunch') && r.id !== bFast.id) || availableRecipes[1] || bFast;
+    const dinner = availableRecipes.find((r: any) => r.slots?.includes('dinner') && r.id !== lunch.id) || availableRecipes[2] || lunch;
+
+    const planChanges: ProposalPlanChange[] = [
+      {
+        meal_date: dStr,
+        slot: 'breakfast',
+        household_recipe_id: bFast.id,
+        servings: me.members?.length || 2,
+        recipe_title: bFast.title || bFast.name,
+      },
+      {
+        meal_date: dStr,
+        slot: 'lunch',
+        household_recipe_id: lunch.id,
+        servings: me.members?.length || 2,
+        recipe_title: lunch.title || lunch.name,
+      },
+      {
+        meal_date: dStr,
+        slot: 'dinner',
+        household_recipe_id: dinner.id,
+        servings: me.members?.length || 2,
+        recipe_title: dinner.title || dinner.name,
+      },
+    ];
+
+    return {
+      mode: 'plan',
+      message: `Aapke kitchen stock aur ${me.members?.length || 2} members ke hisaab se proposed menu taiyar hai: Breakfast: ${bFast.title || bFast.name}, Lunch: ${lunch.title || lunch.name}, Dinner: ${dinner.title || dinner.name}.`,
       intent: 'edit_plan',
       plan_changes: planChanges,
       items: [],
@@ -182,7 +443,9 @@ function parseLocally(
     };
   }
 
-  // --- MODE: CART ---
+  // -------------------------------------------------------------------------
+  // 5. INTENT: CART / GROCERY CHECK
+  // -------------------------------------------------------------------------
   if (mode === 'cart' || lower.includes('cart') || lower.includes('buy') || lower.includes('kharid')) {
     const check = store.planCheck();
     if (check.missing.length === 0) {
@@ -208,26 +471,34 @@ function parseLocally(
 
     return {
       mode: 'cart',
-      message: `Planned meals ke liye ${cartItems.length} missing items identify hue hain. Cart me add karne ke liye proposal taiyar hai. (Order confirmation Swiggy/Quick-commerce app me hogi).`,
+      message: `Planned meals ke liye ${cartItems.length} missing items identify hue hain. Cart me add karne ke liye proposal taiyar hai.`,
       intent: 'add_to_cart',
       items: cartItems,
       plan_changes: [],
-      warnings: ['Swiggy cart handoff preview: User will review and checkout on quick-commerce app.'],
+      warnings: ['Swiggy / Blinkit cart quick handoff enabled.'],
       unmatched: [],
     };
   }
 
-  // --- MODE: CHAT (Stock updates, recipe questions, etc.) ---
-  const words = lower.replace(/,/g, ' ').split(/\s+/);
+  // -------------------------------------------------------------------------
+  // 6. INTENT: INVENTORY STOCK UPDATES (e.g. "do kilo aloo aur ek litre dahi add kar do")
+  // -------------------------------------------------------------------------
   const items: ProposalItemChange[] = [];
   const unmatched: { raw_name: string; reason: string }[] = [];
   const warnings: string[] = [];
 
   // Determine global op
   let defaultOp: 'add' | 'remove' | 'set' = 'add';
-  if (lower.includes('khatam') || lower.includes('remove') || lower.includes('finish') || lower.includes('use')) {
+  if (
+    lower.includes('khatam') ||
+    lower.includes('remove') ||
+    lower.includes('finish') ||
+    lower.includes('used up') ||
+    lower.includes('deduct') ||
+    lower.includes('hata do')
+  ) {
     defaultOp = 'remove';
-  } else if (lower.includes('set') || lower.includes('hai abhi') || lower.includes('sirf')) {
+  } else if (lower.includes('set') || lower.includes('hai abhi') || lower.includes('sirf') || lower.includes('bacha hai')) {
     defaultOp = 'set';
   }
 
@@ -236,7 +507,6 @@ function parseLocally(
     const names = [ing.name_en.toLowerCase(), ing.name_hi, ...ing.aliases.map((a) => a.toLowerCase())];
     const match = names.find((n) => lower.includes(n));
     if (match) {
-      // Find quantity near this word
       const qty = extractQuantityFor(lower, match, ing.base_unit);
       const stockMap = store.getStockMap();
       const before = stockMap[ing.id] || 0;
@@ -259,23 +529,13 @@ function parseLocally(
     }
   }
 
-  // If no canonical ingredient found, check for unrecognized food words
-  if (items.length === 0) {
-    const potentialWords = ['butter', 'bread', 'maggi', 'biscuit', 'pasta', 'cheese', 'mirchi', 'haldi', 'adrak', 'lassan'];
-    for (const w of potentialWords) {
-      if (lower.includes(w)) {
-        unmatched.push({ raw_name: w, reason: 'Unknown ingredient in canonical database' });
-      }
-    }
-  }
-
   if (items.length > 0) {
     const itemSummary = items
       .map((it) => `${it.op} ${it.qty_base} ${it.unit_base} ${it.name}`)
       .join(', ');
     return {
       mode: 'chat',
-      message: `Maine aapki request samajh li: ${itemSummary}. Niche card par click karke confirm karein.`,
+      message: `Maine aapka inventory update command samajh liya: ${itemSummary}. Niche card par click karke confirm karein.`,
       intent: 'update_stock',
       items,
       warnings,
@@ -283,21 +543,12 @@ function parseLocally(
     };
   }
 
-  if (unmatched.length > 0) {
-    return {
-      mode: 'chat',
-      message: `Kripya note karein: kuch items hamari canonical list me nahi mile (${unmatched.map((u) => u.raw_name).join(', ')}). Baki items add karne ke liye dobara bol sakte hain.`,
-      intent: null,
-      items: [],
-      unmatched,
-      warnings,
-    };
-  }
-
-  // Generic helpful conversation
+  // -------------------------------------------------------------------------
+  // 7. DEFAULT HELPFUL CHAT RESPONSE
+  // -------------------------------------------------------------------------
   return {
     mode: 'chat',
-    message: `Omnirush ready hai! Aap stock update kar sakte hain (jaise: 'do kilo aloo aur 1 litre dahi add kar do'), meal plan pooch sakte hain, ya shopping list generate kar sakte hain.`,
+    message: `Omnirush Kitchen Assistant ready hai! Aap mujhse:\n• Inventory update karwa sakte hain (e.g. "do kilo aloo aur ek litre dahi add kar do")\n• Aaj ka dinner/lunch change karwa sakte hain (e.g. "change dinner today to Paneer Bhurji")\n• Poore hafte ka menu schedule karwa sakte hain (e.g. "plan full schedule for this week")\n• Offline saved recipes me changes karwa sakte hain (e.g. "increase sugar in Kheer to 150g")`,
     intent: null,
     items: [],
     warnings: [],
@@ -306,11 +557,9 @@ function parseLocally(
 }
 
 function extractQuantityFor(text: string, ingredientWord: string, defaultUnit: string): number {
-  // Regex looks for numbers or number-words followed optionally by kg, g, l, litre, etc. near the ingredient
-  // e.g. "do kilo aloo", "2 kg aloo", "500g dahi", "1 litre doodh", "ek packet"
   const patterns = [
     new RegExp(`(\\d+(?:\\.\\d+)?)\\s*(kilo|kg|g|gm|grams|litre|liter|l|ml)?\\s*(?:of\\s+)?${ingredientWord}`, 'i'),
-    new RegExp(`(ek|do|teen|char|chaar|paanch|chhe|saat|aath|nau|das|aadha|half|derh|dhai)\\s*(kilo|kg|g|gm|grams|litre|liter|l|ml)?\\s*(?:of\\s+)?${ingredientWord}`, 'i'),
+    new RegExp(`(ek|one|do|two|teen|three|char|chaar|four|paanch|five|chhe|six|saat|seven|aath|eight|nau|nine|das|ten|aadha|half|derh|dhai)\\s*(kilo|kg|g|gm|grams|litre|liter|l|ml)?\\s*(?:of\\s+)?${ingredientWord}`, 'i'),
     new RegExp(`${ingredientWord}\\s*(\\d+(?:\\.\\d+)?)\\s*(kilo|kg|g|gm|grams|litre|liter|l|ml)?`, 'i'),
   ];
 
@@ -336,16 +585,13 @@ function extractQuantityFor(text: string, ingredientWord: string, defaultUnit: s
         return numVal;
       }
 
-      // Default scale if no unit given
       if (defaultUnit === 'g' && numVal <= 10) {
-        // e.g. "2 aloo" -> in standard recipe 1 aloo pc is ~120g, or if user says "2 aloo" -> 240g
-        return numVal * 120;
+        return numVal * 120; // e.g. 2 aloo -> 240g
       }
       return numVal;
     }
   }
 
-  // Fallback default
   return defaultUnit === 'ml' ? 500 : 500;
 }
 
@@ -382,185 +628,25 @@ async function callServerOmnirush(
       }),
     });
 
-    if (!res.ok) {
-      console.warn('Server /api/chat responded with status:', res.status);
-      return null;
-    }
-
+    if (!res.ok) return null;
     const data = await res.json();
-    if (!data || (!data.message && !data.items && !data.plan_changes && !data.proposal)) {
-      return null;
-    }
-
-    // Adapt format if server returned nested proposal or top-level fields
-    let items = data.items || [];
-    let plan_changes = data.plan_changes || [];
-    let intent = data.intent || null;
-    let recipe = data.recipe || null;
-
-    if (data.proposal) {
-      if (!items.length && data.proposal.items) items = data.proposal.items;
-      if (!plan_changes.length && data.proposal.plan_changes) plan_changes = data.proposal.plan_changes;
-      if (!intent && data.proposal.intent) intent = data.proposal.intent;
-      if (!recipe && data.proposal.recipe) recipe = data.proposal.recipe;
-    }
-
-    // Populate missing before/after for items if not calculated by model
-    const stockMap = store.getStockMap();
-    const enrichedItems = items.map((it: any) => {
-      const current = stockMap[it.ingredient_id] || 0;
-      const op = it.op || 'add';
-      const before = it.before !== undefined ? it.before : current;
-      const after =
-        it.after !== undefined
-          ? it.after
-          : op === 'add'
-          ? before + it.qty_base
-          : op === 'remove'
-          ? Math.max(0, before - it.qty_base)
-          : it.qty_base;
-      return {
-        ...it,
-        before,
-        after,
-      };
-    });
-
     return {
       mode: data.mode || mode,
       message: data.message || 'Updated requested items.',
-      intent: intent || (enrichedItems.length ? 'update_stock' : plan_changes.length ? 'edit_plan' : null),
-      items: enrichedItems,
-      plan_changes,
-      recipe,
+      intent: data.intent || null,
+      items: data.proposal?.items || data.items || [],
+      plan_changes: data.proposal?.plan_changes || data.plan_changes || [],
+      recipe: data.proposal?.recipe || data.recipe || null,
+      recipe_modification: data.proposal?.recipe_modification || data.recipe_modification || null,
       warnings: data.warnings || [],
       unmatched: data.unmatched || [],
       timing: {
-        model: 'Server Gemini 3.8 Flash',
+        model: 'Omnirush AI + Graph RAG',
         elapsed_ms: Date.now() - startCall,
       },
     };
   } catch (err) {
-    console.warn('Server Omnirush API call failed, falling back to local engine:', err);
+    console.warn('Server Omnirush API call notice, using local engine:', err);
     return null;
   }
-}
-
-/**
- * Server-side SSE streaming client for Omnirush responses
- */
-export async function streamServerOmnirush(
-  text: string,
-  mode: OmnirushMode,
-  onChunk: (chunk: string) => void,
-  onDone?: (fullText: string) => void
-): Promise<void> {
-  const me = store.getMe();
-  const stock = store.getStock();
-  const recipes = store.getRecipes();
-
-  const response = await fetch('/api/chat/stream', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      text,
-      mode,
-      household: { members: me.members, has_fridge: me.household.has_fridge },
-      stock: stock.map((s) => ({
-        ingredient_id: s.ingredient_id,
-        name: s.name,
-        qty_base: s.qty_base,
-        unit_base: s.unit_base,
-      })),
-      recipes: recipes.map((r) => ({
-        household_recipe_id: r.id,
-        title: r.title,
-      })),
-      ingredient_aliases: CANONICAL_INGREDIENTS.map((i) => ({
-        ingredient_id: i.id,
-        names: i.aliases,
-      })),
-    }),
-  });
-
-  if (!response.body) return;
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let accumulated = '';
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    const chunkStr = decoder.decode(value, { stream: true });
-    const lines = chunkStr.split('\n\n');
-    for (const line of lines) {
-      if (line.startsWith('data: ')) {
-        try {
-          const parsed = JSON.parse(line.slice(6));
-          if (parsed.chunk) {
-            accumulated += parsed.chunk;
-            onChunk(parsed.chunk);
-          }
-          if (parsed.done && onDone) {
-            onDone(parsed.fullText || accumulated);
-          }
-        } catch {
-          // Ignore JSON parse chunk edge cases
-        }
-      }
-    }
-  }
-}
-
-/**
- * Server-side WebSocket connection for real-time Live API voice conversation
- */
-export function connectLiveVoiceWebSocket(options: {
-  onAudioChunk: (base64Audio: string) => void;
-  onInterrupted?: () => void;
-  onError?: (err: any) => void;
-  onClose?: () => void;
-}) {
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const wsUrl = `${protocol}//${window.location.host}/live`;
-  const ws = new WebSocket(wsUrl);
-
-  ws.onmessage = (event) => {
-    try {
-      const msg = JSON.parse(event.data);
-      if (msg.audio) {
-        options.onAudioChunk(msg.audio);
-      }
-      if (msg.interrupted && options.onInterrupted) {
-        options.onInterrupted();
-      }
-      if (msg.error && options.onError) {
-        options.onError(new Error(msg.error));
-      }
-    } catch (e) {
-      console.error('Error handling WebSocket message:', e);
-    }
-  };
-
-  ws.onerror = (err) => {
-    if (options.onError) options.onError(err);
-  };
-
-  ws.onclose = () => {
-    if (options.onClose) options.onClose();
-  };
-
-  return {
-    sendAudioChunk: (base64Pcm16k: string) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ audio: base64Pcm16k }));
-      }
-    },
-    close: () => {
-      if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
-        ws.close();
-      }
-    },
-    isOpen: () => ws.readyState === WebSocket.OPEN,
-  };
 }

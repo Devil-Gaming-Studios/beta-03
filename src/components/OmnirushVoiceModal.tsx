@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { askOmnirush } from '../services/omnirush';
 import { store } from '../services/store';
 import { OmnirushResponse } from '../types';
@@ -8,6 +8,15 @@ import {
   STTResult,
   transcribeWithRouting,
 } from '../services/sttService';
+
+interface ChatMessage {
+  id: string;
+  sender: 'user' | 'assistant';
+  text: string;
+  time: string;
+  reply?: OmnirushResponse;
+  confirmed?: boolean;
+}
 
 interface OmnirushVoiceModalProps {
   isOpen: boolean;
@@ -34,9 +43,22 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
   const [micNotice, setMicNotice] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(false);
-  const [reply, setReply] = useState<OmnirushResponse | null>(null);
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      id: 'msg_welcome',
+      sender: 'assistant',
+      text: 'Namaste! Main Omnirush hoon. Main aapki kitchen inventory update kar sakta hoon, aaj ka menu ya poore hafte ka schedule plan kar sakta hoon, aur offline recipes me changes kar sakta hoon (jaise Kheer me chini badhana).',
+      time: 'Just now',
+    },
+  ]);
   const [error, setError] = useState<string | null>(null);
   const [confirmStatus, setConfirmStatus] = useState<string | null>(null);
+
+  const chatBottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isRecording, loading]);
 
   useEffect(() => {
     if (autoStart) {
@@ -119,10 +141,25 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
     setError(null);
     setLoading(true);
 
+    const userMsg: ChatMessage = {
+      id: 'msg_' + Date.now(),
+      sender: 'user',
+      text: q,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+    setMessages((prev) => [...prev, userMsg]);
+    setInput('');
+
     try {
       const res = await askOmnirush(q, 'chat');
-      setReply(res);
-      setInput('');
+      const assistantMsg: ChatMessage = {
+        id: 'msg_bot_' + Date.now(),
+        sender: 'assistant',
+        text: res.message,
+        reply: res,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+      setMessages((prev) => [...prev, assistantMsg]);
       setSttMeta(null);
     } catch (err: any) {
       setError(err.message || 'Error communicating with Omnirush');
@@ -131,42 +168,56 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
     }
   };
 
-  const handleConfirm = () => {
-    if (!reply?.proposal_id) return;
+  const handleConfirmMessageProposal = (msgId: string, reply: OmnirushResponse) => {
+    if (!reply.proposal_id) return;
     try {
-      store.confirmProposal(reply.proposal_id);
-      setConfirmStatus('Changes successfully applied to kitchen stock & plan!');
+      const res = store.confirmProposal(reply.proposal_id);
+      let successText = 'Changes successfully confirmed and saved to your offline database!';
+
+      if (res.recipe_modification) {
+        successText = `✅ Offline Recipe Saved: ${res.recipe_modification.ingredient_name} in "${res.recipe_modification.recipe_title}" updated from ${res.recipe_modification.old_qty}${res.recipe_modification.unit} to ${res.recipe_modification.new_qty}${res.recipe_modification.unit}!`;
+      } else if (reply.intent === 'edit_schedule') {
+        successText = `✅ Full Weekly Schedule Saved: ${reply.plan_changes?.length || 7} meal slots updated in your planner!`;
+      } else if (reply.intent === 'edit_plan') {
+        const first = reply.plan_changes?.[0];
+        successText = `✅ Meal Plan Updated: ${first?.slot?.toUpperCase()} on ${first?.meal_date} changed to "${first?.recipe_title}"!`;
+      } else if (reply.intent === 'update_stock') {
+        successText = `✅ Inventory Ledger Updated: ${reply.items?.length || 1} stock items adjusted!`;
+      }
+
+      setConfirmStatus(successText);
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === msgId ? { ...m, confirmed: true } : m
+        )
+      );
+
       setTimeout(() => {
         setConfirmStatus(null);
-        setReply(null);
-        onClose();
-      }, 1800);
+      }, 4000);
     } catch (err: any) {
       setError(err.message);
     }
   };
 
-  const handleDiscard = () => {
-    if (reply?.proposal_id) {
+  const handleDiscardMessageProposal = (msgId: string, reply: OmnirushResponse) => {
+    if (reply.proposal_id) {
       store.discardProposal(reply.proposal_id);
     }
-    setReply(null);
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === msgId ? { ...m, reply: undefined } : m
+      )
+    );
   };
 
-  const hindiPhrases = [
-    'do kilo aloo aur ek litre dahi add kar do',
-    'atta khatam ho gaya 500g',
-    'aaj dinner me kya banayein?',
-    'dahi kal expire ho raha hai recipe batao',
-    'toor dal aur chawal stock me update karo',
-  ];
-
-  const englishPhrases = [
-    'add 2 kg potatoes and 1 liter milk',
-    'we finished 500g wheat flour',
-    'suggest high protein dinner from stock',
-    'add missing items to cart',
-    'deduct 200g paneer for dinner',
+  const actionPrompts = [
+    { label: '🍯 Increase sugar in Kheer to 150g', prompt: 'increase sugar in Kheer to 150g', engine: 'shruti' as STTEngineType },
+    { label: '🍲 Change dinner today to Paneer Bhurji', prompt: 'change dinner today to Paneer Bhurji', engine: 'cactus_whisper' as STTEngineType },
+    { label: '📅 Plan full schedule for this week', prompt: 'plan full schedule for this week', engine: 'cactus_whisper' as STTEngineType },
+    { label: '🥔 + 2 kg aloo & 1L dahi', prompt: 'do kilo aloo aur ek litre dahi add kar do', engine: 'shruti' as STTEngineType },
+    { label: '🌾 Atta khatam ho gaya 500g', prompt: 'atta khatam ho gaya 500g', engine: 'shruti' as STTEngineType },
+    { label: '🌶️ Add green chillies to Poha', prompt: 'add green chillies to Poha recipe', engine: 'shruti' as STTEngineType },
   ];
 
   return (
@@ -175,26 +226,26 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-lg bg-white rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl border border-[#E6E4DD] max-h-[92vh] overflow-y-auto flex flex-col gap-4 text-[#1a1c1a]"
+        className="w-full max-w-lg bg-white rounded-t-3xl sm:rounded-3xl p-4 sm:p-5 shadow-2xl border border-[#E6E4DD] max-h-[92vh] flex flex-col gap-3 text-[#1a1c1a]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-[#E6E4DD] pb-3">
+        <div className="flex items-center justify-between border-b border-[#E6E4DD] pb-3 shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="w-10 h-10 rounded-full bg-[#1A3826] text-white flex items-center justify-center shadow-xs">
-              <span className="material-symbols-outlined text-[22px]">mic</span>
+              <span className="material-symbols-outlined text-[22px]">smart_toy</span>
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-[16px] font-bold text-[#1a1c1a]">
-                  Omnirush Voice Assistant
+                  Omnirush Assistant &amp; Voice
                 </h3>
                 <span className="text-[10px] font-bold bg-[#E8F0EC] text-[#137333] px-2 py-0.5 rounded-full border border-[#137333]/20">
-                  Offline STT
+                  Full Control
                 </span>
               </div>
               <p className="text-[11px] text-[#424843]">
-                Udgam Labs Shruti &amp; Cactus Compute Whisper with Sarvam Fallback
+                Inventory • Menu &amp; Full Schedule • Offline Saved Recipes
               </p>
             </div>
           </div>
@@ -206,386 +257,312 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
           </button>
         </div>
 
-        {/* Model Selector Tabs */}
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center justify-between">
-            <label className="text-[11px] font-bold uppercase tracking-wider text-[#727972]">
-              STT Model Engine
-            </label>
-            <span className="text-[10px] text-[#137333] font-semibold">
-              {selectedEngine === 'shruti'
-                ? 'Udgam Labs Shruti (29.5 MB • Hindi/Hinglish)'
-                : selectedEngine === 'cactus_whisper'
-                ? 'Cactus Compute Whistle (16.9 MB • English)'
-                : selectedEngine === 'sarvam_saaras'
-                ? 'Sarvam AI Saaras v3 (Cloud Fallback)'
-                : 'Auto-Routing (Shruti + Cactus Whisper)'}
-            </span>
-          </div>
-
-          <div className="grid grid-cols-4 gap-1.5 bg-[#f4f4f0] p-1 rounded-xl border border-[#E6E4DD]">
-            <button
-              type="button"
-              onClick={() => setSelectedEngine('auto')}
-              className={`py-1.5 text-[11px] font-semibold rounded-lg transition-all cursor-pointer ${
-                selectedEngine === 'auto'
-                  ? 'bg-white text-[#1A3826] shadow-xs border border-[#1A3826]/20'
-                  : 'text-[#5f6368] hover:text-[#1a1c1a]'
-              }`}
-            >
-              Auto Route
-            </button>
+        {/* STT Model Engine Switcher Strip */}
+        <div className="flex items-center justify-between bg-[#f4f4f0] p-1.5 rounded-xl border border-[#E6E4DD] shrink-0 text-[11px]">
+          <span className="font-semibold text-[#727972] uppercase tracking-wider pl-1">
+            Voice STT:
+          </span>
+          <div className="flex items-center gap-1">
             <button
               type="button"
               onClick={() => setSelectedEngine('shruti')}
-              className={`py-1.5 text-[11px] font-semibold rounded-lg transition-all cursor-pointer ${
-                selectedEngine === 'shruti'
+              className={`px-2 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
+                selectedEngine === 'shruti' || selectedEngine === 'auto'
                   ? 'bg-[#1A3826] text-white shadow-xs'
-                  : 'text-[#5f6368] hover:text-[#1a1c1a]'
+                  : 'text-[#424843] hover:text-[#1a1c1a]'
               }`}
-              title="Udgam Labs Shruti: 29.5MB offline model for Hindi & Hinglish"
+              title="Udgam Labs Shruti: 29.5MB offline Hindi/Hinglish model"
             >
-              Shruti (Offline)
+              Shruti (Hindi/Hinglish)
             </button>
             <button
               type="button"
               onClick={() => setSelectedEngine('cactus_whisper')}
-              className={`py-1.5 text-[11px] font-semibold rounded-lg transition-all cursor-pointer ${
+              className={`px-2 py-1 rounded-lg font-semibold transition-all cursor-pointer ${
                 selectedEngine === 'cactus_whisper'
                   ? 'bg-[#1A3826] text-white shadow-xs'
-                  : 'text-[#5f6368] hover:text-[#1a1c1a]'
+                  : 'text-[#424843] hover:text-[#1a1c1a]'
               }`}
-              title="Cactus Compute Whistle: 16.9MB quantized offline model for English"
+              title="Cactus Compute Whistle: 16.9MB quantized English offline model"
             >
-              Cactus (Offline)
-            </button>
-            <button
-              type="button"
-              onClick={() => setSelectedEngine('sarvam_saaras')}
-              className={`py-1.5 text-[11px] font-semibold rounded-lg transition-all cursor-pointer ${
-                selectedEngine === 'sarvam_saaras'
-                  ? 'bg-[#3b684a] text-white shadow-xs'
-                  : 'text-[#5f6368] hover:text-[#1a1c1a]'
-              }`}
-              title="Sarvam Saaras v3: Cloud code-mix STT fallback"
-            >
-              Sarvam Cloud
+              Cactus (English)
             </button>
           </div>
         </div>
 
-        {/* Live Mic Recording Area with Real-Time Waveform */}
-        <div className="flex flex-col items-center justify-center p-4 bg-[#f8f9f7] rounded-2xl border border-[#E6E4DD] gap-3">
-          <div className="relative flex items-center justify-center">
-            {isRecording && (
-              <>
-                <div
-                  className="absolute rounded-full bg-[#ba1a1a]/20 animate-ping"
-                  style={{
-                    width: `${80 + volume * 0.7}px`,
-                    height: `${80 + volume * 0.7}px`,
-                  }}
-                ></div>
-                <div
-                  className="absolute rounded-full bg-[#1A3826]/15 transition-all duration-75"
-                  style={{
-                    width: `${96 + volume * 0.9}px`,
-                    height: `${96 + volume * 0.9}px`,
-                  }}
-                ></div>
-              </>
-            )}
-            <button
-              type="button"
-              onClick={handleToggleRecord}
-              className={`relative z-10 w-16 h-16 rounded-full flex items-center justify-center transition-all shadow-md active:scale-95 cursor-pointer ${
-                isRecording
-                  ? 'bg-[#ba1a1a] text-white hover:bg-[#93000a] ring-4 ring-[#ba1a1a]/30'
-                  : 'bg-[#1A3826] text-white hover:bg-[#132a1d] ring-4 ring-[#1A3826]/20'
-              }`}
-              title={isRecording ? 'Click to Stop Recording' : 'Click to Speak'}
-            >
-              <span className="material-symbols-outlined text-[30px]">
-                {isRecording ? 'stop' : 'mic'}
-              </span>
-            </button>
-          </div>
-
-          {/* Real-time audio wave bars */}
-          {isRecording && (
-            <div className="flex items-center gap-1.5 h-6">
-              {[25, 55, 85, 100, 75, 45, 30].map((factor, i) => (
-                <div
-                  key={i}
-                  className="w-1.5 bg-[#ba1a1a] rounded-full transition-all duration-75"
-                  style={{
-                    height: `${Math.max(4, Math.min(24, 4 + (volume / 100) * 20 * (factor / 100)))}px`,
-                  }}
-                />
-              ))}
-              <span className="text-[11px] font-mono text-[#ba1a1a] ml-1.5 font-bold">
-                {volume}% Vol
-              </span>
-            </div>
-          )}
-
-          <div className="text-center">
-            <p className="text-[13px] font-bold text-[#1a1c1a]">
-              {isRecording
-                ? recordingStatus === 'listening'
-                  ? `Listening via ${
-                      selectedEngine === 'cactus_whisper'
-                        ? 'Cactus Whisper (English Offline)'
-                        : selectedEngine === 'shruti'
-                        ? 'Udgam Labs Shruti (Hindi/Hinglish Offline)'
-                        : 'Auto-Routing STT'
-                    }... Click Stop when done`
-                  : 'Decoding audio with offline model...'
-                : 'Click the microphone above to speak'}
-            </p>
-            <p className="text-[11px] text-[#727972] mt-0.5">
-              {selectedEngine === 'shruti'
-                ? 'Udgam Labs Shruti: Speaks Hindi or Hinglish (e.g. "do kilo aloo aur ek litre dahi add kar do")'
-                : selectedEngine === 'cactus_whisper'
-                ? 'Cactus Whisper: Speaks English (e.g. "add 2 kg potatoes and 1 liter milk")'
-                : 'Speak in Hindi, Hinglish, or English • Auto-routes to Udgam Labs Shruti or Cactus Whisper'}
-            </p>
-          </div>
-
-          {micNotice && (
-            <div className="w-full p-2 bg-[#fff8e1] border border-[#fbc02d]/50 rounded-xl text-[11px] text-[#b45309] text-center">
-              {micNotice}
-            </div>
-          )}
-
-          {interimText && (
-            <div className="w-full p-2.5 bg-white border border-[#E6E4DD] rounded-xl text-[13px] text-[#1a1c1a] italic animate-pulse">
-              "{interimText}..."
-            </div>
-          )}
-        </div>
-
-        {/* STT Engine & Confidence Badge Tag */}
-        {sttMeta && (
-          <div
-            className={`p-3 rounded-2xl border flex flex-col gap-2 ${
-              sttMeta.lowConfidence
-                ? 'bg-[#fff8e1] border-[#fbc02d]'
-                : 'bg-[#f0fdf4] border-[#86efac]'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-[16px] text-[#137333]">
-                  {sttMeta.isOffline ? 'cloud_off' : 'cloud_done'}
-                </span>
-                <span className="text-[12px] font-bold text-[#1a1c1a]">
-                  {sttMeta.engine}
-                </span>
-                {sttMeta.fallbackTriggered && (
-                  <span className="text-[10px] bg-[#3b684a] text-white px-1.5 py-0.5 rounded font-medium">
-                    Sarvam Fallback
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-[11px] font-bold text-[#424843]">
-                  {Math.round(sttMeta.confidence * 100)}% Confidence
-                </span>
-                <div className="w-14 h-2 bg-gray-200 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full ${
-                      sttMeta.lowConfidence ? 'bg-[#f59e0b]' : 'bg-[#10b981]'
-                    }`}
-                    style={{ width: `${Math.round(sttMeta.confidence * 100)}%` }}
-                  ></div>
-                </div>
-              </div>
-            </div>
-
-            <div className="text-[10.5px] text-[#424843]">
-              Model: <span className="font-medium text-[#1A3826]">{sttMeta.modelCredit}</span>
-            </div>
-
-            {sttMeta.lowConfidence && (
-              <div className="text-[11px] text-[#b45309] font-medium flex items-center gap-1">
-                <span className="material-symbols-outlined text-[15px]">warning</span>
-                <span>
-                  Low confidence (&lt;75%). Please check and edit the text below before confirming.
-                </span>
-              </div>
-            )}
-
-            {sttMeta.matchedIngredients.length > 0 && (
-              <div className="flex items-center gap-1 flex-wrap text-[11px] text-[#137333]">
-                <span className="font-semibold">Vocabulary Boost:</span>
-                {sttMeta.matchedIngredients.map((ing, i) => (
-                  <span
-                    key={i}
-                    className="bg-white/90 border border-[#86efac] px-1.5 py-0.2 rounded-md font-mono"
-                  >
-                    {ing}
-                  </span>
-                ))}
-              </div>
-            )}
+        {/* Global Toast Notice */}
+        {confirmStatus && (
+          <div className="p-3 bg-[#E8F0EC] border border-[#137333]/40 rounded-xl text-[12px] text-[#137333] flex items-center gap-2 font-semibold shadow-xs animate-fade-in shrink-0">
+            <span className="material-symbols-outlined text-[18px]">check_circle</span>
+            <span>{confirmStatus}</span>
           </div>
         )}
 
-        {/* Input & Edit Area */}
+        {/* Chat Conversation Scroll Area */}
+        <div className="flex-1 overflow-y-auto space-y-3 pr-1 max-h-[46vh] min-h-[160px]">
+          {messages.map((m) => (
+            <div
+              key={m.id}
+              className={`flex flex-col ${m.sender === 'user' ? 'items-end' : 'items-start'}`}
+            >
+              <div
+                className={`max-w-[88%] rounded-2xl px-3.5 py-2.5 text-[13.5px] leading-relaxed shadow-xs ${
+                  m.sender === 'user'
+                    ? 'bg-[#1A3826] text-white rounded-br-xs'
+                    : 'bg-[#f4f4f0] text-[#1a1c1a] border border-[#E6E4DD] rounded-bl-xs'
+                }`}
+              >
+                <p className="whitespace-pre-line">{m.text}</p>
+
+                {/* Proposal Action Card embedded inside assistant message */}
+                {m.reply && !m.confirmed && m.reply.proposal_id && (
+                  <div className="mt-3 p-3 bg-white rounded-xl border border-[#D1E2D7] flex flex-col gap-2.5 text-left text-[#1a1c1a] shadow-xs">
+                    <div className="flex items-center justify-between border-b border-gray-100 pb-1.5">
+                      <div className="flex items-center gap-1.5 font-bold text-[12px] text-[#1A3826]">
+                        <span className="material-symbols-outlined text-[16px]">
+                          {m.reply.intent === 'modify_recipe'
+                            ? 'edit_note'
+                            : m.reply.intent === 'edit_schedule'
+                            ? 'calendar_month'
+                            : m.reply.intent === 'edit_plan'
+                            ? 'restaurant_menu'
+                            : 'inventory_2'}
+                        </span>
+                        <span className="uppercase tracking-wider">
+                          {m.reply.intent === 'modify_recipe'
+                            ? 'Recipe Modification Proposal'
+                            : m.reply.intent === 'edit_schedule'
+                            ? '7-Day Schedule Proposal'
+                            : m.reply.intent === 'edit_plan'
+                            ? 'Menu Slot Change Proposal'
+                            : 'Inventory Stock Update'}
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-bold bg-[#E8F0EC] text-[#137333] px-2 py-0.5 rounded-full">
+                        Pending Confirm
+                      </span>
+                    </div>
+
+                    {/* 1. Recipe Modification Card (e.g. increase sugar in Kheer to 150g) */}
+                    {m.reply.recipe_modification && (
+                      <div className="flex flex-col gap-1.5 bg-[#f8f9f7] p-2.5 rounded-xl border border-[#E6E4DD]">
+                        <span className="text-[11px] font-bold text-[#727972] uppercase tracking-wider">
+                          Offline Saved Recipe:
+                        </span>
+                        <span className="text-[14px] font-bold text-[#1a1c1a]">
+                          {m.reply.recipe_modification.recipe_title}
+                        </span>
+                        <div className="flex items-center justify-between pt-1">
+                          <span className="text-[13px] font-medium text-[#424843]">
+                            {m.reply.recipe_modification.ingredient_name}:
+                          </span>
+                          <div className="flex items-center gap-2 font-bold text-[13px]">
+                            <span className="text-[#727972] line-through">
+                              {m.reply.recipe_modification.old_qty}{m.reply.recipe_modification.unit}
+                            </span>
+                            <span className="text-[#137333]">→</span>
+                            <span className="bg-[#E8F0EC] text-[#137333] px-2 py-0.5 rounded-md border border-[#137333]/30">
+                              {m.reply.recipe_modification.new_qty}{m.reply.recipe_modification.unit}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 2. Menu / Schedule Changes Card */}
+                    {m.reply.plan_changes && m.reply.plan_changes.length > 0 && (
+                      <div className="flex flex-col gap-1.5 bg-[#f8f9f7] p-2.5 rounded-xl border border-[#E6E4DD] max-h-36 overflow-y-auto">
+                        <span className="text-[11px] font-bold text-[#727972] uppercase tracking-wider">
+                          {m.reply.intent === 'edit_schedule' ? 'Weekly Schedule Slots:' : 'Proposed Meal Slot:'}
+                        </span>
+                        <div className="flex flex-col gap-1">
+                          {m.reply.plan_changes.map((pc, idx) => (
+                            <div key={idx} className="flex items-center justify-between text-[12px] border-b border-gray-100 pb-1 last:border-0 last:pb-0">
+                              <span className="font-semibold text-[#1a1c1a] capitalize">
+                                {pc.slot} ({pc.meal_date}):
+                              </span>
+                              <span className="text-[#3b684a] font-medium truncate max-w-[170px]">
+                                {pc.recipe_title}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 3. Stock Changes Card */}
+                    {m.reply.items && m.reply.items.length > 0 && (
+                      <div className="flex flex-col gap-1 bg-[#f8f9f7] p-2.5 rounded-xl border border-[#E6E4DD] max-h-32 overflow-y-auto">
+                        <span className="text-[11px] font-bold text-[#727972] uppercase tracking-wider block mb-0.5">
+                          Stock Ledger Changes:
+                        </span>
+                        {m.reply.items.map((it, idx) => (
+                          <div key={idx} className="flex items-center justify-between text-[12px]">
+                            <span className="font-semibold text-[#1a1c1a]">{it.name}</span>
+                            <span className="text-[#137333] font-bold">
+                              {it.op} {it.qty_base} {it.unit_base}
+                            </span>
+                            <span className="text-[#727972]">
+                              {it.before !== undefined && it.after !== undefined
+                                ? `${it.before} → ${it.after} ${it.unit_base}`
+                                : `${it.qty_base} ${it.unit_base}`}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Confirm & Discard Action Buttons */}
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        className="flex-1 py-1.5 rounded-xl bg-[#1A3826] text-white text-[12px] font-bold flex items-center justify-center gap-1.5 shadow-xs hover:bg-[#132a1d] active:scale-95 transition-all cursor-pointer"
+                        type="button"
+                        onClick={() => handleConfirmMessageProposal(m.id, m.reply!)}
+                      >
+                        <span className="material-symbols-outlined text-[16px]">check</span>
+                        <span>Confirm &amp; Apply</span>
+                      </button>
+                      <button
+                        className="px-3 py-1.5 rounded-xl bg-white border border-[#E6E4DD] text-[#727972] text-[12px] font-semibold hover:bg-[#f4f4f0] cursor-pointer"
+                        type="button"
+                        onClick={() => handleDiscardMessageProposal(m.id, m.reply!)}
+                      >
+                        Discard
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Confirmed Indicator */}
+                {m.confirmed && (
+                  <div className="mt-2 text-[11px] font-bold text-[#137333] flex items-center gap-1 bg-[#E8F0EC] px-2.5 py-1 rounded-lg">
+                    <span className="material-symbols-outlined text-[15px]">check_circle</span>
+                    <span>Applied to offline database!</span>
+                  </div>
+                )}
+              </div>
+              <span className="text-[10px] text-[#727972] mt-0.5 px-1">{m.time}</span>
+            </div>
+          ))}
+
+          {loading && (
+            <div className="flex items-center gap-2 text-[#727972] text-[12px] p-2 bg-[#f4f4f0] rounded-xl w-fit">
+              <span className="w-3.5 h-3.5 border-2 border-[#1A3826]/30 border-t-[#1A3826] rounded-full animate-spin"></span>
+              <span>Omnirush is processing your request...</span>
+            </div>
+          )}
+
+          <div ref={chatBottomRef} />
+        </div>
+
+        {/* Quick Action Suggestion Chips */}
+        <div className="flex flex-col gap-1 shrink-0 pt-1 border-t border-[#E6E4DD]">
+          <div className="flex items-center justify-between text-[10.5px] text-[#727972]">
+            <span className="font-semibold uppercase tracking-wider">Quick Commands</span>
+            <span className="text-[10px] text-[#3b684a]">Tap to try</span>
+          </div>
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+            {actionPrompts.map((c, i) => (
+              <button
+                key={i}
+                type="button"
+                className="shrink-0 px-2.5 py-1 rounded-full bg-[#f4f4f0] border border-[#E6E4DD] text-[11px] text-[#1a1c1a] hover:bg-[#eeeeea] active:scale-95 transition-all cursor-pointer font-medium"
+                onClick={() => handleSend(c.prompt)}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Live Mic Recording Banner with Real-Time Waveform */}
+        {isRecording && (
+          <div className="flex items-center justify-between p-2.5 bg-[#fef2f2] border border-[#fca5a5] rounded-xl shrink-0">
+            <div className="flex items-center gap-2">
+              <span className="w-3 h-3 rounded-full bg-[#ba1a1a] animate-ping"></span>
+              <div className="flex flex-col">
+                <span className="text-[12px] font-bold text-[#ba1a1a]">
+                  Listening ({selectedEngine === 'cactus_whisper' ? 'Cactus Whisper' : 'Udgam Labs Shruti'})...
+                </span>
+                <span className="text-[11px] text-[#727972]">
+                  {interimText ? `"${interimText}"` : 'Speak your kitchen command now'}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 h-5">
+                {[30, 60, 100, 80, 40].map((f, i) => (
+                  <div
+                    key={i}
+                    className="w-1 bg-[#ba1a1a] rounded-full transition-all duration-75"
+                    style={{
+                      height: `${Math.max(4, Math.min(20, 4 + (volume / 100) * 16 * (f / 100)))}px`,
+                    }}
+                  />
+                ))}
+              </div>
+              <button
+                type="button"
+                className="px-2.5 py-1 rounded-lg bg-[#ba1a1a] text-white text-[11px] font-bold cursor-pointer"
+                onClick={handleStopRecording}
+              >
+                Stop
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Input & Mic Bar */}
         <form
           onSubmit={(e) => {
             e.preventDefault();
             handleSend();
           }}
-          className="flex flex-col gap-2"
+          className="flex items-center gap-2 shrink-0 pt-1"
         >
-          <div className="relative">
-            <textarea
-              className={`w-full bg-[#f4f4f0] border rounded-2xl p-3 text-[14px] text-[#1a1c1a] placeholder:text-[#727972] focus:outline-none focus:border-[#3b684a] min-h-[75px] ${
-                sttMeta?.lowConfidence ? 'border-[#f59e0b] bg-white ring-1 ring-[#f59e0b]' : 'border-[#E6E4DD]'
-              }`}
-              placeholder="Speak using the mic or type in Hindi, Hinglish, or English..."
+          {/* Mic Button */}
+          <button
+            type="button"
+            onClick={handleToggleRecord}
+            className={`w-11 h-11 rounded-full flex items-center justify-center transition-all shadow-xs shrink-0 cursor-pointer ${
+              isRecording
+                ? 'bg-[#ba1a1a] text-white ring-2 ring-[#ba1a1a]/40 animate-pulse'
+                : 'bg-[#1A3826] text-white hover:bg-[#132a1d]'
+            }`}
+            title={isRecording ? 'Stop Recording' : 'Speak with Shruti / Cactus Whisper'}
+          >
+            <span className="material-symbols-outlined text-[22px]">
+              {isRecording ? 'stop' : 'mic'}
+            </span>
+          </button>
+
+          {/* Text Input */}
+          <div className="relative flex-1">
+            <input
+              type="text"
+              className="w-full bg-[#f4f4f0] border border-[#E6E4DD] rounded-full px-4 py-2.5 text-[13.5px] text-[#1a1c1a] placeholder:text-[#727972] focus:outline-none focus:border-[#1A3826]"
+              placeholder="Type or speak: 'increase sugar in Kheer to 150g' or stock update..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
               disabled={loading}
             />
           </div>
 
-          {/* Quick Voice / Text Test Chips */}
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center justify-between text-[11px] text-[#727972]">
-              <span className="font-semibold uppercase tracking-wider">Quick Kitchen Voice Phrases</span>
-              <span className="text-[10px] text-[#3b684a]">Tap to simulate model</span>
-            </div>
-            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
-              {(selectedEngine === 'cactus_whisper' ? englishPhrases : hindiPhrases).map((c, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  className="shrink-0 px-3 py-1 rounded-full bg-[#f4f4f0] border border-[#E6E4DD] text-[11px] text-[#1a1c1a] hover:bg-[#eeeeea] active:scale-95 transition-all cursor-pointer"
-                  onClick={() => handleTestPhrase(c, selectedEngine)}
-                >
-                  {c}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-2 mt-1">
-            <button
-              className="px-5 py-2.5 rounded-full bg-[#1A3826] text-white text-[13px] font-semibold flex items-center gap-2 active:scale-95 transition-all shadow-xs hover:bg-[#132a1d] disabled:opacity-50 cursor-pointer"
-              type="submit"
-              disabled={loading || !input.trim()}
-            >
-              {loading ? (
-                <>
-                  <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                  <span>Omnirush Parsing...</span>
-                </>
-              ) : (
-                <>
-                  <span>Send to Omnirush</span>
-                  <span className="material-symbols-outlined text-[16px]">send</span>
-                </>
-              )}
-            </button>
-          </div>
+          {/* Send Button */}
+          <button
+            className="w-11 h-11 rounded-full bg-[#1A3826] text-white flex items-center justify-center shadow-xs shrink-0 hover:bg-[#132a1d] disabled:opacity-40 cursor-pointer"
+            type="submit"
+            disabled={loading || !input.trim()}
+            title="Send Message"
+          >
+            <span className="material-symbols-outlined text-[20px]">send</span>
+          </button>
         </form>
 
         {error && (
-          <div className="p-3 bg-[#ffdad6]/60 border border-[#ba1a1a]/30 rounded-xl text-[12px] text-[#93000a] flex items-center gap-2">
-            <span className="material-symbols-outlined text-[18px]">error</span>
+          <div className="p-2.5 bg-[#ffdad6]/60 border border-[#ba1a1a]/30 rounded-xl text-[12px] text-[#93000a] flex items-center gap-2 shrink-0">
+            <span className="material-symbols-outlined text-[16px]">error</span>
             <span>{error}</span>
-          </div>
-        )}
-
-        {confirmStatus && (
-          <div className="p-3 bg-[#E8F0EC] border border-[#137333]/30 rounded-xl text-[12px] text-[#137333] flex items-center gap-2 font-semibold">
-            <span className="material-symbols-outlined text-[18px]">check_circle</span>
-            <span>{confirmStatus}</span>
-          </div>
-        )}
-
-        {/* AI Reply & Omnirush Confirm-Before-Write Card */}
-        {reply && (
-          <div className="p-4 rounded-2xl bg-[#f0f5f2] border border-[#1a3826]/30 flex flex-col gap-3 shadow-xs">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-[#1A3826] font-bold text-[13px]">
-                <span className="material-symbols-outlined text-[18px]">auto_awesome</span>
-                <span>Omnirush Proposal</span>
-              </div>
-              <span className="text-[11px] text-[#424843] bg-white px-2 py-0.5 rounded-md border border-[#E6E4DD]">
-                {reply.intent || 'chat'}
-              </span>
-            </div>
-
-            <p className="text-[14px] text-[#1a1c1a] leading-relaxed font-medium">
-              {reply.message}
-            </p>
-
-            {/* Projected Stock Table */}
-            {reply.items && reply.items.length > 0 && (
-              <div className="bg-white rounded-xl p-3 border border-[#E6E4DD]">
-                <span className="text-[11px] font-bold text-[#727972] uppercase tracking-wider block mb-1.5">
-                  Projected Stock Changes
-                </span>
-                <div className="flex flex-col gap-2">
-                  {reply.items.map((it, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-center justify-between text-[13px] border-b border-gray-100 pb-1.5 last:border-0 last:pb-0"
-                    >
-                      <span className="font-semibold text-[#1a1c1a]">{it.name}</span>
-                      <span className="text-[#3b684a] font-medium">
-                        {it.op} {it.qty_base} {it.unit_base}
-                      </span>
-                      <span className="text-[12px] text-[#424843]">
-                        {it.before !== undefined && it.after !== undefined
-                          ? `${Math.round(it.before)} → ${Math.round(it.after)} ${it.unit_base}`
-                          : `${it.qty_base} ${it.unit_base}`}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Plan Changes */}
-            {reply.plan_changes && reply.plan_changes.length > 0 && (
-              <div className="bg-white rounded-xl p-3 border border-[#E6E4DD]">
-                <span className="text-[11px] font-bold text-[#727972] uppercase tracking-wider block mb-1.5">
-                  Proposed Meal Plan Slots
-                </span>
-                <div className="flex flex-col gap-1.5">
-                  {reply.plan_changes.map((pc, idx) => (
-                    <div key={idx} className="text-[13px] text-[#1a1c1a]">
-                      • <strong className="capitalize">{pc.slot}</strong> ({pc.meal_date}):{' '}
-                      {pc.recipe_title || 'Meal'} ({pc.servings} servings)
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Action buttons (Confirm-before-write) */}
-            {reply.proposal_id && (
-              <div className="flex items-center gap-2 mt-1">
-                <button
-                  className="flex-1 py-2 rounded-xl bg-[#1A3826] text-white text-[13px] font-semibold shadow-xs flex items-center justify-center gap-1 hover:bg-[#132a1d] active:scale-95 transition-all cursor-pointer"
-                  onClick={handleConfirm}
-                >
-                  <span className="material-symbols-outlined text-[16px]">check</span>
-                  <span>Confirm Changes</span>
-                </button>
-                <button
-                  className="px-4 py-2 rounded-xl bg-white border border-[#E6E4DD] text-[#424843] text-[13px] font-medium hover:bg-[#eeeeea] active:scale-95 transition-all cursor-pointer"
-                  onClick={handleDiscard}
-                >
-                  Discard
-                </button>
-              </div>
-            )}
           </div>
         )}
       </div>

@@ -880,6 +880,118 @@ class StoreService {
     return list;
   }
 
+  public modifyRecipeIngredient(
+    recipeIdOrTitle: string,
+    ingredientNameOrId: string,
+    newQty: number,
+    unit = 'g',
+    op: 'set' | 'add' | 'remove' = 'set'
+  ) {
+    const hhId = this.state.currentHouseholdId;
+    if (!this.state.recipes[hhId]) {
+      this.state.recipes[hhId] = [];
+    }
+
+    const q = recipeIdOrTitle.toLowerCase().trim();
+    let recipe = this.state.recipes[hhId].find(
+      (r) => r.id.toLowerCase() === q || r.title.toLowerCase().includes(q)
+    );
+
+    // If not in household recipes list, find in seedData and copy over
+    if (!recipe) {
+      const seedRec = (seedData as any).recipes?.find(
+        (r: any) => r.id.toLowerCase() === q || r.name.toLowerCase().includes(q)
+      );
+      if (seedRec) {
+        recipe = {
+          id: seedRec.id,
+          household_id: hhId,
+          title: seedRec.name,
+          category: seedRec.course || 'regular',
+          slots: ['lunch', 'dinner'],
+          base_servings: seedRec.servings || 2,
+          times_cooked: 0,
+          ingredients: seedRec.ingredients.map((ing: any) => ({
+            ingredient_id: ing.canonicalId || `ing_${ing.name.toLowerCase().replace(/\s+/g, '_')}`,
+            name: ing.name,
+            qty_base: ing.qty_base,
+            unit_base: ing.unit_base || 'g',
+            isNonVeg: ing.isNonVeg,
+          })),
+        };
+        this.state.recipes[hhId].push(recipe);
+      }
+    }
+
+    if (!recipe) {
+      // Create custom recipe if none matched
+      const customId = 'rec_custom_' + Date.now();
+      recipe = {
+        id: customId,
+        household_id: hhId,
+        title: recipeIdOrTitle,
+        category: 'Custom',
+        slots: ['lunch', 'dinner'],
+        base_servings: 2,
+        times_cooked: 0,
+        ingredients: [
+          {
+            ingredient_id: `ing_${ingredientNameOrId.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
+            name: ingredientNameOrId,
+            qty_base: Math.round(newQty * 10) / 10,
+            unit_base: (unit || 'g') as any,
+          },
+        ],
+      };
+      this.state.recipes[hhId].push(recipe);
+    }
+
+    const ingQ = ingredientNameOrId.toLowerCase().trim();
+    let ing = recipe.ingredients.find(
+      (i) => i.ingredient_id.toLowerCase().includes(ingQ) || (i.name && i.name.toLowerCase().includes(ingQ))
+    );
+
+    let oldQty = 0;
+    if (ing) {
+      oldQty = ing.qty_base;
+      if (op === 'add') {
+        ing.qty_base = Math.round((ing.qty_base + newQty) * 10) / 10;
+      } else if (op === 'remove') {
+        ing.qty_base = Math.max(0, Math.round((ing.qty_base - newQty) * 10) / 10);
+      } else {
+        ing.qty_base = Math.round(newQty * 10) / 10;
+      }
+      if (unit) ing.unit_base = unit as any;
+    } else {
+      // Add as new ingredient to the existing recipe
+      const newIng = {
+        ingredient_id: `ing_${ingQ.replace(/[^a-z0-9]/g, '_')}`,
+        name: ingredientNameOrId,
+        qty_base: Math.round(newQty * 10) / 10,
+        unit_base: (unit || 'g') as any,
+      };
+      recipe.ingredients.push(newIng);
+    }
+
+    this.logAudit('recipe_modified', {
+      recipeId: recipe.id,
+      title: recipe.title,
+      ingredient: ingredientNameOrId,
+      oldQty,
+      newQty: ing ? ing.qty_base : newQty,
+      op,
+    });
+    this.persist();
+
+    return {
+      recipe,
+      ingredientName: ing ? ing.name : ingredientNameOrId,
+      oldQty,
+      newQty: ing ? ing.qty_base : newQty,
+      unit: ing ? ing.unit_base : unit,
+    };
+  }
+
   public getRecipeDetail(recipeId: string, servings = 2) {
     const recipes = this.state.recipes[this.state.currentHouseholdId] || [];
     let recipe = recipes.find((r) => r.id === recipeId);
@@ -1022,6 +1134,88 @@ class StoreService {
     plan.version += 1;
     this.persist();
     return newMeal;
+  }
+
+  public setMealSlot(
+    mealDate: string,
+    slot: MealSlot,
+    recipeIdOrTitle: string,
+    servings = 2,
+    diners: string[] = ['mem_1', 'mem_2']
+  ) {
+    const weekStart = getMonday(new Date(mealDate));
+    const plan = this.getPlan(weekStart);
+
+    // Find recipe by ID or title
+    const recipes = this.getRecipes();
+    const seedRecipes = (seedData as any).recipes || [];
+    const q = recipeIdOrTitle.toLowerCase().trim();
+
+    let recipe = recipes.find(
+      (r) => r.id.toLowerCase() === q || r.title.toLowerCase().includes(q)
+    );
+    if (!recipe) {
+      const s = seedRecipes.find(
+        (r: any) => r.id.toLowerCase() === q || r.name.toLowerCase().includes(q)
+      );
+      if (s) {
+        recipe = {
+          id: s.id,
+          title: s.name,
+          category: s.course || 'regular',
+          slots: ['lunch', 'dinner'],
+          base_servings: s.servings || 2,
+          times_cooked: 0,
+          ingredients: s.ingredients.map((ing: any) => ({
+            ingredient_id: ing.canonicalId,
+            name: ing.name,
+            qty_base: ing.qty_base,
+            unit_base: ing.unit_base,
+          })),
+        };
+      }
+    }
+
+    const recipeId = recipe?.id || recipeIdOrTitle;
+    const title = recipe?.title || recipeIdOrTitle;
+
+    // Check if slot already exists on that date
+    const existingIndex = plan.meals.findIndex(
+      (m) => m.meal_date === mealDate && m.slot === slot
+    );
+
+    let detail: any;
+    try {
+      detail = this.getRecipeDetail(recipeId, servings);
+    } catch {
+      detail = { title, missing: [], nutrition: { kcal: 350, protein_g: 14 } };
+    }
+
+    const updatedMeal: PlannedMeal = {
+      id: existingIndex >= 0 ? plan.meals[existingIndex].id : 'meal_' + Date.now(),
+      plan_id: plan.id,
+      meal_date: mealDate,
+      slot,
+      household_recipe_id: recipeId,
+      title: detail.title || title,
+      servings,
+      status: 'planned',
+      diner_member_ids: diners,
+      missing: detail.missing || [],
+      nutrition: detail.nutrition || { kcal: 350, protein_g: 14 },
+      updated_at: new Date().toISOString(),
+    };
+
+    if (existingIndex >= 0) {
+      plan.meals[existingIndex] = updatedMeal;
+    } else {
+      plan.meals.push(updatedMeal);
+    }
+
+    plan.version += 1;
+    this.logAudit('meal_slot_set', { mealDate, slot, title: updatedMeal.title });
+    this.persist();
+    return updatedMeal;
   }
 
   public markMealDone(mealId: string) {
@@ -1262,17 +1456,30 @@ class StoreService {
       }
     }
 
-    // 2. Plan changes
+    // 2. Plan changes / Meal scheduling
     for (const change of payload.plan_changes || []) {
       if (change.household_recipe_id) {
-        const res = this.addMeal(
+        const res = this.setMealSlot(
           change.meal_date,
           change.slot,
           change.household_recipe_id,
           change.servings || 2
         );
-        applied.push({ plan_added: res });
+        applied.push({ plan_set: res });
       }
+    }
+
+    // 3. Offline recipe modifications (e.g. increase sugar in Kheer to 150g)
+    if (payload.recipe_modification) {
+      const rm = payload.recipe_modification;
+      const res = this.modifyRecipeIngredient(
+        rm.recipe_id || rm.recipe_title,
+        rm.ingredient_name,
+        rm.new_qty,
+        rm.unit || 'g',
+        rm.op || 'set'
+      );
+      applied.push({ recipe_modified: res });
     }
 
     action.status = 'confirmed';
@@ -1282,6 +1489,7 @@ class StoreService {
     return {
       applied,
       stock: this.getStock('all'),
+      recipe_modification: payload.recipe_modification,
     };
   }
 

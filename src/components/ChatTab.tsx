@@ -237,10 +237,29 @@ export const ChatTab: React.FC<ChatTabProps> = ({ onRefresh }) => {
             <button
               type="button"
               className="pill"
-              style={{ fontSize: '11px', padding: '3px 8px' }}
-              onClick={() => setPromptChip('Suggest lunch and dinner for today from stock', 'plan', 'cactus_whisper')}
+              style={{ fontSize: '11px', padding: '3px 8px', color: 'var(--accent)', borderColor: 'var(--accent)' }}
+              onClick={() => setPromptChip('increase sugar in Kheer to 150g', 'chat', 'shruti')}
+              title="Modify offline recipe"
             >
-              Suggest today's meals
+              🍯 [Recipe] Sugar in Kheer 150g
+            </button>
+            <button
+              type="button"
+              className="pill"
+              style={{ fontSize: '11px', padding: '3px 8px', color: 'var(--warn)', borderColor: 'var(--warn)' }}
+              onClick={() => setPromptChip('change dinner today to Paneer Bhurji', 'plan', 'cactus_whisper')}
+              title="Change specific meal slot"
+            >
+              🍲 [Menu] Dinner → Paneer Bhurji
+            </button>
+            <button
+              type="button"
+              className="pill"
+              style={{ fontSize: '11px', padding: '3px 8px' }}
+              onClick={() => setPromptChip('plan full schedule for this week', 'plan', 'cactus_whisper')}
+              title="Schedule entire week"
+            >
+              📅 [Schedule] Plan 7 Days
             </button>
             <button
               type="button"
@@ -354,6 +373,26 @@ export const ChatTab: React.FC<ChatTabProps> = ({ onRefresh }) => {
                 ))}
               </tbody>
             </table>
+          )}
+
+          {reply.recipe_modification && (
+            <div style={{ marginTop: '10px', background: '#1c241d', border: '1px solid var(--accent)', borderRadius: '10px', padding: '10px' }}>
+              <div style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--accent)', fontWeight: 600 }}>
+                Offline Recipe Modification
+              </div>
+              <div style={{ fontSize: '14px', fontWeight: 'bold', marginTop: '4px' }}>
+                {reply.recipe_modification.recipe_title}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px', fontSize: '13px' }}>
+                <span>{reply.recipe_modification.ingredient_name}:</span>
+                <span style={{ fontWeight: 'bold', color: 'var(--accent)' }}>
+                  <span style={{ textDecoration: 'line-through', color: 'var(--dim)', marginRight: '6px' }}>
+                    {reply.recipe_modification.old_qty}{reply.recipe_modification.unit}
+                  </span>
+                  → {reply.recipe_modification.new_qty}{reply.recipe_modification.unit}
+                </span>
+              </div>
+            </div>
           )}
 
           {reply.plan_changes && reply.plan_changes.length > 0 && (
