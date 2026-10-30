@@ -200,6 +200,12 @@ export interface ProposalItemChange {
   note?: string | null;
   before?: number;
   after?: number;
+  stock_id?: string | null;
+  is_existing?: boolean;
+  location?: 'pantry' | 'fridge';
+  target_scope?: 'personal' | 'shared';
+  target_section?: string;
+  classification?: string;
 }
 
 export interface ProposalPlanChange {
@@ -220,6 +226,7 @@ export interface ProposalRecipeModification {
   unit: string;
   op?: 'set' | 'add' | 'remove';
   servings?: number;
+  reason?: string;
 }
 
 export interface ProposalRecipe {
@@ -230,6 +237,9 @@ export interface ProposalRecipe {
 
 export interface ProposalPayload {
   intent: ProposalIntent;
+  target_section?: string;
+  update_type_label?: string;
+  classification_badge?: string;
   items: ProposalItemChange[];
   plan_changes: ProposalPlanChange[];
   recipe: ProposalRecipe | null;
@@ -241,6 +251,9 @@ export interface OmnirushResponse {
   message: string;
   proposal_id?: string | null;
   intent?: ProposalIntent | null;
+  target_section?: string;
+  update_type_label?: string;
+  classification_badge?: string;
   items?: ProposalItemChange[];
   plan_changes?: ProposalPlanChange[];
   recipe?: ProposalRecipe | null;

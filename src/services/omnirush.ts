@@ -252,10 +252,15 @@ function parseLocally(
         op: 'set',
       };
 
+      const targetSection = `Offline Saved Recipes → ${targetRecipe.title}`;
+
       return {
         mode: 'chat',
         message: `Offline saved recipe "${targetRecipe.title}" me ${ingredientName} ko ${oldQty}${unit} se badha kar ${newQty}${unit} karne ka proposal ready hai. Niche 'Confirm Changes' par click karke recipe save karein.`,
         intent: 'modify_recipe',
+        classification_badge: 'Recipe Customization',
+        update_type_label: 'Offline Recipe Modification',
+        target_section: targetSection,
         recipe_modification: mod,
         items: [],
         plan_changes: [],
@@ -314,6 +319,9 @@ function parseLocally(
       mode: 'plan',
       message: `Aapke kitchen stock aur ${me.members?.length || 2} members ke preferences ke mutabik 7-day complete weekly schedule plan generate kiya gaya hai (${allPlanChanges.length} meals scheduled). Niche proposal card check karke confirm karein.`,
       intent: 'edit_schedule',
+      classification_badge: 'Weekly Schedule Sync',
+      update_type_label: '7-Day Weekly Meal Schedule Auto-Plan',
+      target_section: `Weekly Schedule → Week of ${weekStart}`,
       plan_changes: allPlanChanges,
       items: [],
       warnings: ['Replaces or fills missing slots for the week of ' + weekStart],
@@ -392,10 +400,15 @@ function parseLocally(
       recipe_title: matchedRecipe.title,
     };
 
+    const targetSection = `Meal Planner → ${slot.toUpperCase()} (${dateStr === today.toISOString().slice(0, 10) ? 'Today' : dateStr})`;
+
     return {
       mode: 'plan',
       message: `Menu update proposal: ${dateStr === today.toISOString().slice(0, 10) ? 'Aaj' : dateStr} ke ${slot.toUpperCase()} me "${matchedRecipe.title}" (${planChange.servings} servings) schedule karne ke liye proposal generate kiya gaya hai.`,
       intent: 'edit_plan',
+      classification_badge: 'Meal Slot Plan',
+      update_type_label: 'Meal Slot Replacement',
+      target_section: targetSection,
       plan_changes: [planChange],
       items: [],
       warnings: [],
@@ -443,6 +456,9 @@ function parseLocally(
       mode: 'plan',
       message: `Aapke kitchen stock aur ${me.members?.length || 2} members ke hisaab se proposed menu taiyar hai: Breakfast: ${bFast.title || bFast.name}, Lunch: ${lunch.title || lunch.name}, Dinner: ${dinner.title || dinner.name}.`,
       intent: 'edit_plan',
+      classification_badge: 'Meal Planner Sync',
+      update_type_label: 'Suggested Daily Meal Plan',
+      target_section: `Meal Planner → Today (${dStr})`,
       plan_changes: planChanges,
       items: [],
       warnings: [],
@@ -488,7 +504,7 @@ function parseLocally(
   }
 
   // -------------------------------------------------------------------------
-  // 6. INTENT: INVENTORY STOCK UPDATES (e.g. "do kilo aloo aur ek litre dahi add kar do")
+  // 6. INTENT: INVENTORY STOCK UPDATES (Checks Current Stock First!)
   // -------------------------------------------------------------------------
   const items: ProposalItemChange[] = [];
   const unmatched: { raw_name: string; reason: string }[] = [];
@@ -509,14 +525,46 @@ function parseLocally(
     defaultOp = 'set';
   }
 
-  // Identify ingredients mentioned
-  for (const ing of CANONICAL_INGREDIENTS) {
-    const names = [ing.name_en.toLowerCase(), ing.name_hi, ...ing.aliases.map((a) => a.toLowerCase())];
-    const match = names.find((n) => lower.includes(n));
-    if (match) {
-      const qty = extractQuantityFor(lower, match, ing.base_unit);
-      const stockMap = store.getStockMap();
-      const before = stockMap[ing.id] || 0;
+  // Fetch current household stock to match against existing items!
+  const currentHouseholdStock = store.getStock('all');
+  const matchedItemIds = new Set<string>();
+
+  // A. First: Match against current items already in the household inventory
+  for (const st of currentHouseholdStock) {
+    const searchTerms = [
+      st.name.toLowerCase(),
+      st.ingredient_id.replace(/^ing_/, '').toLowerCase(),
+      st.name_hi || '',
+    ];
+
+    // Add keyword stems for common Indian items
+    if (st.ingredient_id.includes('aloo') || st.name.toLowerCase().includes('aloo')) {
+      searchTerms.push('aloo', 'potatoes', 'potato', 'pahari aloo', 'आलू');
+    } else if (st.ingredient_id.includes('atta') || st.name.toLowerCase().includes('atta')) {
+      searchTerms.push('atta', 'flour', 'wheat', 'gehu', 'आटा');
+    } else if (st.ingredient_id.includes('doodh') || st.name.toLowerCase().includes('milk')) {
+      searchTerms.push('doodh', 'milk', 'dood', 'दूध');
+    } else if (st.ingredient_id.includes('dahi') || st.name.toLowerCase().includes('curd')) {
+      searchTerms.push('dahi', 'curd', 'yogurt', 'दही');
+    } else if (st.ingredient_id.includes('paneer') || st.name.toLowerCase().includes('paneer')) {
+      searchTerms.push('paneer', 'cottage cheese', 'पनीर');
+    } else if (st.ingredient_id.includes('tamatar') || st.name.toLowerCase().includes('tomato')) {
+      searchTerms.push('tamatar', 'tomato', 'tomatoes', 'टमाटर');
+    } else if (st.ingredient_id.includes('chawal') || st.name.toLowerCase().includes('rice')) {
+      searchTerms.push('chawal', 'rice', 'basmati', 'चावल');
+    } else if (st.ingredient_id.includes('pyaz') || st.name.toLowerCase().includes('onion')) {
+      searchTerms.push('pyaz', 'onion', 'onions', 'प्याज');
+    } else if (st.ingredient_id.includes('oil') || st.name.toLowerCase().includes('oil')) {
+      searchTerms.push('oil', 'tel', 'sunflower oil', 'तेल');
+    }
+
+    const matchedWord = searchTerms.find((term) => term && lower.includes(term));
+    if (matchedWord) {
+      matchedItemIds.add(st.id);
+      matchedItemIds.add(st.ingredient_id);
+
+      const qty = extractQuantityFor(lower, matchedWord, st.unit_base);
+      const before = st.qty_base;
       const after =
         defaultOp === 'add'
           ? before + qty
@@ -524,26 +572,89 @@ function parseLocally(
           ? Math.max(before - qty, 0)
           : qty;
 
+      const locationLabel = st.location === 'fridge' ? 'Fridge' : 'Pantry';
+      const scopeLabel = st.owner_user_id ? 'Personal' : 'Shared';
+      const targetSection = `Kitchen Stock → ${locationLabel} (${scopeLabel})`;
+
+      items.push({
+        ingredient_id: st.ingredient_id,
+        name: st.name,
+        qty_base: qty,
+        unit_base: st.unit_base,
+        op: defaultOp,
+        before,
+        after,
+        stock_id: st.id,
+        is_existing: true,
+        location: st.location as 'pantry' | 'fridge',
+        target_scope: st.owner_user_id ? 'personal' : 'shared',
+        target_section: targetSection,
+        classification: 'Existing Inventory Item Adjustment',
+      });
+    }
+  }
+
+  // B. Second: Check canonical list for items NOT currently in inventory (New Stock Additions)
+  for (const ing of CANONICAL_INGREDIENTS) {
+    if (matchedItemIds.has(ing.id)) continue;
+
+    const names = [ing.name_en.toLowerCase(), ing.name_hi, ...ing.aliases.map((a) => a.toLowerCase())];
+    const match = names.find((n) => lower.includes(n));
+    if (match) {
+      const qty = extractQuantityFor(lower, match, ing.base_unit);
+      const isChilled = ['doodh', 'milk', 'dahi', 'curd', 'paneer', 'tamatar', 'tomato', 'butter'].some(
+        (c) => ing.id.includes(c) || ing.name_en.toLowerCase().includes(c)
+      );
+      const location: 'pantry' | 'fridge' = isChilled ? 'fridge' : 'pantry';
+      const locationLabel = location === 'fridge' ? 'Fridge' : 'Pantry';
+      const targetSection = `Kitchen Stock → ${locationLabel} (Shared)`;
+
       items.push({
         ingredient_id: ing.id,
         name: ing.name_en,
         qty_base: qty,
         unit_base: ing.base_unit,
         op: defaultOp,
-        before,
-        after,
+        before: 0,
+        after: qty,
+        stock_id: null,
+        is_existing: false,
+        location,
+        target_scope: 'shared',
+        target_section: targetSection,
+        classification: 'New Inventory Item Addition',
       });
     }
   }
 
   if (items.length > 0) {
-    const itemSummary = items
-      .map((it) => `${it.op} ${it.qty_base} ${it.unit_base} ${it.name}`)
-      .join(', ');
+    const hasExisting = items.some((it) => it.is_existing);
+    const existingItems = items.filter((it) => it.is_existing);
+    const newItems = items.filter((it) => !it.is_existing);
+
+    let message = '';
+    if (existingItems.length > 0 && newItems.length === 0) {
+      const summaries = existingItems.map(
+        (it) => `"${it.name}" in ${it.target_section} (Current: ${it.before}${it.unit_base} → ${it.op === 'remove' ? '-' : '+'}${it.qty_base}${it.unit_base} = ${it.after}${it.unit_base})`
+      );
+      message = `Inventory Match: Current stock item(s) found: ${summaries.join(', ')}. Niche card par confirm karein.`;
+    } else if (existingItems.length > 0 && newItems.length > 0) {
+      message = `Inventory Ledger: ${existingItems.length} existing item(s) matched and ${newItems.length} new item(s) to add to pantry/fridge. Niche card par confirm karein.`;
+    } else {
+      message = `New Stock Addition: ${newItems.map((it) => `"${it.name}" (+${it.qty_base}${it.unit_base}) to ${it.target_section}`).join(', ')}. Niche card par confirm karein.`;
+    }
+
+    const primaryTargetSection = items[0]?.target_section || 'Kitchen Stock → Pantry';
+    const classificationBadge = hasExisting ? 'Existing Stock Update' : 'New Stock Addition';
+    const updateTypeLabel = hasExisting ? 'Inventory Stock Adjustment (Existing Item)' : 'New Inventory Item Addition';
+
     return {
       mode: 'chat',
-      message: `Maine aapka inventory update command samajh liya: ${itemSummary}. Niche card par click karke confirm karein.`,
+      message,
       intent: 'update_stock',
+      classification_badge: classificationBadge,
+      update_type_label: updateTypeLabel,
+      target_section: primaryTargetSection,
       items,
       warnings,
       unmatched,

@@ -12,6 +12,7 @@ import {
   PendingAction,
   StockOp,
   MealSlot,
+  BaseUnit,
   DietCaution,
   AgeGroup,
   DietPreference,
@@ -753,12 +754,92 @@ class StoreService {
     return map;
   }
 
+  public findMatchingStockItem(queryOrName: string): StockItem | null {
+    const hhId = this.state.currentHouseholdId;
+    const stockMap = this.state.stock[hhId] || {};
+    const items = Object.values(stockMap);
+    if (!queryOrName || items.length === 0) return null;
+
+    const q = queryOrName.toLowerCase().trim();
+    const qClean = q.replace(/^ing_/, '').replace(/^stk_/, '').replace(/[^a-z0-9]/g, '');
+
+    // 1. Exact ID or ingredient_id match
+    const exact = items.find(
+      (i) => i.id === queryOrName || i.ingredient_id === queryOrName || i.ingredient_id.replace(/^ing_/, '') === q
+    );
+    if (exact) return exact;
+
+    // 2. Exact English or Hindi name match
+    const exactName = items.find(
+      (i) =>
+        i.name.toLowerCase().trim() === q ||
+        (i.name_hi && i.name_hi.trim() === queryOrName.trim())
+    );
+    if (exactName) return exactName;
+
+    // 3. Known Kitchen alias dictionary
+    const aliasesMap: Record<string, string[]> = {
+      aloo: ['potato', 'potatoes', 'pahari aloo', 'baby potato', 'aloo', 'आलू'],
+      atta: ['wheat', 'whole wheat', 'chakki atta', 'flour', 'gehu', 'आटा'],
+      doodh: ['milk', 'fresh milk', 'amul milk', 'taaza milk', 'doodh', 'दूध'],
+      dahi: ['curd', 'fresh curd', 'yogurt', 'masti dahi', 'dahi', 'दही'],
+      paneer: ['cottage cheese', 'malai paneer', 'paneer block', 'पनीर'],
+      tamatar: ['tomato', 'tomatoes', 'desi tamatar', 'tamatar', 'टमाटर'],
+      chawal: ['rice', 'basmati', 'basmati rice', 'chawal', 'चावल'],
+      pyaz: ['onion', 'onions', 'red onion', 'pyaj', 'pyaz', 'प्याज'],
+      tel: ['oil', 'cooking oil', 'sunflower oil', 'mustard oil', 'tel', 'तेल'],
+      chini: ['sugar', 'cheeni', 'chini', 'चीनी'],
+      namak: ['salt', 'sendha namak', 'namak', 'नमक'],
+      mirchi: ['chilli', 'chili', 'green chillies', 'hari mirch', 'mirch', 'मिर्च'],
+      haldi: ['turmeric', 'haldi', 'हल्दी'],
+      jeera: ['cumin', 'cumin seeds', 'jeera', 'जीरा'],
+      dal: ['lentils', 'toor dal', 'moong dal', 'masoor dal', 'chana dal', 'दाल'],
+    };
+
+    // Find which alias cluster matches the query
+    let matchedClusterKey: string | null = null;
+    for (const [key, aliases] of Object.entries(aliasesMap)) {
+      if (key === qClean || aliases.some((a) => q.includes(a) || a.includes(q))) {
+        matchedClusterKey = key;
+        break;
+      }
+    }
+
+    if (matchedClusterKey) {
+      const clusterAliases = aliasesMap[matchedClusterKey];
+      const match = items.find((i) => {
+        const itemLower = i.name.toLowerCase();
+        const ingId = i.ingredient_id.toLowerCase();
+        return (
+          ingId.includes(matchedClusterKey!) ||
+          clusterAliases.some((a) => itemLower.includes(a))
+        );
+      });
+      if (match) return match;
+    }
+
+    // 4. Substring containment match
+    const subMatch = items.find(
+      (i) => i.name.toLowerCase().includes(q) || q.includes(i.name.toLowerCase())
+    );
+    if (subMatch) return subMatch;
+
+    return null;
+  }
+
   public adjustStock(
     ingredientId: string,
     op: StockOp,
     qty: number,
     targetScope: 'personal' | 'shared' = 'shared',
-    reason = 'manual'
+    reason = 'manual',
+    options?: {
+      stockId?: string;
+      name?: string;
+      location?: 'pantry' | 'fridge';
+      unit?: BaseUnit;
+      targetScope?: 'personal' | 'shared';
+    }
   ) {
     const hhId = this.state.currentHouseholdId;
     const currentUserId = this.state.currentUserId;
@@ -767,14 +848,27 @@ class StoreService {
     }
 
     const items = Object.values(this.state.stock[hhId]);
-    const targetOwner = targetScope === 'personal' ? currentUserId : null;
+    const scope = options?.targetScope || targetScope;
+    const targetOwner = scope === 'personal' ? currentUserId : null;
 
-    // Find existing stock item in that scope
-    let item = items.find(
-      (i) =>
-        (i.ingredient_id === ingredientId || i.id === ingredientId) &&
-        i.owner_user_id === targetOwner
-    );
+    // 1. Locate item: first by options.stockId, then findMatchingStockItem, then direct ID
+    let item: StockItem | undefined = undefined;
+
+    if (options?.stockId) {
+      item = items.find((i) => i.id === options.stockId);
+    }
+
+    if (!item) {
+      item = this.findMatchingStockItem(options?.name || ingredientId) || undefined;
+    }
+
+    if (!item) {
+      item = items.find(
+        (i) =>
+          (i.ingredient_id === ingredientId || i.id === ingredientId) &&
+          (i.owner_user_id === targetOwner || items.length === 1)
+      );
+    }
 
     const before = item ? item.qty_base : 0;
     let after = before;
@@ -789,6 +883,8 @@ class StoreService {
 
     if (item) {
       item.qty_base = Math.round(after * 10) / 10;
+      if (options?.location && !item.location) item.location = options.location;
+      if (options?.unit && !item.unit_base) item.unit_base = options.unit;
       item.version += 1;
     } else {
       const id = 'stk_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
@@ -796,23 +892,34 @@ class StoreService {
         id,
         household_id: hhId,
         ingredient_id: ingredientId,
-        name: ingredientId.replace('ing_', '').replace(/_/g, ' '),
+        name: options?.name || ingredientId.replace('ing_', '').replace(/_/g, ' '),
         qty_base: Math.round(after * 10) / 10,
-        unit_base: 'g',
-        location: 'pantry',
+        unit_base: options?.unit || 'g',
+        location: options?.location || 'pantry',
         owner_user_id: targetOwner,
         contributed_by: targetOwner ? 'Personal' : 'Shared',
         version: 1,
-        storage_place: 'pantry',
+        storage_place: options?.location || 'pantry',
         shelf_life_days: 30,
       };
       this.state.stock[hhId][id] = item;
     }
 
-    this.logAudit('stock_adjust', { ingredientId, op, qty, before, after, targetScope, reason });
+    this.logAudit('stock_adjust', {
+      stockId: item.id,
+      ingredientId,
+      name: item.name,
+      op,
+      qty,
+      before,
+      after,
+      targetScope: scope,
+      reason,
+    });
     this.persist();
 
     return {
+      stockId: item.id,
       name: item.name,
       unit_base: item.unit_base,
       before,
@@ -1451,7 +1558,20 @@ class StoreService {
     // 1. Stock changes
     if (payload.intent !== 'add_to_cart') {
       for (const item of payload.items || []) {
-        const res = this.adjustStock(item.ingredient_id, item.op, item.qty_base, 'shared', 'proposal_confirm');
+        const res = this.adjustStock(
+          item.ingredient_id,
+          item.op,
+          item.qty_base,
+          item.target_scope || 'shared',
+          'proposal_confirm',
+          {
+            stockId: item.stock_id || undefined,
+            name: item.name,
+            location: item.location,
+            unit: item.unit_base,
+            targetScope: item.target_scope,
+          }
+        );
         applied.push(res);
       }
     }

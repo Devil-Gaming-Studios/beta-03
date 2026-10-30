@@ -317,7 +317,7 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
                 {/* Proposal Action Card embedded inside assistant message */}
                 {m.reply && !m.confirmed && m.reply.proposal_id && (
                   <div className="mt-3 p-3 bg-white rounded-xl border border-[#D1E2D7] flex flex-col gap-2.5 text-left text-[#1a1c1a] shadow-xs">
-                    <div className="flex items-center justify-between border-b border-gray-100 pb-1.5">
+                    <div className="flex flex-wrap items-center justify-between border-b border-gray-100 pb-1.5 gap-1">
                       <div className="flex items-center gap-1.5 font-bold text-[12px] text-[#1A3826]">
                         <span className="material-symbols-outlined text-[16px]">
                           {m.reply.intent === 'modify_recipe'
@@ -329,34 +329,49 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
                             : 'inventory_2'}
                         </span>
                         <span className="uppercase tracking-wider">
-                          {m.reply.intent === 'modify_recipe'
-                            ? 'Recipe Modification Proposal'
-                            : m.reply.intent === 'edit_schedule'
-                            ? '7-Day Schedule Proposal'
-                            : m.reply.intent === 'edit_plan'
-                            ? 'Menu Slot Change Proposal'
-                            : 'Inventory Stock Update'}
+                          {m.reply.classification_badge ||
+                            (m.reply.intent === 'modify_recipe'
+                              ? 'Recipe Modification'
+                              : m.reply.intent === 'edit_schedule'
+                              ? '7-Day Schedule'
+                              : m.reply.intent === 'edit_plan'
+                              ? 'Menu Slot Change'
+                              : 'Inventory Stock Update')}
                         </span>
                       </div>
-                      <span className="text-[10px] font-bold bg-[#E8F0EC] text-[#137333] px-2 py-0.5 rounded-full">
+                      <span className="text-[10px] font-bold bg-[#E8F0EC] text-[#137333] px-2 py-0.5 rounded-full border border-[#137333]/20">
                         Pending Confirm
                       </span>
                     </div>
 
+                    {/* Target Section Identifier */}
+                    {m.reply.target_section && (
+                      <div className="flex items-center gap-1.5 px-2.5 py-1 bg-[#f4f7f5] rounded-lg border border-[#d6e3da] text-[11px] text-[#1A3826]">
+                        <span className="material-symbols-outlined text-[14px]">my_location</span>
+                        <span className="font-semibold text-[#727972]">Section:</span>
+                        <span className="font-bold">{m.reply.target_section}</span>
+                      </div>
+                    )}
+
                     {/* 1. Recipe Modification Card (e.g. increase sugar in Kheer to 150g) */}
                     {m.reply.recipe_modification && (
                       <div className="flex flex-col gap-1.5 bg-[#f8f9f7] p-2.5 rounded-xl border border-[#E6E4DD]">
-                        <span className="text-[11px] font-bold text-[#727972] uppercase tracking-wider">
-                          Offline Saved Recipe:
-                        </span>
-                        <span className="text-[14px] font-bold text-[#1a1c1a]">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold text-[#727972] uppercase tracking-wider">
+                            Offline Saved Recipe:
+                          </span>
+                          <span className="text-[10px] bg-[#E8F0EC] text-[#137333] font-bold px-1.5 py-0.5 rounded">
+                            Customization
+                          </span>
+                        </div>
+                        <span className="text-[13px] font-bold text-[#1a1c1a]">
                           {m.reply.recipe_modification.recipe_title}
                         </span>
                         <div className="flex items-center justify-between pt-1">
-                          <span className="text-[13px] font-medium text-[#424843]">
+                          <span className="text-[12.5px] font-medium text-[#424843]">
                             {m.reply.recipe_modification.ingredient_name}:
                           </span>
-                          <div className="flex items-center gap-2 font-bold text-[13px]">
+                          <div className="flex items-center gap-2 font-bold text-[12.5px]">
                             <span className="text-[#727972] line-through">
                               {m.reply.recipe_modification.old_qty}{m.reply.recipe_modification.unit}
                             </span>
@@ -390,23 +405,63 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
                       </div>
                     )}
 
-                    {/* 3. Stock Changes Card */}
+                    {/* 3. Stock Changes Card with Current Inventory Matching & Before/After */}
                     {m.reply.items && m.reply.items.length > 0 && (
-                      <div className="flex flex-col gap-1 bg-[#f8f9f7] p-2.5 rounded-xl border border-[#E6E4DD] max-h-32 overflow-y-auto">
-                        <span className="text-[11px] font-bold text-[#727972] uppercase tracking-wider block mb-0.5">
-                          Stock Ledger Changes:
-                        </span>
+                      <div className="flex flex-col gap-1.5 bg-[#f8f9f7] p-2.5 rounded-xl border border-[#E6E4DD] max-h-48 overflow-y-auto">
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="text-[11px] font-bold text-[#727972] uppercase tracking-wider">
+                            Inventory Items &amp; Stock Levels:
+                          </span>
+                          <span className="text-[10px] text-[#727972]">
+                            {m.reply.items.filter((i) => i.is_existing).length} matched • {m.reply.items.filter((i) => !i.is_existing).length} new
+                          </span>
+                        </div>
                         {m.reply.items.map((it, idx) => (
-                          <div key={idx} className="flex items-center justify-between text-[12px]">
-                            <span className="font-semibold text-[#1a1c1a]">{it.name}</span>
-                            <span className="text-[#137333] font-bold">
-                              {it.op} {it.qty_base} {it.unit_base}
-                            </span>
-                            <span className="text-[#727972]">
-                              {it.before !== undefined && it.after !== undefined
-                                ? `${it.before} → ${it.after} ${it.unit_base}`
-                                : `${it.qty_base} ${it.unit_base}`}
-                            </span>
+                          <div
+                            key={idx}
+                            className="flex flex-col gap-1 bg-white p-2 rounded-lg border border-[#E6E4DD] text-[12px]"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-bold text-[#1a1c1a]">{it.name}</span>
+                                <span
+                                  className={`text-[9.5px] font-bold px-1.5 py-0.5 rounded-full ${
+                                    it.is_existing
+                                      ? 'bg-[#E8F0EC] text-[#137333] border border-[#137333]/20'
+                                      : 'bg-[#FEF7E0] text-[#B06000] border border-[#B06000]/20'
+                                  }`}
+                                >
+                                  {it.is_existing ? 'Matched in Stock' : 'New Item'}
+                                </span>
+                              </div>
+                              <span className="text-[10px] font-semibold text-[#727972] bg-[#f4f4f0] px-1.5 py-0.5 rounded">
+                                {it.location === 'fridge' ? '❄️ Fridge' : '📦 Pantry'}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between text-[11.5px] pt-0.5">
+                              <span className="text-[#727972]">
+                                Current:{' '}
+                                <strong className="text-[#1a1c1a]">
+                                  {it.before !== undefined && it.is_existing ? `${it.before} ${it.unit_base}` : '0 (Not in stock)'}
+                                </strong>
+                              </span>
+                              <span
+                                className={`font-bold px-1.5 py-0.2 rounded ${
+                                  it.op === 'remove'
+                                    ? 'text-[#ba1a1a] bg-[#fee2e2]'
+                                    : 'text-[#137333] bg-[#E8F0EC]'
+                                }`}
+                              >
+                                {it.op === 'remove' ? '-' : '+'}
+                                {it.qty_base} {it.unit_base}
+                              </span>
+                              <span className="text-[#727972]">
+                                Result:{' '}
+                                <strong className="text-[#1A3826] font-bold">
+                                  {it.after !== undefined ? `${it.after} ${it.unit_base}` : `${it.qty_base} ${it.unit_base}`}
+                                </strong>
+                              </span>
+                            </div>
                           </div>
                         ))}
                       </div>

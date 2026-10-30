@@ -551,35 +551,72 @@ app.post('/api/chat', async (req: Request, res: Response): Promise<any> => {
         qty = 1000;
       }
 
-      let itemName = 'Aloo (Potatoes)';
-      let ingId = 'ing_aloo';
-      if (lower.includes('atta') || lower.includes('wheat') || lower.includes('gehu')) {
-        itemName = 'Whole Wheat Atta';
-        ingId = 'ing_atta';
-      } else if (lower.includes('pyaz') || lower.includes('onion')) {
-        itemName = 'Pyaz (Onions)';
-        ingId = 'ing_pyaz';
-      } else if (lower.includes('dahi') || lower.includes('curd')) {
-        itemName = 'Fresh Dahi';
-        ingId = 'ing_dahi';
-        unit = 'ml';
-      } else if (lower.includes('doodh') || lower.includes('milk')) {
-        itemName = 'Fresh Doodh / Milk';
-        ingId = 'ing_doodh';
-        unit = 'ml';
-      } else if (lower.includes('paneer')) {
-        itemName = 'Paneer Block';
-        ingId = 'ing_paneer';
-      } else if (lower.includes('tamatar') || lower.includes('tomato')) {
-        itemName = 'Fresh Tamatar';
-        ingId = 'ing_tamatar';
+      const currentStockList = Array.isArray(stock) ? stock : [];
+      const matchedStockItem = currentStockList.find((s: any) => {
+        const sName = (s.name || '').toLowerCase();
+        const sId = (s.ingredient_id || '').toLowerCase();
+        return (
+          (lower.includes('aloo') && (sName.includes('aloo') || sId.includes('aloo'))) ||
+          (lower.includes('atta') && (sName.includes('atta') || sId.includes('atta'))) ||
+          (lower.includes('doodh') && (sName.includes('doodh') || sName.includes('milk') || sId.includes('doodh'))) ||
+          (lower.includes('dahi') && (sName.includes('dahi') || sName.includes('curd') || sId.includes('dahi'))) ||
+          (lower.includes('paneer') && (sName.includes('paneer') || sId.includes('paneer'))) ||
+          (lower.includes('tamatar') && (sName.includes('tamatar') || sName.includes('tomato') || sId.includes('tamatar'))) ||
+          (lower.includes('chawal') && (sName.includes('chawal') || sName.includes('rice') || sId.includes('chawal'))) ||
+          (lower.includes('pyaz') && (sName.includes('pyaz') || sName.includes('onion') || sId.includes('pyaz'))) ||
+          (lower.includes('oil') && (sName.includes('oil') || sName.includes('tel') || sId.includes('oil'))) ||
+          (sName.length > 2 && lower.includes(sName))
+        );
+      });
+
+      let itemName = matchedStockItem ? matchedStockItem.name : 'Aloo (Potatoes)';
+      let ingId = matchedStockItem ? matchedStockItem.ingredient_id : 'ing_aloo';
+      if (!matchedStockItem) {
+        if (lower.includes('atta') || lower.includes('wheat') || lower.includes('gehu')) {
+          itemName = 'Whole Wheat Atta';
+          ingId = 'ing_atta';
+        } else if (lower.includes('pyaz') || lower.includes('onion')) {
+          itemName = 'Pyaz (Onions)';
+          ingId = 'ing_pyaz';
+        } else if (lower.includes('dahi') || lower.includes('curd')) {
+          itemName = 'Fresh Dahi';
+          ingId = 'ing_dahi';
+          unit = 'ml';
+        } else if (lower.includes('doodh') || lower.includes('milk')) {
+          itemName = 'Fresh Doodh / Milk';
+          ingId = 'ing_doodh';
+          unit = 'ml';
+        } else if (lower.includes('paneer')) {
+          itemName = 'Paneer Block';
+          ingId = 'ing_paneer';
+        } else if (lower.includes('tamatar') || lower.includes('tomato')) {
+          itemName = 'Fresh Tamatar';
+          ingId = 'ing_tamatar';
+        }
       }
+
+      const isExisting = Boolean(matchedStockItem);
+      const before = matchedStockItem ? matchedStockItem.qty_base || 0 : 0;
+      const after = op === 'add' ? before + qty : op === 'remove' ? Math.max(0, before - qty) : qty;
+      const location = matchedStockItem?.location || (unit === 'ml' || lower.includes('paneer') || lower.includes('tamatar') ? 'fridge' : 'pantry');
+      const targetScope = matchedStockItem?.owner_user_id ? 'personal' : 'shared';
+      const targetSection = `Kitchen Stock → ${location === 'fridge' ? 'Fridge' : 'Pantry'} (${targetScope === 'personal' ? 'Personal' : 'Shared'})`;
+
+      const msg = isExisting
+        ? `Matched existing inventory item: "${itemName}" in ${targetSection}. Current stock: ${before} ${unit} → Proposing ${op === 'remove' ? '-' : '+'}${qty} ${unit} (New level: ${after} ${unit}). Niche card par confirm karein.`
+        : `New item to add: "${itemName}" (+${qty} ${unit}) in ${targetSection}. Niche card par confirm karein.`;
 
       return res.json({
         mode: mode || 'chat',
-        message: `Kitchen stock me "${itemName}" (${op === 'remove' ? '-' : '+'}${qty} ${unit}) update karne ka proposal taiyar hai. Confirm karne par inventory update ho jayegi.`,
+        message: msg,
+        classification_badge: isExisting ? 'Existing Stock Update' : 'New Stock Addition',
+        update_type_label: isExisting ? 'Inventory Stock Adjustment (Existing Item)' : 'New Inventory Item Addition',
+        target_section: targetSection,
         proposal: {
           intent: 'update_stock',
+          classification_badge: isExisting ? 'Existing Stock Update' : 'New Stock Addition',
+          update_type_label: isExisting ? 'Inventory Stock Adjustment (Existing Item)' : 'New Inventory Item Addition',
+          target_section: targetSection,
           items: [
             {
               ingredient_id: ingId,
@@ -587,6 +624,14 @@ app.post('/api/chat', async (req: Request, res: Response): Promise<any> => {
               qty_base: qty,
               unit_base: unit,
               op: op,
+              before,
+              after,
+              stock_id: matchedStockItem?.id || null,
+              is_existing: isExisting,
+              location,
+              target_scope: targetScope,
+              target_section: targetSection,
+              classification: isExisting ? 'Existing Stock Adjustment' : 'New Item Addition',
               note: `Direct stock adjustment via chat: ${text}`,
             },
           ],

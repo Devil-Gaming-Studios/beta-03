@@ -324,10 +324,35 @@ export const ChatTab: React.FC<ChatTabProps> = ({ onRefresh }) => {
 
       {reply && (
         <div className="card" id="reply">
-          <h2>
-            <span>Proposal</span>
-            <Sparkles size={14} style={{ color: 'var(--warn)' }} />
-          </h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span>{reply.classification_badge || 'Proposal'}</span>
+              <Sparkles size={14} style={{ color: 'var(--warn)' }} />
+            </h2>
+            <span className="pill ok" style={{ fontSize: '10px' }}>
+              Pending Review
+            </span>
+          </div>
+
+          {reply.target_section && (
+            <div
+              style={{
+                fontSize: '11px',
+                background: '#151d16',
+                border: '1px solid #233e28',
+                color: 'var(--accent)',
+                padding: '4px 8px',
+                borderRadius: '6px',
+                marginBottom: '10px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+              }}
+            >
+              <span style={{ color: 'var(--dim)' }}>Target Section:</span>
+              <strong>{reply.target_section}</strong>
+            </div>
+          )}
 
           <div id="reply-message" style={{ fontSize: '14px', lineHeight: '1.5' }}>
             {reply.message || '(no message)'}
@@ -347,27 +372,39 @@ export const ChatTab: React.FC<ChatTabProps> = ({ onRefresh }) => {
           )}
 
           {reply.items && reply.items.length > 0 && (
-            <table className="items" id="reply-items">
+            <table className="items" id="reply-items" style={{ marginTop: '10px' }}>
               <thead>
                 <tr>
-                  <th>Item</th>
+                  <th>Item &amp; Section</th>
+                  <th>Current Stock</th>
                   <th>Change</th>
-                  <th>Stock after</th>
+                  <th>Stock After</th>
                 </tr>
               </thead>
               <tbody>
                 {reply.items.map((it, idx) => (
                   <tr key={idx}>
-                    <td style={{ fontWeight: 600 }}>{it.name}</td>
                     <td>
-                      <span style={{ color: it.op === 'remove' ? 'var(--bad)' : 'var(--accent)' }}>
-                        {it.op} {Math.round(it.qty_base)} {it.unit_base}
+                      <div style={{ fontWeight: 600 }}>{it.name}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--dim)' }}>
+                        {it.location === 'fridge' ? '❄️ Fridge' : '📦 Pantry'} •{' '}
+                        <span style={{ color: it.is_existing ? 'var(--accent)' : 'var(--warn)' }}>
+                          {it.is_existing ? 'Matched in Stock' : 'New Item'}
+                        </span>
+                      </div>
+                    </td>
+                    <td style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--dim)' }}>
+                      {it.before !== undefined && it.is_existing ? `${Math.round(it.before)} ${it.unit_base}` : '0 (New)'}
+                    </td>
+                    <td>
+                      <span style={{ color: it.op === 'remove' ? 'var(--bad)' : 'var(--accent)', fontWeight: 600 }}>
+                        {it.op === 'remove' ? '-' : '+'}{Math.round(it.qty_base)} {it.unit_base}
                       </span>
                     </td>
-                    <td style={{ fontVariantNumeric: 'tabular-nums' }}>
-                      {it.before !== undefined && it.after !== undefined
-                        ? `${Math.round(it.before)} → ${Math.round(it.after)} ${it.unit_base}`
-                        : `${it.qty_base} ${it.unit_base}`}
+                    <td style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
+                      {it.after !== undefined
+                        ? `${Math.round(it.after)} ${it.unit_base}`
+                        : `${Math.round(it.qty_base)} ${it.unit_base}`}
                     </td>
                   </tr>
                 ))}
