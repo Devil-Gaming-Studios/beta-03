@@ -263,6 +263,13 @@ export class GraphRAGService {
     }));
   }
 
+  public getIngredients() {
+    if (!this.graph?.ingredients) return [];
+    return Array.isArray(this.graph.ingredients)
+      ? this.graph.ingredients
+      : Object.values(this.graph.ingredients);
+  }
+
   public rebuild(customCsvPath?: string) {
     const csvPath = customCsvPath || path.resolve(__dirname, '..', 'public', 'assets', 'aistudio', 'IndianFoodDatasetCSV_273f8d45.csv');
     if (!fs.existsSync(csvPath)) throw new Error(`CSV file not found at ${csvPath}`);

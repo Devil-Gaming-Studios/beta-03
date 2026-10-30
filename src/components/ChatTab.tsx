@@ -1,8 +1,14 @@
-import React, { useState } from 'react';
-import { Bot, Check, Send, Sparkles, Trash2, AlertTriangle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Bot, Check, Send, Sparkles, Trash2, AlertTriangle, Mic, MicOff, CloudOff } from 'lucide-react';
 import { OmnirushMode, OmnirushResponse } from '../types';
 import { askOmnirush } from '../services/omnirush';
 import { store } from '../services/store';
+import {
+  sttController,
+  STTEngineType,
+  STTResult,
+  transcribeWithRouting,
+} from '../services/sttService';
 
 interface ChatTabProps {
   onRefresh: () => void;
@@ -16,6 +22,44 @@ export const ChatTab: React.FC<ChatTabProps> = ({ onRefresh }) => {
   const [reply, setReply] = useState<OmnirushResponse | null>(null);
   const [confirming, setConfirming] = useState(false);
 
+  // STT Voice State
+  const [selectedEngine, setSelectedEngine] = useState<STTEngineType>('auto');
+  const [isRecording, setIsRecording] = useState(false);
+  const [sttMeta, setSttMeta] = useState<STTResult | null>(null);
+
+  useEffect(() => {
+    return () => {
+      sttController.stop();
+    };
+  }, []);
+
+  const handleToggleVoice = async () => {
+    if (isRecording) {
+      sttController.stop();
+      setIsRecording(false);
+      return;
+    }
+
+    setError(null);
+    setIsRecording(true);
+
+    await sttController.start({
+      preference: selectedEngine,
+      onInterim: (interim) => {
+        setText(interim);
+      },
+      onFinal: (result) => {
+        setIsRecording(false);
+        setText(result.transcript);
+        setSttMeta(result);
+      },
+      onError: (err) => {
+        setIsRecording(false);
+        setError(err);
+      },
+    });
+  };
+
   const handleSend = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const promptText = text.trim();
@@ -27,6 +71,7 @@ export const ChatTab: React.FC<ChatTabProps> = ({ onRefresh }) => {
     try {
       const response = await askOmnirush(promptText, mode);
       setReply(response);
+      setSttMeta(null);
     } catch (err: any) {
       setError(err.message || 'Failed to communicate with Omnirush');
     } finally {
@@ -56,9 +101,11 @@ export const ChatTab: React.FC<ChatTabProps> = ({ onRefresh }) => {
     setReply(null);
   };
 
-  const setPromptChip = (chipText: string, chipMode?: OmnirushMode) => {
+  const setPromptChip = async (chipText: string, chipMode?: OmnirushMode, enginePref: STTEngineType = 'shruti') => {
     setText(chipText);
     if (chipMode) setMode(chipMode);
+    const routed = await transcribeWithRouting(chipText, enginePref);
+    setSttMeta(routed);
   };
 
   return (
@@ -68,18 +115,98 @@ export const ChatTab: React.FC<ChatTabProps> = ({ onRefresh }) => {
           <span>Ask Omnirush</span>
           <Bot size={14} style={{ color: 'var(--accent)' }} />
         </h2>
-        <div className="muted">
-          llama 3.1 on the laptop; replies take 8 to 30 seconds. (Confirm-before-write safety enforced).
+        <div className="muted" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '4px' }}>
+          <span>Offline Speech-to-Text: Shruti (Hindi/Hinglish) & Cactus Whisper (English)</span>
+          <span className="pill ok" style={{ fontSize: '10px' }}>Local-First STT</span>
+        </div>
+
+        {/* STT Engine Selector */}
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '10px', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '11px', color: 'var(--dim)', textTransform: 'uppercase', fontWeight: 600 }}>STT Engine:</span>
+          <button
+            type="button"
+            className={`pill ${selectedEngine === 'auto' ? 'ok' : ''}`}
+            onClick={() => setSelectedEngine('auto')}
+            style={{ cursor: 'pointer' }}
+          >
+            Auto-Detect
+          </button>
+          <button
+            type="button"
+            className={`pill ${selectedEngine === 'shruti' ? 'ok' : ''}`}
+            onClick={() => setSelectedEngine('shruti')}
+            style={{ cursor: 'pointer' }}
+            title="Shruti: Hindi & Hinglish Offline Model"
+          >
+            Shruti (Hindi/Hinglish - Offline)
+          </button>
+          <button
+            type="button"
+            className={`pill ${selectedEngine === 'cactus_whisper' ? 'ok' : ''}`}
+            onClick={() => setSelectedEngine('cactus_whisper')}
+            style={{ cursor: 'pointer' }}
+            title="Cactus Whisper: English Offline Model"
+          >
+            Cactus Whisper (English - Offline)
+          </button>
+          <button
+            type="button"
+            className={`pill ${selectedEngine === 'sarvam_saaras' ? 'ok' : ''}`}
+            onClick={() => setSelectedEngine('sarvam_saaras')}
+            style={{ cursor: 'pointer' }}
+            title="Sarvam Saaras v3: Cloud Fallback"
+          >
+            Sarvam Cloud
+          </button>
         </div>
 
         <form onSubmit={handleSend} style={{ marginTop: '10px' }}>
-          <textarea
-            id="text"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="do kilo aloo aur ek litre dahi add kar do"
-            disabled={loading}
-          />
+          <div style={{ position: 'relative' }}>
+            <textarea
+              id="text"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="do kilo aloo aur ek litre dahi add kar do / add 2 kg potatoes"
+              disabled={loading}
+              style={{
+                borderColor: sttMeta?.lowConfidence ? 'var(--warn)' : undefined,
+                background: isRecording ? '#1a221b' : undefined,
+              }}
+            />
+          </div>
+
+          {/* STT Status & Confidence Indicator */}
+          {sttMeta && (
+            <div style={{
+              background: sttMeta.lowConfidence ? '#2a2312' : '#14281a',
+              border: `1px solid ${sttMeta.lowConfidence ? 'var(--warn)' : 'var(--accent)'}`,
+              borderRadius: '8px',
+              padding: '6px 10px',
+              margin: '8px 0',
+              fontSize: '12px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '6px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <CloudOff size={13} style={{ color: sttMeta.isOffline ? 'var(--accent)' : 'var(--dim)' }} />
+                <span>Engine: <strong>{sttMeta.engine}</strong></span>
+                {sttMeta.fallbackTriggered && (
+                  <span className="pill" style={{ color: 'var(--accent)', borderColor: 'var(--accent)', fontSize: '10px' }}>Cloud Fallback</span>
+                )}
+              </div>
+              <div>
+                <span>Confidence: <strong>{Math.round(sttMeta.confidence * 100)}%</strong></span>
+                {sttMeta.lowConfidence && (
+                  <span style={{ color: 'var(--warn)', marginLeft: '6px', fontWeight: 600 }}>
+                    (Low - please check before sending)
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Quick example prompt chips */}
           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', margin: '8px 0' }}>
@@ -87,15 +214,25 @@ export const ChatTab: React.FC<ChatTabProps> = ({ onRefresh }) => {
               type="button"
               className="pill"
               style={{ fontSize: '11px', padding: '3px 8px' }}
-              onClick={() => setPromptChip('do kilo aloo aur ek litre dahi add kar do', 'chat')}
+              onClick={() => setPromptChip('do kilo aloo aur ek litre dahi add kar do', 'chat', 'shruti')}
+              title="Test with Shruti"
             >
-              + 2kg aloo & 1L dahi
+              [Shruti] + 2kg aloo & 1L dahi
             </button>
             <button
               type="button"
               className="pill"
               style={{ fontSize: '11px', padding: '3px 8px' }}
-              onClick={() => setPromptChip('Suggest lunch and dinner for today from stock', 'plan')}
+              onClick={() => setPromptChip('add 2 kg potatoes and check dinner recipe', 'chat', 'cactus_whisper')}
+              title="Test with Cactus Whisper"
+            >
+              [Cactus] + 2kg potatoes
+            </button>
+            <button
+              type="button"
+              className="pill"
+              style={{ fontSize: '11px', padding: '3px 8px' }}
+              onClick={() => setPromptChip('Suggest lunch and dinner for today from stock', 'plan', 'cactus_whisper')}
             >
               Suggest today's meals
             </button>
@@ -103,21 +240,30 @@ export const ChatTab: React.FC<ChatTabProps> = ({ onRefresh }) => {
               type="button"
               className="pill"
               style={{ fontSize: '11px', padding: '3px 8px' }}
-              onClick={() => setPromptChip('What missing items should we add to cart?', 'cart')}
+              onClick={() => setPromptChip('atta khatam ho gaya 500g', 'chat', 'shruti')}
             >
-              Cart missing items
-            </button>
-            <button
-              type="button"
-              className="pill"
-              style={{ fontSize: '11px', padding: '3px 8px' }}
-              onClick={() => setPromptChip('atta khatam ho gaya 500g', 'chat')}
-            >
-              - 500g atta
+              [Shruti] - 500g atta
             </button>
           </div>
 
-          <div className="row" style={{ marginTop: '8px' }}>
+          <div className="row" style={{ marginTop: '8px', alignItems: 'center' }}>
+            <button
+              type="button"
+              className={isRecording ? 'act' : 'ghost'}
+              onClick={handleToggleVoice}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                background: isRecording ? '#ba1a1a' : undefined,
+                color: isRecording ? '#fff' : undefined,
+              }}
+              title="Record with Shruti or Cactus Whisper"
+            >
+              {isRecording ? <MicOff size={14} /> : <Mic size={14} />}
+              <span>{isRecording ? 'Stop Mic' : 'Voice Input'}</span>
+            </button>
+
             <select
               id="mode"
               value={mode}

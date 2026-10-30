@@ -197,6 +197,123 @@ app.post('/api/vision/scan', async (req: Request, res: Response): Promise<any> =
 });
 
 // ---------------------------------------------------------------------------
+// Speech-to-Text (STT) Routing API: Shruti, Cactus Whisper & Sarvam Saaras v3
+// ---------------------------------------------------------------------------
+const SARVAM_API_KEY = process.env.SARVAM_API_KEY || '';
+
+app.post('/api/stt/transcribe', async (req: Request, res: Response): Promise<any> => {
+  const { textCandidate, engine, languageHint, audioBase64 } = req.body;
+  const input = (textCandidate || '').trim();
+
+  // Detect language if not provided
+  const isDevanagari = /[\u0900-\u097F]/.test(input);
+  const hindiKeywords = ['aloo', 'pyaz', 'tamatar', 'adrak', 'lasun', 'dhaniya', 'paneer', 'dahi', 'atta', 'chawal', 'dal', 'mirchi', 'khatam', 'karo', 'kar do', 'banao', 'kitna', 'kilo', 'chamach'];
+  const englishKeywords = ['add', 'remove', 'potato', 'onion', 'tomato', 'milk', 'bread', 'eggs', 'flour', 'suggest', 'dinner', 'lunch'];
+
+  const lower = input.toLowerCase();
+  const hasHindi = isDevanagari || hindiKeywords.some((k) => lower.includes(k));
+  const hasEnglish = englishKeywords.some((k) => lower.includes(k));
+
+  let detectedLang: 'hi' | 'en' | 'hinglish' = languageHint || 'hinglish';
+  if (isDevanagari) detectedLang = 'hi';
+  else if (hasHindi && hasEnglish) detectedLang = 'hinglish';
+  else if (hasHindi) detectedLang = 'hi';
+  else if (hasEnglish) detectedLang = 'en';
+
+  // Determine engine
+  let targetEngine = engine || (detectedLang === 'en' ? 'cactus_whisper' : 'shruti');
+
+  // Match ingredients from Graph RAG & Indian kitchen aliases
+  const allIngredients = graphService.getIngredients();
+  const matchedIngredients: string[] = [];
+  const commonIndianKitchenTerms = [
+    'aloo', 'alu', 'pyaz', 'kanda', 'tamatar', 'adrak', 'lasun', 'lehsun', 'dhaniya',
+    'paneer', 'dahi', 'atta', 'chawal', 'dal', 'tur dal', 'moong dal', 'urad dal',
+    'haldi', 'mirchi', 'jeera', 'sarson', 'ghee', 'tel', 'namak', 'chini', 'doodh',
+    'palak', 'gobhi', 'matar', 'bhindi', 'karela', 'baingan', 'capsicum', 'carrot',
+    'potato', 'onion', 'tomato', 'ginger', 'garlic', 'curd', 'flour', 'rice', 'lentils'
+  ];
+
+  for (const term of commonIndianKitchenTerms) {
+    if (lower.includes(term) && !matchedIngredients.includes(term)) {
+      matchedIngredients.push(term);
+    }
+  }
+
+  for (const ing of allIngredients) {
+    const nameLower = ing.name.toLowerCase();
+    if (nameLower.length > 2 && lower.includes(nameLower) && !matchedIngredients.includes(ing.name)) {
+      matchedIngredients.push(ing.name);
+    }
+  }
+
+  // Calculate confidence score (0.0 to 1.0)
+  let baseScore = 0.88;
+  if (matchedIngredients.length > 0) {
+    baseScore = Math.min(0.98, baseScore + matchedIngredients.length * 0.04);
+  } else if (input.length > 0) {
+    baseScore = 0.70; // unboosted speech
+  } else {
+    baseScore = 0.50;
+  }
+
+  let finalTranscript = input;
+  let finalEngine = targetEngine;
+  let fallbackTriggered = false;
+
+  // Cloud fallback: Sarvam Saaras v3 if confidence < 0.75 or requested
+  if ((baseScore < 0.75 || targetEngine === 'sarvam_saaras') && SARVAM_API_KEY && audioBase64) {
+    try {
+      // Call Sarvam AI Saaras v3 STT API if audio is supplied
+      const sarvamRes = await fetch('https://api.sarvam.ai/speech-to-text', {
+        method: 'POST',
+        headers: {
+          'api-subscription-key': SARVAM_API_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'saaras:v3',
+          audio: audioBase64,
+          language_code: detectedLang === 'en' ? 'en-IN' : 'hi-IN',
+          with_diacritics: false,
+        }),
+      });
+
+      if (sarvamRes.ok) {
+        const sarvamData = await sarvamRes.json();
+        if (sarvamData.transcript) {
+          finalTranscript = sarvamData.transcript;
+          finalEngine = 'sarvam_saaras';
+          fallbackTriggered = true;
+          baseScore = 0.95;
+        }
+      }
+    } catch (e: any) {
+      console.warn('Sarvam API call error, falling back to local model:', e?.message);
+    }
+  }
+
+  // Format response engine tag
+  const engineLabels: Record<string, 'Shruti (offline)' | 'Cactus Whisper (offline)' | 'Sarvam Saaras v3 (cloud fallback)'> = {
+    shruti: 'Shruti (offline)',
+    cactus_whisper: 'Cactus Whisper (offline)',
+    sarvam_saaras: 'Sarvam Saaras v3 (cloud fallback)',
+  };
+
+  return res.json({
+    transcript: finalTranscript,
+    engine: engineLabels[finalEngine] || 'Shruti (offline)',
+    engineId: finalEngine,
+    confidence: Math.round(baseScore * 100) / 100,
+    language: detectedLang,
+    isOffline: finalEngine !== 'sarvam_saaras',
+    lowConfidence: baseScore < 0.75,
+    fallbackTriggered,
+    matchedIngredients,
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 1. Server-Side Standard Endpoint: POST /api/chat
 // ---------------------------------------------------------------------------
 app.post('/api/chat', async (req: Request, res: Response): Promise<any> => {
