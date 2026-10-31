@@ -7,13 +7,18 @@ import { RecipesScreen } from './components/RecipesScreen';
 import { StockScreen } from './components/StockScreen';
 import { ShopScreen } from './components/ShopScreen';
 import { HouseholdScreen } from './components/HouseholdScreen';
+import { CloudKitchenHome } from './components/CloudKitchenHome';
+import { CloudKitchenBatches } from './components/CloudKitchenBatches';
+import { CloudKitchenMenu } from './components/CloudKitchenMenu';
+import { CloudKitchenStock } from './components/CloudKitchenStock';
+import { CloudKitchenShop } from './components/CloudKitchenShop';
 import { OmnirushVoiceModal } from './components/OmnirushVoiceModal';
 import { RecipeModal } from './components/RecipeModal';
 import { ScanModal } from './components/ScanModal';
-import { OnboardingScreen } from './components/OnboardingScreen';
+import { AuthScreen } from './components/AuthScreen';
 import { DownloadAppModal } from './components/DownloadAppModal';
 import { store } from './services/store';
-import { DietPreference, MealSlot } from './types';
+import { MealSlot } from './types';
 
 export const App: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<NavTab>(() => {
@@ -30,12 +35,12 @@ export const App: React.FC = () => {
   const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
   const [scanModalMode, setScanModalMode] = useState<'receipt' | 'fridge' | null>(null);
   const [planRefreshKey, setPlanRefreshKey] = useState(0);
-  const [onboarded, setOnboarded] = useState<boolean>(() => {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       if (params.get('swiggy') === 'connected') return true;
     }
-    return store.isOnboardingComplete();
+    return store.isLoggedIn();
   });
   const [viewRecipe, setViewRecipe] = useState<{
     id: string;
@@ -51,7 +56,7 @@ export const App: React.FC = () => {
       const params = new URLSearchParams(window.location.search);
       if (params.get('swiggy') === 'connected' || params.has('swiggy_error')) {
         setCurrentTab('shop');
-        setOnboarded(true);
+        setIsAuthenticated(true);
       }
     }
   }, []);
@@ -60,19 +65,18 @@ export const App: React.FC = () => {
     setIsHindi((prev) => !prev);
   };
 
-  const handleOnboardingComplete = (diet: DietPreference, isBeginner: boolean) => {
-    store.completeOnboarding(diet, isBeginner);
+  const handleLoginSuccess = () => {
+    setIsAuthenticated(true);
     setPlanRefreshKey((k) => k + 1);
-    setOnboarded(true);
   };
 
-  // Gate: nothing else renders until diet preference has been chosen.
-  if (!onboarded) {
+  // Gate: when not logged in or onboarded, show dedicated Auth & Login Screen
+  if (!isAuthenticated) {
     return (
-      <OnboardingScreen
+      <AuthScreen
         isHindi={isHindi}
         onToggleLang={toggleLanguage}
-        onComplete={handleOnboardingComplete}
+        onLoginSuccess={handleLoginSuccess}
       />
     );
   }
@@ -91,77 +95,107 @@ export const App: React.FC = () => {
 
       {/* Main Content Area */}
       <main className="flex-1 w-full pt-20 pb-24">
-        {currentTab === 'home' && (
-          <HomeScreen
-            key={planRefreshKey}
-            isHindi={isHindi}
-            onNavigate={(tab) => setCurrentTab(tab)}
-            onOpenVoice={() => setIsVoiceOpen(true)}
-            onOpenScan={(mode) => setScanModalMode(mode)}
-            onOpenDownload={() => setIsDownloadModalOpen(true)}
-            onViewRecipe={(id, servings, planDate, planSlot) =>
-              setViewRecipe({
-                id,
-                servings,
-                initialDate: planDate,
-                initialSlot: planSlot,
-                autoOpenPlanForm: false,
-              })
-            }
-          />
-        )}
+        {/* Tab 1: Home / KDS */}
+        {currentTab === 'home' &&
+          (store.getMe().household.household_type === 'cloud_kitchen' ? (
+            <CloudKitchenHome
+              key={planRefreshKey}
+              isHindi={isHindi}
+              onNavigate={(tab) => setCurrentTab(tab)}
+              onOpenVoice={() => setIsVoiceOpen(true)}
+            />
+          ) : (
+            <HomeScreen
+              key={planRefreshKey}
+              isHindi={isHindi}
+              onNavigate={(tab) => setCurrentTab(tab)}
+              onOpenVoice={() => setIsVoiceOpen(true)}
+              onOpenScan={(mode) => setScanModalMode(mode)}
+              onOpenDownload={() => setIsDownloadModalOpen(true)}
+              onViewRecipe={(id, servings, planDate, planSlot) =>
+                setViewRecipe({
+                  id,
+                  servings,
+                  initialDate: planDate,
+                  initialSlot: planSlot,
+                  autoOpenPlanForm: false,
+                })
+              }
+            />
+          ))}
 
-        {currentTab === 'planner' && (
-          <PlannerScreen
-            key={planRefreshKey}
-            isHindi={isHindi}
-            onOpenVoice={() => setIsVoiceOpen(true)}
-            onViewRecipe={(id, servings, planDate, planSlot) =>
-              setViewRecipe({
-                id,
-                servings,
-                initialDate: planDate,
-                initialSlot: planSlot,
-                autoOpenPlanForm: false,
-              })
-            }
-            onOpenRecipesTab={() => setCurrentTab('recipes')}
-          />
-        )}
+        {/* Tab 2: Planner / Batches */}
+        {currentTab === 'planner' &&
+          (store.getMe().household.household_type === 'cloud_kitchen' ? (
+            <CloudKitchenBatches
+              key={planRefreshKey}
+              isHindi={isHindi}
+              onOpenVoice={() => setIsVoiceOpen(true)}
+            />
+          ) : (
+            <PlannerScreen
+              key={planRefreshKey}
+              isHindi={isHindi}
+              onOpenVoice={() => setIsVoiceOpen(true)}
+              onViewRecipe={(id, servings, planDate, planSlot) =>
+                setViewRecipe({
+                  id,
+                  servings,
+                  initialDate: planDate,
+                  initialSlot: planSlot,
+                  autoOpenPlanForm: false,
+                })
+              }
+              onOpenRecipesTab={() => setCurrentTab('recipes')}
+            />
+          ))}
 
-        {currentTab === 'recipes' && (
-          <RecipesScreen
-            key={planRefreshKey}
-            isHindi={isHindi}
-            onViewRecipe={(id, servings) =>
-              setViewRecipe({ id, servings, autoOpenPlanForm: false })
-            }
-            onAddToPlan={(id) => {
-              setViewRecipe({ id, servings: 2, autoOpenPlanForm: true });
-            }}
-          />
-        )}
+        {/* Tab 3: Recipes / Menu */}
+        {currentTab === 'recipes' &&
+          (store.getMe().household.household_type === 'cloud_kitchen' ? (
+            <CloudKitchenMenu key={planRefreshKey} isHindi={isHindi} />
+          ) : (
+            <RecipesScreen
+              key={planRefreshKey}
+              isHindi={isHindi}
+              onViewRecipe={(id, servings) =>
+                setViewRecipe({ id, servings, autoOpenPlanForm: false })
+              }
+              onAddToPlan={(id) => {
+                setViewRecipe({ id, servings: 2, autoOpenPlanForm: true });
+              }}
+            />
+          ))}
 
-        {currentTab === 'stock' && (
-          <StockScreen
-            key={planRefreshKey}
-            isHindi={isHindi}
-            onOpenVoice={() => setIsVoiceOpen(true)}
-            onOpenScan={(mode) => setScanModalMode(mode || 'receipt')}
-          />
-        )}
+        {/* Tab 4: Stock / Inventory & Ledger */}
+        {currentTab === 'stock' &&
+          (store.getMe().household.household_type === 'cloud_kitchen' ? (
+            <CloudKitchenStock key={planRefreshKey} isHindi={isHindi} />
+          ) : (
+            <StockScreen
+              key={planRefreshKey}
+              isHindi={isHindi}
+              onOpenVoice={() => setIsVoiceOpen(true)}
+              onOpenScan={(mode) => setScanModalMode(mode || 'receipt')}
+            />
+          ))}
 
-        {currentTab === 'shop' && (
-          <ShopScreen
-            key={planRefreshKey}
-            isHindi={isHindi}
-          />
-        )}
+        {/* Tab 5: Shop / Procurement */}
+        {currentTab === 'shop' &&
+          (store.getMe().household.household_type === 'cloud_kitchen' ? (
+            <CloudKitchenShop key={planRefreshKey} isHindi={isHindi} />
+          ) : (
+            <ShopScreen key={planRefreshKey} isHindi={isHindi} />
+          ))}
 
+        {/* Tab 6: Household & Cloud Kitchen Profile / Roles / P&L Reports */}
         {currentTab === 'household' && (
           <HouseholdScreen
             key={planRefreshKey}
             isHindi={isHindi}
+            onLogout={() => {
+              setIsAuthenticated(false);
+            }}
           />
         )}
       </main>

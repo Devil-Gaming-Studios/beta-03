@@ -169,3 +169,48 @@ TOKEN_ENCRYPTION_KEYS='{"primary":"0123456789abcdef0123456789abcdef0123456789abc
 - **Dynamic Tool Discovery**: Discovers tools dynamically via Streamable HTTP JSON-RPC `tools/list` on `https://mcp.swiggy.com/im` and `https://mcp.swiggy.com/food`.
 - **Search & Price Benchmarking**: Fetches live product names, prices, and inventory without hardcoded catalogs.
 - **Explicit User Confirmation**: The application generates a cart preview for user inspection before any cart modification. KitchenSync will **never** automatically execute payment or finalize orders without explicit manual confirmation.
+
+---
+
+## Cloud Kitchen Mode (Commercial Kitchen Management)
+
+KitchenSync provides a dedicated **Cloud Kitchen** operating mode alongside Home and Hostel Kitchens. Unlike household meal planners with 3 fixed meals a day, cloud kitchens cook to customer orders and owner-announced bulk batches.
+
+### Core Architecture & Capabilities
+1. **Dynamic Kitchen Display System (KDS & Prep Queue)**:
+   - Live kanban pipeline across 5 stages: `New` → `Accepted (Stock Reserved)` → `Cooking / In Prep (Stock Deducted)` → `Ready / Packing` → `Delivered / Picked Up`.
+   - Printable / shareable Kitchen Order Tickets (KOT) with order items, variants, and customer delivery notes.
+   - Omnichannel manual order entry (walk-in, phone call, WhatsApp, Telegram, Swiggy/Zomato manual entries).
+
+2. **Inventory That Follows The Work**:
+   - **Announce What I'm Cooking**: Scales recipe ingredients to target batch portions (e.g. 40 portions of Biryani), detects shortages, requires owner confirmation, and deducts raw stock upon announcement.
+   - **Order-Driven Deduction & Reservation**: Cook-to-order dishes place active reservations upon order acceptance, deduct inventory upon preparation, and cleanly restore stock if an order is cancelled.
+   - **Batch vs. Cook-To-Order**: Batch items draw from the cooked portions available pool; cook-to-order items deduct recipe ingredients per order.
+   - **Wastage & Spoilage**: Logs staff meals, customer returns, and spoilage with reason codes and cost impacts.
+   - **Immutable Audit Ledger**: Every inventory change records who, when, change quantity, and linked order/batch.
+
+3. **Deterministic Dietary Safety**:
+   - Menu items and ingredients are strictly classified as `veg`, `egg`, or `nonveg` in code (never guessed by LLM).
+   - "Pure-Veg Kitchen" toggle hides non-vegetarian dishes and ingredients kitchen-wide.
+
+4. **Procurement & Contracted Suppliers**:
+   - Automated purchase lists generated from inventory par levels and upcoming demand.
+   - Full CRUD contractor directory: add and remove suppliers, modify contractor contact numbers, lead times, preferred brands, and notes.
+   - Quick one-tap **Call** (`tel:`) and **WhatsApp** direct messaging links for suppliers.
+   - Goods-received check-in workflow with stock increment and audit logging.
+
+5. **Financial Reports & Performance**:
+   - Real-time P&L analytics: Gross revenue, ingredient food cost, wastage cost, gross margin percentage, and top-selling dishes.
+   - One-click CSV export of daily kitchen reports.
+
+### Automated Test Suite
+Run the comprehensive cloud kitchen integration test suite (unit normalization, diet tag derivation, roles, pure-veg filtering, batch deduction, order reservation/deduction/cancellation, wastage, and supplier lifecycle):
+```bash
+npx tsx scripts/test_cloud_kitchen.ts
+```
+
+### Out of Scope / Next Steps
+- Payment gateway integrations (UPI / Razorpay / Stripe).
+- Real-time live webhook ingestion from third-party delivery aggregators (Swiggy / Zomato merchant APIs).
+- Automated GST invoicing & tax calculation.
+

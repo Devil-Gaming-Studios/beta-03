@@ -1,4 +1,5 @@
 import React from 'react';
+import { store } from '../services/store';
 
 export type NavTab = 'home' | 'planner' | 'recipes' | 'stock' | 'shop' | 'household';
 
@@ -15,6 +16,8 @@ export const KitchenSyncNavbar: React.FC<KitchenSyncNavbarProps> = ({
   onOpenVoiceAI,
   isHindi,
 }) => {
+  const me = store.getMe();
+  const isCloudKitchen = me.household.household_type === 'cloud_kitchen';
   return (
     <nav className="fixed bottom-0 inset-x-0 z-40 bg-[#faf9f6]/95 backdrop-blur-xl border-t border-[#E6E4DD] pb-[calc(env(safe-area-inset-bottom,0px)+4px)]">
       <div className="flex justify-between items-center h-16 sm:h-18 px-1.5 sm:px-3 max-w-xl mx-auto relative">
@@ -35,11 +38,17 @@ export const KitchenSyncNavbar: React.FC<KitchenSyncNavbarProps> = ({
               className="material-symbols-outlined text-[20px] sm:text-[22px]"
               style={currentTab === 'home' ? { fontVariationSettings: "'FILL' 1" } : {}}
             >
-              cottage
+              {isCloudKitchen ? 'receipt_long' : 'cottage'}
             </span>
           </span>
           <span className="text-[9px] sm:text-[10px] font-medium mt-0.5 text-center leading-tight truncate max-w-full">
-            {isHindi ? 'होम' : 'Home'}
+            {isCloudKitchen
+              ? isHindi
+                ? 'ऑर्डर / KDS'
+                : 'Orders / KDS'
+              : isHindi
+              ? 'होम'
+              : 'Home'}
           </span>
         </button>
 
@@ -60,15 +69,21 @@ export const KitchenSyncNavbar: React.FC<KitchenSyncNavbarProps> = ({
               className="material-symbols-outlined text-[20px] sm:text-[22px]"
               style={currentTab === 'planner' ? { fontVariationSettings: "'FILL' 1" } : {}}
             >
-              calendar_month
+              {isCloudKitchen ? 'soup_kitchen' : 'calendar_month'}
             </span>
           </span>
           <span className="text-[9px] sm:text-[10px] font-medium mt-0.5 text-center leading-tight truncate max-w-full">
-            {isHindi ? 'प्लानर' : 'Plan'}
+            {isCloudKitchen
+              ? isHindi
+                ? 'बैच / प्रिप'
+                : 'Batches'
+              : isHindi
+              ? 'प्लानर'
+              : 'Plan'}
           </span>
         </button>
 
-        {/* 3. Recipes Graph RAG Explorer Tab */}
+        {/* 3. Recipes Tab */}
         <button
           className={`flex flex-col items-center justify-center flex-1 min-w-0 py-1 transition-all ${
             currentTab === 'recipes' ? 'text-[#032212] font-semibold' : 'text-[#424843] hover:text-[#1a1c1a]'
@@ -89,7 +104,13 @@ export const KitchenSyncNavbar: React.FC<KitchenSyncNavbarProps> = ({
             </span>
           </span>
           <span className="text-[9px] sm:text-[10px] font-medium mt-0.5 text-center leading-tight truncate max-w-full">
-            {isHindi ? 'रेसिपीज़' : 'Recipes'}
+            {isCloudKitchen
+              ? isHindi
+                ? 'मेन्यू'
+                : 'Menu'
+              : isHindi
+              ? 'रेसिपीज़'
+              : 'Recipes'}
           </span>
         </button>
 
@@ -129,7 +150,13 @@ export const KitchenSyncNavbar: React.FC<KitchenSyncNavbarProps> = ({
             </span>
           </span>
           <span className="text-[9px] sm:text-[10px] font-medium mt-0.5 text-center leading-tight truncate max-w-full">
-            {isHindi ? 'स्टॉक' : 'Stock'}
+            {isCloudKitchen
+              ? isHindi
+                ? 'स्टॉक / लेजर'
+                : 'Stock / Ledger'
+              : isHindi
+              ? 'स्टॉक'
+              : 'Stock'}
           </span>
         </button>
 
@@ -150,11 +177,17 @@ export const KitchenSyncNavbar: React.FC<KitchenSyncNavbarProps> = ({
               className="material-symbols-outlined text-[20px] sm:text-[22px]"
               style={currentTab === 'shop' ? { fontVariationSettings: "'FILL' 1" } : {}}
             >
-              shopping_bag
+              {isCloudKitchen ? 'local_shipping' : 'shopping_bag'}
             </span>
           </span>
           <span className="text-[9px] sm:text-[10px] font-medium mt-0.5 text-center leading-tight truncate max-w-full">
-            {isHindi ? 'खरीदें' : 'Shop'}
+            {isCloudKitchen
+              ? isHindi
+                ? 'खरीद व PO'
+                : 'Purchases'
+              : isHindi
+              ? 'खरीदें'
+              : 'Shop'}
           </span>
         </button>
 
@@ -175,11 +208,17 @@ export const KitchenSyncNavbar: React.FC<KitchenSyncNavbarProps> = ({
               className="material-symbols-outlined text-[20px] sm:text-[22px]"
               style={currentTab === 'household' ? { fontVariationSettings: "'FILL' 1" } : {}}
             >
-              manage_accounts
+              {isCloudKitchen ? 'analytics' : 'manage_accounts'}
             </span>
           </span>
           <span className="text-[9px] sm:text-[10px] font-medium mt-0.5 text-center leading-tight truncate max-w-full">
-            {isHindi ? 'घर' : 'Profile'}
+            {isCloudKitchen
+              ? isHindi
+                ? 'रिपोर्ट्स'
+                : 'Reports'
+              : isHindi
+              ? 'घर'
+              : 'Profile'}
           </span>
         </button>
       </div>
