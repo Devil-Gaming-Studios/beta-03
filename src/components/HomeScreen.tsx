@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { NavTab } from './KitchenSyncNavbar';
 import { store, getMonday, getTodayStr } from '../services/store';
 import { MealSlot, PlannedMeal } from '../types';
+import { isNativeAndroidApp } from '../utils/nativeApp';
 
 interface HomeScreenProps {
   isHindi: boolean;
@@ -249,7 +250,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </div>
         </div>
 
-        {/* Offline Readiness Notification Chip & Download App Action */}
+        {/* Offline Readiness Notification Chip */}
         <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-[#f4f4f0] border border-[#E6E4DD] text-[#1a1c1a] gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <span
@@ -268,56 +269,97 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </div>
           </div>
           <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
-            {onOpenDownload && (
-              <button
-                onClick={onOpenDownload}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-[#1A3826] text-white hover:bg-[#132a1d] text-[11px] font-semibold shadow-xs transition-transform active:scale-95 cursor-pointer"
-                title={isHindi ? 'वेब ऐप डाउनलोड / इंस्टॉल करें' : 'Download / Install Web App (PWA)'}
-              >
-                <span className="material-symbols-outlined text-[15px]">download</span>
-                <span>{isHindi ? 'वेब ऐप' : 'Web App'}</span>
-              </button>
+            {isNativeAndroidApp() ? (
+              <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#E8F0EC] text-[#1E4620] text-[11px] font-semibold border border-[#D1E2D7]">
+                <span className="material-symbols-outlined text-[14px]">smartphone</span>
+                <span>Native Active</span>
+              </div>
+            ) : (
+              <>
+                {onOpenDownload && (
+                  <button
+                    onClick={onOpenDownload}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-[#1A3826] text-white hover:bg-[#132a1d] text-[11px] font-semibold shadow-xs transition-transform active:scale-95 cursor-pointer"
+                    title={isHindi ? 'वेब ऐप डाउनलोड / इंस्टॉल करें' : 'Download / Install Web App (PWA)'}
+                  >
+                    <span className="material-symbols-outlined text-[15px]">download</span>
+                    <span>{isHindi ? 'वेब ऐप' : 'Web App'}</span>
+                  </button>
+                )}
+                <a
+                  href="/mastmeals.apk"
+                  download="MastMeals-native.apk"
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-[#047857] text-white hover:bg-[#065f46] text-[11px] font-semibold shadow-xs transition-transform active:scale-95 cursor-pointer no-underline"
+                  title={isHindi ? 'नेटिव एंड्रॉयड ऐप APK डाउनलोड करें' : 'Download Native Android App (.apk)'}
+                >
+                  <span className="material-symbols-outlined text-[15px]">android</span>
+                  <span>{isHindi ? 'APK' : 'APK'}</span>
+                </a>
+              </>
             )}
-            <a
-              href="/mastmeals.apk"
-              download="MastMeals-native.apk"
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-[#047857] text-white hover:bg-[#065f46] text-[11px] font-semibold shadow-xs transition-transform active:scale-95 cursor-pointer no-underline"
-              title={isHindi ? 'नेटिव एंड्रॉयड ऐप APK डाउनलोड करें' : 'Download Native Android App (.apk)'}
-            >
-              <span className="material-symbols-outlined text-[15px]">android</span>
-              <span>{isHindi ? 'नेटिव APK' : 'Native App'}</span>
-            </a>
           </div>
         </div>
 
-        {/* Voice Assistant Hero Card */}
-        <div
-          onClick={onOpenVoice}
-          className="p-3.5 rounded-2xl bg-gradient-to-r from-[#1A3826] to-[#254d35] text-white flex items-center justify-between gap-3 shadow-md cursor-pointer hover:opacity-95 active:scale-[0.99] transition-all"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-full bg-white/15 flex items-center justify-center shrink-0 border border-white/20">
-              <span className="material-symbols-outlined text-[24px] text-white">mic</span>
-            </div>
-            <div className="flex flex-col">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[14px] font-bold">Omnirush Voice Assistant</span>
-                <span className="text-[10px] bg-white/20 text-[#c8ebd1] font-semibold px-2 py-0.2 rounded-full">
-                  Voice STT
+        {/* Dual AI Capabilities Section: Voice + AI Scan (Always visible on mobile & native app) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          {/* 1. Omnirush Voice Assistant */}
+          <div
+            onClick={onOpenVoice}
+            className="p-3.5 rounded-2xl bg-gradient-to-r from-[#1A3826] to-[#254d35] text-white flex items-center justify-between gap-3 shadow-md cursor-pointer hover:opacity-95 active:scale-[0.99] transition-all"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-10 h-10 rounded-full bg-white/15 flex items-center justify-center shrink-0 border border-white/20">
+                <span className="material-symbols-outlined text-[22px] text-white">mic</span>
+              </div>
+              <div className="flex flex-col min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[13.5px] font-bold truncate">Omnirush Voice</span>
+                  <span className="text-[9.5px] bg-white/20 text-[#c8ebd1] font-semibold px-1.5 py-0.2 rounded-full shrink-0">
+                    Voice STT
+                  </span>
+                </div>
+                <span className="text-[11px] text-white/80 truncate">
+                  {isHindi ? 'बोलकर सामान व मील प्लान करें' : 'Speak to log items & meal plan'}
                 </span>
               </div>
-              <span className="text-[11px] text-white/80">
-                {isHindi
-                  ? 'बोलें: "सारा जरूरी सामान खरीद लिया" या "2 किलो आलू जोड़ दो"'
-                  : 'Say: "I bought everything required" or "add 2 kg potatoes"'}
-              </span>
+            </div>
+            <div
+              className="w-7.5 h-7.5 rounded-full bg-white text-[#1A3826] flex items-center justify-center shrink-0 shadow-xs"
+              title="Start Voice Assistant"
+            >
+              <span className="material-symbols-outlined text-[17px]">arrow_forward</span>
             </div>
           </div>
+
+          {/* 2. Gemini AI Vision Scanner (Receipt OCR & Fridge Photo) */}
           <div
-            className="w-8 h-8 rounded-full bg-white text-[#1A3826] flex items-center justify-center shrink-0 shadow-xs"
-            title="Start Voice Assistant"
+            onClick={() => (onOpenScan ? onOpenScan('receipt') : onNavigate('stock'))}
+            className="p-3.5 rounded-2xl bg-gradient-to-r from-[#0f3420] to-[#1A3826] text-white flex items-center justify-between gap-3 shadow-md cursor-pointer hover:opacity-95 active:scale-[0.99] transition-all border border-[#81a28a]/30"
           >
-            <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-10 h-10 rounded-full bg-[#c8ebd1]/20 flex items-center justify-center shrink-0 border border-[#c8ebd1]/40">
+                <span className="material-symbols-outlined text-[22px] text-[#c8ebd1]">document_scanner</span>
+              </div>
+              <div className="flex flex-col min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[13.5px] font-bold truncate">
+                    {isHindi ? 'AI रसीद व फ्रिज स्कैन' : 'AI Scan (OCR)'}
+                  </span>
+                  <span className="text-[9.5px] bg-[#c8ebd1] text-[#032212] font-extrabold px-1.5 py-0.2 rounded-full shrink-0">
+                    Vision AI
+                  </span>
+                </div>
+                <span className="text-[11px] text-white/80 truncate">
+                  {isHindi ? 'किराना बिल या फ्रिज फोटो से ऑटो-स्टॉक' : 'Scan grocery receipt or fridge shelf'}
+                </span>
+              </div>
+            </div>
+            <div
+              className="w-7.5 h-7.5 rounded-full bg-[#c8ebd1] text-[#032212] flex items-center justify-center shrink-0 shadow-xs"
+              title="Open AI Scanner"
+            >
+              <span className="material-symbols-outlined text-[17px]">arrow_forward</span>
+            </div>
           </div>
         </div>
       </section>
@@ -942,8 +984,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         </button>
       </section>
 
-      {/* Install / Download KitchenSync App Card */}
-      {onOpenDownload && (
+      {/* Install / Download KitchenSync App Card (Only displayed in browser when not running in native app) */}
+      {!isNativeAndroidApp() && onOpenDownload && (
         <section className="p-4 rounded-2xl bg-gradient-to-br from-[#f8faf8] to-[#edf4ef] border border-[#d2e4d7] flex items-center justify-between gap-3 shadow-xs">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-xl bg-[#1A3826] text-white flex items-center justify-center shrink-0 shadow-xs">

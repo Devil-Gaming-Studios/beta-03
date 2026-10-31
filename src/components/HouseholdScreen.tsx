@@ -8,12 +8,15 @@ import {
   DietCaution,
   DietaryGoalTag,
   DietPreference,
+  HouseholdType,
   UserDietMemory,
+  CloudKitchenRole,
 } from '../types';
 import { usePWAInstall } from '../hooks/usePWAInstall';
 
 interface HouseholdScreenProps {
   isHindi: boolean;
+  onLogout?: () => void;
 }
 
 const DAY_KEYS: { key: DayOfWeekKey; labelEn: string; labelHi: string }[] = [
@@ -74,7 +77,7 @@ const REGION_OPTIONS = [
   'Andhra',
 ];
 
-export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi }) => {
+export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi, onLogout }) => {
   const { install, isInstalled } = usePWAInstall();
   const [me, setMe] = useState(() => store.getMe());
   const [dietMemory, setDietMemory] = useState<UserDietMemory>(() => store.getDietMemory());
@@ -98,6 +101,25 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi }) => 
   const refresh = () => {
     setMe({ ...store.getMe() });
     setDietMemory({ ...store.getDietMemory() });
+  };
+
+  const handleLogout = () => {
+    store.logout();
+    if (onLogout) {
+      onLogout();
+    } else {
+      window.location.reload();
+    }
+  };
+
+  const handleSetHouseholdType = (type: HouseholdType) => {
+    store.updateHousehold({ household_type: type });
+    refresh();
+    showToast(
+      isHindi
+        ? `किचन मोड बदलकर ${type === 'cloud_kitchen' ? 'क्लाउड किचन' : type === 'family' ? 'पारिवारिक घर' : 'हॉस्टल / शेयर्ड फ्लैट'} किया गया`
+        : `Kitchen mode changed to ${type === 'cloud_kitchen' ? 'Cloud Kitchen' : type === 'family' ? 'Family Home Kitchen' : 'Hostel / Shared Flat'}`
+    );
   };
 
   const handleCopyInviteCode = () => {
@@ -298,14 +320,321 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi }) => 
       {/* Title */}
       <div className="pt-2">
         <h1 className="text-[24px] font-bold text-[#1a1c1a] tracking-tight">
-          {isHindi ? 'प्रोफ़ाइल और साप्ताहिक आहार सेटिंग्स' : 'User Profile & AI Diet Planner Settings'}
+          {isHindi ? 'प्रोफ़ाइल और किचन सेटिंग्स' : 'User Profile & Kitchen Settings'}
         </h1>
         <p className="text-[12.5px] text-[#424843]">
           {isHindi
-            ? 'प्रोटीन/मधुमेह लक्ष्य, नियमित बनाम नया भोजन अनुसूची और Graph RAG प्राथमिकताएं'
-            : 'Configure Protein/Diabetes goals, Regular vs. New Food days & multi-week diet history'}
+            ? 'खाता विवरण, लॉग आउट, किचन मोड, स्वास्थ्य लक्ष्य और AI आहार प्राथमिकताएं'
+            : 'Manage account, sign out, switch kitchen mode, health goals & AI diet history'}
         </p>
       </div>
+
+      {/* Account Profile & Logout Card (Primary Logout) */}
+      <div className="bg-white rounded-2xl p-4 border border-[#E6E4DD] shadow-xs flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-12 h-12 rounded-full bg-[#1A3826] text-white flex items-center justify-center font-bold text-lg shrink-0 shadow-xs">
+            {me.user.name ? me.user.name.charAt(0).toUpperCase() : 'U'}
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-[15px] sm:text-[16px] font-bold text-[#1a1c1a] truncate">
+                {me.user.name}
+              </span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#EDF2EE] text-[#137333] font-bold shrink-0">
+                {me.user.diet_pref === 'veg' ? 'Pure Veg' : 'Non-Veg'}
+              </span>
+            </div>
+            <p className="text-[11.5px] text-[#727972] truncate">
+              {me.user.email || me.user.phone || 'Active User'} • {me.household.name}
+            </p>
+          </div>
+        </div>
+
+        {/* LOGOUT BUTTON IN PROFILE */}
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="px-3.5 py-2 rounded-xl bg-[#fee2e2] hover:bg-[#fecaca] text-[#991b1b] font-bold text-[12.5px] flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95 shrink-0"
+          title={isHindi ? 'खाते से लॉग आउट करें' : 'Log out of this account'}
+        >
+          <span className="material-symbols-outlined text-[17px]">logout</span>
+          <span>{isHindi ? 'लॉग आउट' : 'Log Out'}</span>
+        </button>
+      </div>
+
+      {/* Kitchen Mode Selector (Home / Hostel / Cloud Kitchen) */}
+      <div className="bg-white rounded-2xl p-4 border border-[#E6E4DD] shadow-xs flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <span className="material-symbols-outlined text-[19px] text-[#1A3826]">storefront</span>
+            <h2 className="text-[14px] font-bold text-[#1a1c1a]">
+              {isHindi ? 'किचन मोड चुनें' : 'Active Kitchen Mode'}
+            </h2>
+          </div>
+          <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-[#EDF2EE] text-[#1A3826]">
+            {me.household.household_type === 'cloud_kitchen'
+              ? 'Cloud Kitchen'
+              : me.household.household_type === 'family'
+              ? 'Family Home'
+              : 'Hostel Flat'}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <button
+            type="button"
+            onClick={() => handleSetHouseholdType('family')}
+            className={`p-2.5 rounded-xl border text-left transition-all flex flex-col gap-1 cursor-pointer ${
+              me.household.household_type === 'family'
+                ? 'bg-[#EDF2EE] border-[#1A3826] text-[#1A3826] ring-1 ring-[#1A3826]'
+                : 'bg-[#FAF9F6] border-[#E6E4DD] text-[#424843] hover:bg-[#F4F3EE]'
+            }`}
+          >
+            <div className="flex items-center gap-1.5 font-bold text-[12.5px]">
+              <span className="material-symbols-outlined text-[16px]">home</span>
+              <span>Family Home</span>
+            </div>
+            <div className="text-[10px] opacity-75">3 fixed meals, shared stock</div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleSetHouseholdType('hostel_room')}
+            className={`p-2.5 rounded-xl border text-left transition-all flex flex-col gap-1 cursor-pointer ${
+              me.household.household_type === 'hostel_room' || me.household.household_type === 'bachelor_flat'
+                ? 'bg-[#EDF2EE] border-[#1A3826] text-[#1A3826] ring-1 ring-[#1A3826]'
+                : 'bg-[#FAF9F6] border-[#E6E4DD] text-[#424843] hover:bg-[#F4F3EE]'
+            }`}
+          >
+            <div className="flex items-center gap-1.5 font-bold text-[12.5px]">
+              <span className="material-symbols-outlined text-[16px]">apartment</span>
+              <span>Hostel / Flat</span>
+            </div>
+            <div className="text-[10px] opacity-75">Personal vs shared stock</div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleSetHouseholdType('cloud_kitchen')}
+            className={`p-2.5 rounded-xl border text-left transition-all flex flex-col gap-1 cursor-pointer ${
+              me.household.household_type === 'cloud_kitchen'
+                ? 'bg-[#EDF2EE] border-[#1A3826] text-[#1A3826] ring-1 ring-[#1A3826]'
+                : 'bg-[#FAF9F6] border-[#E6E4DD] text-[#424843] hover:bg-[#F4F3EE]'
+            }`}
+          >
+            <div className="flex items-center gap-1.5 font-bold text-[12.5px]">
+              <span className="material-symbols-outlined text-[16px]">restaurant</span>
+              <span>Cloud Kitchen 🍳</span>
+            </div>
+            <div className="text-[10px] opacity-75">Orders, batches &amp; KDS</div>
+          </button>
+        </div>
+      </div>
+
+      {/* CLOUD KITCHEN SPECIFIC SETTINGS & PERFORMANCE REPORT */}
+      {me.household.household_type === 'cloud_kitchen' && (
+        <>
+          {/* Cloud Kitchen Staff Roles Card */}
+          <div className="bg-white rounded-2xl p-4 border border-[#E6E4DD] shadow-xs flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-[19px] text-[#1A3826]">badge</span>
+                <h2 className="text-[14px] font-bold text-[#1a1c1a]">
+                  {isHindi ? 'स्टाफ रोल और अनुमतियां' : 'Cloud Kitchen Staff Roles & Permissions'}
+                </h2>
+              </div>
+              <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-[#1A3826] text-white">
+                Active: {store.getCloudKitchenRole(me.household.id)}
+              </span>
+            </div>
+
+            <p className="text-[11.5px] text-[#727972]">
+              {isHindi
+                ? 'मालिक मेन्यू और मूल्य बदल सकता है; शेफ बैच और प्रेप मार्क कर सकते हैं; पैकर KDS में डिस्पैच कर सकते हैं।'
+                : 'Owner manages menu, prices & stock par rules. Cooks announce batches & prep. Helpers mark dispatch.'}
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  store.setCloudKitchenRole('owner', me.household.id);
+                  showToast('Role switched to Owner (Full Control)');
+                  refresh();
+                }}
+                className={`p-2.5 rounded-xl border text-left transition-all flex flex-col gap-1 cursor-pointer ${
+                  store.getCloudKitchenRole(me.household.id) === 'owner'
+                    ? 'bg-[#EDF2EE] border-[#1A3826] text-[#1A3826] ring-1 ring-[#1A3826]'
+                    : 'bg-[#FAF9F6] border-[#E6E4DD] text-[#424843] hover:bg-gray-100'
+                }`}
+              >
+                <div className="font-bold text-[12px] flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[15px]">admin_panel_settings</span>
+                  <span>Owner (मालिक)</span>
+                </div>
+                <div className="text-[10px] text-[#727972]">Menu, pricing, stock rules, P&amp;L</div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  store.setCloudKitchenRole('cook', me.household.id);
+                  showToast('Role switched to Cook / Chef');
+                  refresh();
+                }}
+                className={`p-2.5 rounded-xl border text-left transition-all flex flex-col gap-1 cursor-pointer ${
+                  store.getCloudKitchenRole(me.household.id) === 'cook'
+                    ? 'bg-[#EDF2EE] border-[#1A3826] text-[#1A3826] ring-1 ring-[#1A3826]'
+                    : 'bg-[#FAF9F6] border-[#E6E4DD] text-[#424843] hover:bg-gray-100'
+                }`}
+              >
+                <div className="font-bold text-[12px] flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[15px]">cooking</span>
+                  <span>Cook / Chef (शेफ)</span>
+                </div>
+                <div className="text-[10px] text-[#727972]">Announce batches, mark prep &amp; ready</div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  store.setCloudKitchenRole('packer', me.household.id);
+                  showToast('Role switched to Packer / Helper');
+                  refresh();
+                }}
+                className={`p-2.5 rounded-xl border text-left transition-all flex flex-col gap-1 cursor-pointer ${
+                  store.getCloudKitchenRole(me.household.id) === 'packer'
+                    ? 'bg-[#EDF2EE] border-[#1A3826] text-[#1A3826] ring-1 ring-[#1A3826]'
+                    : 'bg-[#FAF9F6] border-[#E6E4DD] text-[#424843] hover:bg-gray-100'
+                }`}
+              >
+                <div className="font-bold text-[12px] flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[15px]">package_2</span>
+                  <span>Packer / Helper</span>
+                </div>
+                <div className="text-[10px] text-[#727972]">Mark delivered, pack orders, KOT</div>
+              </button>
+            </div>
+
+            {/* Pure-Veg Kitchen Mode Toggle */}
+            <div className="pt-2 border-t border-[#E6E4DD] flex items-center justify-between">
+              <div>
+                <span className="font-bold text-[12.5px] text-[#1a1c1a] block">
+                  {isHindi ? 'शुद्ध शाकाहारी किचन (Strict Pure-Veg)' : 'Strict Pure-Veg Kitchen Mode'}
+                </span>
+                <span className="text-[10.5px] text-[#727972]">
+                  {isHindi
+                    ? 'सभी नॉन-वेज आइटम और सामग्री को मेन्यू और स्टॉक से छिपाएं'
+                    : 'Hides all non-veg dishes & ingredients across menu, orders and procurement'}
+                </span>
+              </div>
+              <input
+                type="checkbox"
+                checked={store.isPureVegOnly(me.household.id)}
+                onChange={(e) => {
+                  store.setPureVegOnly(e.target.checked, me.household.id);
+                  showToast(e.target.checked ? 'Pure-Veg mode activated' : 'Pure-Veg filter removed');
+                  refresh();
+                }}
+                className="w-5 h-5 accent-[#1A3826] cursor-pointer"
+              />
+            </div>
+          </div>
+
+          {/* Daily End-of-Day P&L Report Card */}
+          {(() => {
+            const report = store.getCloudKitchenReport();
+            const handleExportCsv = () => {
+              const csv = store.exportReportCsv(report);
+              const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `CloudKitchen_DailyReport_${report.date}.csv`;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              showToast(isHindi ? 'दैनिक रिपोर्ट CSV डाउनलोड हो गई!' : 'Daily report CSV downloaded!');
+            };
+
+            return (
+              <div className="bg-white rounded-2xl p-4 sm:p-5 border border-[#E6E4DD] shadow-xs flex flex-col gap-3.5">
+                <div className="flex flex-wrap items-center justify-between pb-2 border-b border-[#E6E4DD] gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[20px] text-[#1A3826]">analytics</span>
+                    <div>
+                      <h2 className="text-[15px] font-bold text-[#1a1c1a]">
+                        {isHindi ? 'दैनिक बिक्री व मुनाफा रिपोर्ट' : 'Daily End-of-Day P&L Performance Report'}
+                      </h2>
+                      <span className="text-[10.5px] text-[#727972]">As of {report.date}</span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleExportCsv}
+                    className="px-3.5 py-1.5 rounded-xl bg-[#1A3826] hover:bg-[#142d1e] text-white text-[11.5px] font-bold flex items-center gap-1.5 shadow-xs cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[15px]">download</span>
+                    <span>{isHindi ? 'CSV डाउनलोड करें' : 'Export CSV'}</span>
+                  </button>
+                </div>
+
+                {/* Key Numbers */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div className="p-2.5 rounded-xl bg-[#FAF9F6] border border-[#E6E4DD]">
+                    <span className="text-[10px] text-[#727972] block">Gross Revenue</span>
+                    <strong className="text-[17px] font-extrabold text-[#1a1c1a]">₹{report.gross_revenue_inr}</strong>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-[#FAF9F6] border border-[#E6E4DD]">
+                    <span className="text-[10px] text-[#727972] block">Est. Food Cost</span>
+                    <strong className="text-[17px] font-extrabold text-[#5A605B]">₹{report.estimated_food_cost_inr}</strong>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-[#FAF9F6] border border-[#E6E4DD]">
+                    <span className="text-[10px] text-[#727972] block">Gross Profit Margin</span>
+                    <strong className="text-[17px] font-extrabold text-emerald-700">{report.gross_profit_margin_percent}%</strong>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-[#FAF9F6] border border-[#E6E4DD]">
+                    <span className="text-[10px] text-[#727972] block">Wastage Loss</span>
+                    <strong className="text-[17px] font-extrabold text-rose-700">₹{report.wastage_cost_inr}</strong>
+                  </div>
+                </div>
+
+                {/* Top Sellers */}
+                {report.top_selling_items.length > 0 && (
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-[11.5px] font-bold text-[#1a1c1a]">Top Selling Dishes Today:</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {report.top_selling_items.map((t, idx) => (
+                        <span key={idx} className="bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg text-[11px] text-emerald-900 font-medium">
+                          <strong>{t.name}</strong> • {t.portions} portions (₹{t.revenue_inr})
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Low Margin Warnings */}
+                {report.low_margin_warnings.length > 0 && (
+                  <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-900 flex flex-col gap-1">
+                    <span className="font-bold flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[15px]">warning</span>
+                      <span>Low Margin Warning (&lt;40%):</span>
+                    </span>
+                    <div className="flex flex-wrap gap-1">
+                      {report.low_margin_warnings.map((w, idx) => (
+                        <span key={idx} className="bg-white border border-amber-300 px-1.5 py-0.5 rounded">
+                          {w.name}: {w.margin_percent}% margin
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </>
+      )}
 
       {/* 1. Dietary Lock & Health/Medical Goals (Protein-Rich, Diabetes, etc.) */}
       <div className="bg-white rounded-2xl p-4 border border-[#E6E4DD] shadow-xs flex flex-col gap-4">
@@ -1056,6 +1385,26 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi }) => 
             <span>ZIP</span>
           </a>
         </div>
+      </div>
+
+      {/* Account Logout Action Card at Bottom */}
+      <div className="bg-white rounded-2xl p-4 border border-[#fee2e2] shadow-xs flex items-center justify-between gap-3">
+        <div>
+          <h3 className="text-[13.5px] font-bold text-[#1a1c1a]">
+            {isHindi ? 'सत्र समाप्त और लॉग आउट' : 'Sign Out of KitchenSync'}
+          </h3>
+          <p className="text-[11px] text-[#727972]">
+            {isHindi ? 'लॉग इन स्क्रीन पर वापस जाएँ या दूसरा खाता बदलें' : 'Log out of current session and return to sign in screen'}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="px-4 py-2 rounded-xl bg-[#fee2e2] hover:bg-[#fecaca] text-[#991b1b] font-bold text-[12.5px] flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 shrink-0 shadow-xs"
+        >
+          <span className="material-symbols-outlined text-[17px]">logout</span>
+          <span>{isHindi ? 'लॉग आउट' : 'Log Out'}</span>
+        </button>
       </div>
     </div>
   );

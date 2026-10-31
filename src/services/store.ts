@@ -24,8 +24,37 @@ import {
   DietaryGoalTag,
   PastDietEntry,
   UserDietMemory,
+  SwiggyAccountConnection,
+  RegistrationProfileData,
+  MenuItem,
+  CloudOrder,
+  CookBatch,
+  StockReservation,
+  StockLedgerEntry,
+  WastageEntry,
+  Supplier,
+  PurchaseList,
+  PurchaseListItem,
+  CloudKitchenReport,
+  CloudKitchenRole,
+  OrderStatus,
+  OrderSource,
+  PaymentStatus,
+  CloudOrderItem,
+  CommunityPost,
 } from '../types';
 import seedData from '../data/graph_rag_seed.json';
+import {
+  getDefaultMenuItems,
+  getDefaultSuppliers,
+  getDefaultOrders,
+  calculatePortionsFeasibility,
+  canPerformCloudAction,
+  deriveDietTag,
+  normalizeToBaseUnit,
+} from './cloudKitchenService';
+
+const SWIGGY_CONN_KEY = 'mastmeals_swiggy_conn_v1';
 
 const DIET_MEMORY_KEY = 'mastmeals_diet_memory_v1';
 
@@ -354,6 +383,86 @@ interface DBState {
   auditLog: { id: string; householdId: string; action: string; meta: any; time: string }[];
   syncLog: { seq: number; table: string; id: string; op: string; time: string }[];
   syncSeq: number;
+  menuItems: Record<string, MenuItem[]>;
+  orders: Record<string, CloudOrder[]>;
+  batches: Record<string, CookBatch[]>;
+  stockReservations: Record<string, StockReservation[]>;
+  stockLedger: Record<string, StockLedgerEntry[]>;
+  wastage: Record<string, WastageEntry[]>;
+  suppliers: Record<string, Supplier[]>;
+  purchaseLists: Record<string, PurchaseList[]>;
+  cloudRole: Record<string, CloudKitchenRole>;
+  pureVegOnly: Record<string, boolean>;
+  communityPosts: CommunityPost[];
+}
+
+export function getDefaultCommunityPosts(): CommunityPost[] {
+  return [
+    {
+      id: 'post_seed_1',
+      household_id: 'hh_alpha',
+      author_id: 'usr_beta',
+      author_name: 'Rohan Verma',
+      author_avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80',
+      caption: 'Cooked fresh Paneer Bhurji with hot tawa rotis for dinner tonight! Used fresh malai paneer from the kitchen stock and finished with roasted kasuri methi & extra green chillies. Turned out super soft and protein-packed! 🔥🍛',
+      image_url: 'https://images.unsplash.com/photo-1567188040759-fb8a883dc6d8?w=800&auto=format&fit=crop&q=80',
+      recipe_id: 'rec_paneer_01',
+      recipe_title: 'High-Protein Paneer Bhurji & Roti',
+      recipe_prep_time_mins: 20,
+      recipe_diet_tag: 'veg',
+      likes_count: 14,
+      liked_by_me: true,
+      created_at: new Date(Date.now() - 2 * 3600000).toISOString(),
+    },
+    {
+      id: 'post_seed_2',
+      household_id: 'hh_alpha',
+      author_id: 'usr_alpha',
+      author_name: 'Divyansh (Head Chef)',
+      author_avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=100&auto=format&fit=crop&q=80',
+      caption: 'Sunday special Hyderabadi Dum Biryani batch cooked in copper handi! Layered with aromatic basmati, saffron infused milk, fried golden onions (birista) and desi ghee. Followed the recipe yield ratio from the planner!',
+      image_url: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=800&auto=format&fit=crop&q=80',
+      recipe_id: 'rec_biryani_01',
+      recipe_title: 'Vegetable Dum Biryani',
+      recipe_prep_time_mins: 45,
+      recipe_diet_tag: 'veg',
+      likes_count: 29,
+      liked_by_me: false,
+      created_at: new Date(Date.now() - 5 * 3600000).toISOString(),
+    },
+    {
+      id: 'post_seed_3',
+      household_id: 'hh_alpha',
+      author_id: 'usr_sneha',
+      author_name: 'Sneha Patel',
+      author_avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&auto=format&fit=crop&q=80',
+      caption: 'Comfort food at its absolute best: Lasooni Palak Moong Dal with hot jeera rice. Added double garlic tadka with a dash of hing in pure cow ghee. Light, nutritious and comforting.',
+      image_url: 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=800&auto=format&fit=crop&q=80',
+      recipe_id: 'rec_palak_dal_01',
+      recipe_title: 'Lasooni Palak Moong Dal',
+      recipe_prep_time_mins: 25,
+      recipe_diet_tag: 'veg',
+      likes_count: 8,
+      liked_by_me: false,
+      created_at: new Date(Date.now() - 14 * 3600000).toISOString(),
+    },
+    {
+      id: 'post_seed_4',
+      household_id: 'hh_alpha',
+      author_id: 'usr_aman',
+      author_name: 'Aman Gupta',
+      author_avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&auto=format&fit=crop&q=80',
+      caption: 'Quick 15-minute Kanda Poha before heading to work! Roasted peanuts with crunchy mustard seeds and fresh curry leaves. Simple homestyle Indian breakfast!',
+      image_url: 'https://images.unsplash.com/photo-1626777552726-4a6b54c97e46?w=800&auto=format&fit=crop&q=80',
+      recipe_id: 'rec_poha_01',
+      recipe_title: 'Kanda Poha (कांदा पोहा)',
+      recipe_prep_time_mins: 15,
+      recipe_diet_tag: 'veg',
+      likes_count: 21,
+      liked_by_me: true,
+      created_at: new Date(Date.now() - 26 * 3600000).toISOString(),
+    },
+  ];
 }
 
 function initializeState(): DBState {
@@ -363,6 +472,9 @@ function initializeState(): DBState {
     name: 'Divyansh (Head Chef)',
     diet_pref: 'veg',
     is_beginner_cook: true,
+    password: 'password123',
+    household_id: 'hh_alpha',
+    onboarding_completed: true,
     google_sub: 'dev:divyansh@local',
     created_at: new Date().toISOString(),
   };
@@ -373,6 +485,9 @@ function initializeState(): DBState {
     name: 'Rohan',
     diet_pref: 'nonveg',
     is_beginner_cook: false,
+    password: 'password123',
+    household_id: 'hh_alpha',
+    onboarding_completed: true,
     google_sub: 'dev:rohan@local',
     created_at: new Date().toISOString(),
   };
@@ -434,16 +549,16 @@ function initializeState(): DBState {
       ingredient_id: 'ing_dahi',
       name: 'Fresh Dahi / Curd',
       name_hi: 'अमूल ताज़ा दही • Set Curd',
-      qty_base: 400,
+      qty_base: 3500,
       unit_base: 'ml',
       location: 'fridge',
-      owner_user_id: 'usr_alpha', // PERSONAL to Divyansh
-      contributed_by: 'Divyansh (Personal)',
+      owner_user_id: null, // Shared
+      contributed_by: 'Krishna Dairy',
       version: 1,
       storage_place: 'fridge',
-      shelf_life_days: 2,
+      shelf_life_days: 7,
       is_non_veg: false,
-      expiry: 'Tomorrow',
+      expiry: 'In 5 days',
     },
     stk_paneer: {
       id: 'stk_paneer',
@@ -482,17 +597,177 @@ function initializeState(): DBState {
       id: 'stk_chawal',
       household_id: 'hh_alpha',
       ingredient_id: 'ing_chawal',
-      name: 'Basmati Rice',
+      name: 'Daawat Basmati Rice',
       name_hi: 'दावत बासमती चावल',
-      qty_base: 2000,
+      qty_base: 12000,
       unit_base: 'g',
       location: 'pantry',
-      owner_user_id: null, // SHARED
-      contributed_by: 'Shared 304',
+      owner_user_id: null,
+      contributed_by: 'Kitchen Store',
       version: 1,
       storage_place: 'pantry',
       shelf_life_days: 90,
       is_non_veg: false,
+    },
+    stk_paneer_bulk: {
+      id: 'stk_paneer_bulk',
+      household_id: 'hh_alpha',
+      ingredient_id: 'ing_paneer',
+      name: 'Fresh Malai Paneer',
+      name_hi: 'ताज़ा मलाई पनीर',
+      qty_base: 4500,
+      unit_base: 'g',
+      location: 'fridge',
+      owner_user_id: null,
+      contributed_by: 'Krishna Dairy',
+      version: 1,
+      storage_place: 'fridge',
+      shelf_life_days: 4,
+      is_non_veg: false,
+    },
+    stk_pyaz: {
+      id: 'stk_pyaz',
+      household_id: 'hh_alpha',
+      ingredient_id: 'ing_pyaz',
+      name: 'Nashik Red Onions',
+      name_hi: 'लाल प्याज',
+      qty_base: 8000,
+      unit_base: 'g',
+      location: 'pantry',
+      owner_user_id: null,
+      contributed_by: 'Sabzi Mandi',
+      version: 1,
+      storage_place: 'pantry',
+      shelf_life_days: 21,
+      is_non_veg: false,
+    },
+    stk_urad_dal: {
+      id: 'stk_urad_dal',
+      household_id: 'hh_alpha',
+      ingredient_id: 'ing_urad_dal',
+      name: 'Black Urad Dal (Makhani)',
+      name_hi: 'उड़द साबुत काली दाल',
+      qty_base: 5000,
+      unit_base: 'g',
+      location: 'pantry',
+      owner_user_id: null,
+      contributed_by: 'Shrinath Grains',
+      version: 1,
+      storage_place: 'pantry',
+      shelf_life_days: 120,
+      is_non_veg: false,
+    },
+    stk_chana: {
+      id: 'stk_chana',
+      household_id: 'hh_alpha',
+      ingredient_id: 'ing_chana',
+      name: 'Amritsari Kabuli Chana',
+      name_hi: 'काबुली चना',
+      qty_base: 4000,
+      unit_base: 'g',
+      location: 'pantry',
+      owner_user_id: null,
+      contributed_by: 'Shrinath Grains',
+      version: 1,
+      storage_place: 'pantry',
+      shelf_life_days: 120,
+      is_non_veg: false,
+    },
+    stk_butter: {
+      id: 'stk_butter',
+      household_id: 'hh_alpha',
+      ingredient_id: 'ing_butter',
+      name: 'Amul Table Butter',
+      name_hi: 'अमूल मक्खन',
+      qty_base: 3000,
+      unit_base: 'g',
+      location: 'fridge',
+      owner_user_id: null,
+      contributed_by: 'Krishna Dairy',
+      version: 1,
+      storage_place: 'fridge',
+      shelf_life_days: 60,
+      is_non_veg: false,
+    },
+    stk_cream: {
+      id: 'stk_cream',
+      household_id: 'hh_alpha',
+      ingredient_id: 'ing_cream',
+      name: 'Amul Fresh Heavy Cream',
+      name_hi: 'अमूल फ्रेश क्रीम',
+      qty_base: 2500,
+      unit_base: 'ml',
+      location: 'fridge',
+      owner_user_id: null,
+      contributed_by: 'Krishna Dairy',
+      version: 1,
+      storage_place: 'fridge',
+      shelf_life_days: 14,
+      is_non_veg: false,
+    },
+    stk_ghee: {
+      id: 'stk_ghee',
+      household_id: 'hh_alpha',
+      ingredient_id: 'ing_ghee',
+      name: 'Shuddh Desi Cow Ghee',
+      name_hi: 'शुद्ध देसी घी',
+      qty_base: 2500,
+      unit_base: 'ml',
+      location: 'pantry',
+      owner_user_id: null,
+      contributed_by: 'Krishna Dairy',
+      version: 1,
+      storage_place: 'pantry',
+      shelf_life_days: 180,
+      is_non_veg: false,
+    },
+    stk_maida: {
+      id: 'stk_maida',
+      household_id: 'hh_alpha',
+      ingredient_id: 'ing_maida',
+      name: 'Shakti Bhog Maida',
+      name_hi: 'मैदा',
+      qty_base: 5000,
+      unit_base: 'g',
+      location: 'pantry',
+      owner_user_id: null,
+      contributed_by: 'Shrinath Grains',
+      version: 1,
+      storage_place: 'pantry',
+      shelf_life_days: 90,
+      is_non_veg: false,
+    },
+    stk_khoya: {
+      id: 'stk_khoya',
+      household_id: 'hh_alpha',
+      ingredient_id: 'ing_khoya',
+      name: 'Hariyali Dhaap Khoya (Mawa)',
+      name_hi: 'मावा / खोया',
+      qty_base: 2000,
+      unit_base: 'g',
+      location: 'fridge',
+      owner_user_id: null,
+      contributed_by: 'Krishna Dairy',
+      version: 1,
+      storage_place: 'fridge',
+      shelf_life_days: 7,
+      is_non_veg: false,
+    },
+    stk_chicken: {
+      id: 'stk_chicken',
+      household_id: 'hh_alpha',
+      ingredient_id: 'ing_chicken',
+      name: 'Boneless Fresh Chicken Breast/Thigh',
+      name_hi: 'ताज़ा बोनलेस चिकन',
+      qty_base: 2500,
+      unit_base: 'g',
+      location: 'fridge',
+      owner_user_id: null,
+      contributed_by: 'Meat Fresh Daily',
+      version: 1,
+      storage_place: 'fridge',
+      shelf_life_days: 2,
+      is_non_veg: true,
     },
     stk_oil: {
       id: 'stk_oil',
@@ -500,10 +775,10 @@ function initializeState(): DBState {
       ingredient_id: 'ing_oil',
       name: 'Fortune Sunflower Oil',
       name_hi: 'रिफाइंड तेल',
-      qty_base: 1000,
+      qty_base: 5000,
       unit_base: 'ml',
       location: 'pantry',
-      owner_user_id: null, // SHARED
+      owner_user_id: null,
       contributed_by: 'Shared 304',
       version: 1,
       storage_place: 'pantry',
@@ -516,11 +791,11 @@ function initializeState(): DBState {
       ingredient_id: 'ing_tamatar',
       name: 'Desi Tamatar',
       name_hi: 'टमाटर',
-      qty_base: 600,
+      qty_base: 3500,
       unit_base: 'g',
       location: 'fridge',
-      owner_user_id: null, // SHARED
-      contributed_by: 'Shared 304',
+      owner_user_id: null,
+      contributed_by: 'Sabzi Mandi',
       version: 1,
       storage_place: 'fridge',
       shelf_life_days: 5,
@@ -647,11 +922,90 @@ function initializeState(): DBState {
     auditLog: [],
     syncLog: [],
     syncSeq: 0,
+    menuItems: {
+      hh_alpha: getDefaultMenuItems('hh_alpha'),
+    },
+    orders: {
+      hh_alpha: getDefaultOrders('hh_alpha'),
+    },
+    batches: {
+      hh_alpha: [
+        {
+          id: 'batch_seed_1',
+          household_id: 'hh_alpha',
+          menu_item_id: 'menu_dum_biryani',
+          item_name: 'Hyderabadi Dum Biryani (Veg)',
+          portions_announced: 20,
+          portions_cooked: 20,
+          portions_remaining: 8,
+          status: 'ready',
+          announced_by: 'Chef Divyansh',
+          ingredients_deducted: [
+            { ingredient_id: 'ing_chawal', name: 'Basmati Rice', qty: 2400, unit: 'g' },
+            { ingredient_id: 'ing_paneer', name: 'Fresh Paneer', qty: 1400, unit: 'g' },
+          ],
+          started_at: new Date(Date.now() - 3 * 3600000).toISOString(),
+          completed_at: new Date(Date.now() - 2 * 3600000).toISOString(),
+        },
+      ],
+    },
+    stockReservations: {
+      hh_alpha: [],
+    },
+    stockLedger: {
+      hh_alpha: [
+        {
+          id: 'led_1',
+          household_id: 'hh_alpha',
+          timestamp: new Date(Date.now() - 3 * 3600000).toISOString(),
+          ingredient_id: 'ing_chawal',
+          ingredient_name: 'Basmati Rice',
+          change_qty: -2400,
+          unit: 'g',
+          balance_after: 12000,
+          reason: 'batch_cook',
+          linked_batch_id: 'batch_seed_1',
+          performed_by: 'Chef Divyansh',
+          notes: 'Batch of Veg Dum Biryani (20 portions)',
+        },
+      ],
+    },
+    wastage: {
+      hh_alpha: [
+        {
+          id: 'w_1',
+          household_id: 'hh_alpha',
+          ingredient_id: 'ing_tamatar',
+          ingredient_name: 'Desi Tamatar',
+          qty: 250,
+          unit: 'g',
+          reason: 'spoilage',
+          cost_inr: 15,
+          logged_by: 'Chef Divyansh',
+          notes: 'Soft tomatoes discarded during sorting',
+          created_at: new Date(Date.now() - 4 * 3600000).toISOString(),
+        },
+      ],
+    },
+    suppliers: {
+      hh_alpha: getDefaultSuppliers('hh_alpha'),
+    },
+    purchaseLists: {
+      hh_alpha: [],
+    },
+    cloudRole: {
+      hh_alpha: 'owner',
+    },
+    pureVegOnly: {
+      hh_alpha: false,
+    },
+    communityPosts: getDefaultCommunityPosts(),
   };
 }
 
 class StoreService {
   private state: DBState;
+  private isExplicitlyLoggedOut = false;
 
   constructor() {
     this.state = this.loadState();
@@ -661,7 +1015,35 @@ class StoreService {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
-        return JSON.parse(raw);
+        const parsed = JSON.parse(raw);
+        if (!parsed.menuItems) parsed.menuItems = {};
+        if (!parsed.orders) parsed.orders = {};
+        if (!parsed.batches) parsed.batches = {};
+        if (!parsed.stockReservations) parsed.stockReservations = {};
+        if (!parsed.stockLedger) parsed.stockLedger = {};
+        if (!parsed.wastage) parsed.wastage = {};
+        if (!parsed.suppliers) parsed.suppliers = {};
+        if (!parsed.purchaseLists) parsed.purchaseLists = {};
+        if (!parsed.cloudRole) parsed.cloudRole = {};
+        if (!parsed.pureVegOnly) parsed.pureVegOnly = {};
+        if (!parsed.communityPosts || parsed.communityPosts.length === 0) {
+          parsed.communityPosts = getDefaultCommunityPosts();
+        }
+
+        const hhId = parsed.currentHouseholdId || 'hh_alpha';
+        if (!parsed.menuItems[hhId] || parsed.menuItems[hhId].length === 0) {
+          parsed.menuItems[hhId] = getDefaultMenuItems(hhId);
+        }
+        if (!parsed.suppliers[hhId] || parsed.suppliers[hhId].length === 0) {
+          parsed.suppliers[hhId] = getDefaultSuppliers(hhId);
+        }
+        if (!parsed.orders[hhId] || parsed.orders[hhId].length === 0) {
+          parsed.orders[hhId] = getDefaultOrders(hhId);
+        }
+        if (!parsed.cloudRole[hhId]) {
+          parsed.cloudRole[hhId] = 'owner';
+        }
+        return parsed;
       }
     } catch {
       // Fallback
@@ -730,12 +1112,373 @@ class StoreService {
     return this.getMe();
   }
 
-  // --- Onboarding gate ---
-  // A user counts as onboarded only after explicitly finishing the onboarding screen.
-  // Saved states from older builds have no flag, so they see the screen once.
+  // --- Onboarding & Auth Gate ---
   public isOnboardingComplete(): boolean {
     const user = this.state.users[this.state.currentUserId];
     return !!user && user.onboarding_completed === true;
+  }
+
+  public isLoggedIn(): boolean {
+    if (this.isExplicitlyLoggedOut) {
+      return false;
+    }
+    try {
+      if (typeof window !== 'undefined' && localStorage.getItem('mastmeals_auth_session_v1') === 'logged_out') {
+        return false;
+      }
+    } catch {
+      // Ignore
+    }
+    const user = this.state.users[this.state.currentUserId];
+    return Boolean(user && user.onboarding_completed);
+  }
+
+  public logout(): void {
+    this.isExplicitlyLoggedOut = true;
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('mastmeals_auth_session_v1', 'logged_out');
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
+  public login(identifier: string, password?: string): { success: boolean; error?: string; user?: User } {
+    const norm = identifier.trim().toLowerCase();
+    const user = Object.values(this.state.users).find((u) => {
+      const emailMatch = u.email && u.email.toLowerCase() === norm;
+      const phoneMatch = u.phone && u.phone.toLowerCase() === norm;
+      const nameMatch = u.name && u.name.toLowerCase() === norm;
+      const idMatch = u.id && u.id.toLowerCase() === norm;
+      return emailMatch || phoneMatch || nameMatch || idMatch;
+    });
+
+    if (!user) {
+      return {
+        success: false,
+        error: 'No account found with this email or mobile. Please register your account below.',
+      };
+    }
+
+    if (password && user.password && user.password !== password) {
+      return {
+        success: false,
+        error: 'Incorrect password. Please verify and try again.',
+      };
+    }
+
+    this.isExplicitlyLoggedOut = false;
+    this.state.currentUserId = user.id;
+    if (user.household_id && this.state.households[user.household_id]) {
+      this.state.currentHouseholdId = user.household_id;
+    } else {
+      const hhEntry = Object.entries(this.state.members).find(([_, mems]) =>
+        mems.some((m) => m.name === user.name)
+      );
+      if (hhEntry) {
+        this.state.currentHouseholdId = hhEntry[0];
+      }
+    }
+
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('mastmeals_auth_session_v1');
+      }
+    } catch {}
+
+    this.persist();
+    return { success: true, user };
+  }
+
+  public loginWithDemoUser(userId: string): { success: boolean; user?: User } {
+    const user = this.state.users[userId];
+    if (!user) return { success: false };
+    this.isExplicitlyLoggedOut = false;
+    this.state.currentUserId = userId;
+    if (user.household_id && this.state.households[user.household_id]) {
+      this.state.currentHouseholdId = user.household_id;
+    }
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('mastmeals_auth_session_v1');
+      }
+    } catch {}
+    this.persist();
+    return { success: true, user };
+  }
+
+  public getAllRegisteredUsers(): Array<{ id: string; name: string; email: string; diet_pref: DietPreference; householdName: string }> {
+    return Object.values(this.state.users).map((u) => {
+      const hh = this.state.households[u.household_id || ''] || this.state.households[this.state.currentHouseholdId];
+      return {
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        diet_pref: u.diet_pref,
+        householdName: hh?.name || 'Default Kitchen',
+      };
+    });
+  }
+
+  public registerWithFullProfile(data: RegistrationProfileData): { success: boolean; user: User } {
+    const userId = 'usr_' + Date.now();
+    const hhId = 'hh_' + Date.now();
+    const isEmail = data.emailOrPhone.includes('@');
+
+    // 1. Create User
+    const newUser: User = {
+      id: userId,
+      email: isEmail
+        ? data.emailOrPhone.trim().toLowerCase()
+        : `${data.emailOrPhone.trim().replace(/[^0-9]/g, '')}@mobile.mastmeals`,
+      phone: !isEmail ? data.emailOrPhone.trim() : undefined,
+      password: data.password || 'password123',
+      name: data.name.trim(),
+      diet_pref: data.diet_pref,
+      is_beginner_cook: data.is_beginner_cook,
+      household_id: hhId,
+      onboarding_completed: true,
+      created_at: new Date().toISOString(),
+    };
+    this.state.users[userId] = newUser;
+
+    // 2. Create Household with equipment & fridge
+    const newHousehold: Household = {
+      id: hhId,
+      name: data.householdName.trim() || `${data.name}'s Kitchen`,
+      household_type: data.householdType || 'bachelor_flat',
+      has_fridge: data.has_fridge,
+      equipment: data.equipment.length > 0 ? data.equipment : ['stove', 'pressure_cooker', 'kadhai_pan', 'tawa'],
+      language: 'en',
+      version: 1,
+      invite_code: 'IN-' + Math.floor(100 + Math.random() * 900),
+      updated_at: new Date().toISOString(),
+    };
+    this.state.households[hhId] = newHousehold;
+
+    // 3. Create HouseholdMember with weight & protein goal
+    const weight = data.weight_kg || 65;
+    const proteinFactor = data.diet_goals.includes('protein_rich') ? 1.2 : 0.9;
+    const proteinTarget = data.protein_target_g || Math.round(weight * proteinFactor);
+
+    const primaryMember: HouseholdMember = {
+      id: 'mem_' + Date.now(),
+      household_id: hhId,
+      name: (data.member_name || data.name).trim(),
+      age_group: data.age_group || 'adult',
+      diet_pref: data.diet_pref,
+      weight_kg: weight,
+      protein_target_g: proteinTarget,
+      cautions: data.cautions || [],
+    };
+    this.state.members[hhId] = [primaryMember];
+
+    // 4. Save UserDietMemory
+    const userDietMemory: UserDietMemory = {
+      user_id: userId,
+      diet_goals: data.diet_goals,
+      preferred_regions: data.preferred_regions.length > 0 ? data.preferred_regions : ['North Indian'],
+      weekly_variety_schedule: data.weekly_variety_schedule,
+      past_regular_dishes: (data.regular_dishes && data.regular_dishes.length > 0)
+        ? data.regular_dishes.map((d, idx) => ({
+            recipe_id: `rec_custom_${idx}_${Date.now()}`,
+            title: d.title,
+            cuisine: d.cuisine || 'North Indian',
+            course: d.course || 'Dinner',
+            ingredients: d.ingredients || ['dal', 'chawal', 'tamatar'],
+            times_eaten: 8,
+            weeks_active: 4,
+            last_eaten_date: new Date().toISOString().slice(0, 10),
+            is_regular_favorite: true,
+          }))
+        : createDefaultDietMemory(userId).past_regular_dishes,
+      common_ingredients: ['dal', 'atta', 'chawal', 'aloo', 'tamatar', 'pyaz', 'jeera', 'haldi'],
+      common_regions: data.preferred_regions,
+      weeks_tracked: 4,
+      updated_at: new Date().toISOString(),
+    };
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`mastmeals_diet_memory_${userId}`, JSON.stringify(userDietMemory));
+        localStorage.setItem(DIET_MEMORY_KEY, JSON.stringify(userDietMemory));
+      }
+    } catch {}
+
+    // 5. Seed kitchen stock
+    const seedStock: Record<string, StockItem> = {
+      [`stk_${Date.now()}_1`]: {
+        id: `stk_${Date.now()}_1`,
+        household_id: hhId,
+        ingredient_id: 'ing_atta',
+        name: 'Whole Wheat Atta',
+        name_hi: 'आशीर्वाद गेहूं आटा',
+        qty_base: 4000,
+        unit_base: 'g',
+        location: 'pantry',
+        owner_user_id: null,
+        contributed_by: `${data.name} (Shared)`,
+        version: 1,
+        storage_place: 'pantry',
+        shelf_life_days: 60,
+        is_non_veg: false,
+      },
+      [`stk_${Date.now()}_2`]: {
+        id: `stk_${Date.now()}_2`,
+        household_id: hhId,
+        ingredient_id: 'ing_dal',
+        name: 'Toor Dal (Yellow Lentils)',
+        name_hi: 'अरहर दाल',
+        qty_base: 1500,
+        unit_base: 'g',
+        location: 'pantry',
+        owner_user_id: null,
+        contributed_by: `${data.name} (Shared)`,
+        version: 1,
+        storage_place: 'pantry',
+        shelf_life_days: 90,
+        is_non_veg: false,
+      },
+      [`stk_${Date.now()}_3`]: {
+        id: `stk_${Date.now()}_3`,
+        household_id: hhId,
+        ingredient_id: 'ing_chawal',
+        name: 'Basmati Rice',
+        name_hi: 'बासमती चावल',
+        qty_base: 2500,
+        unit_base: 'g',
+        location: 'pantry',
+        owner_user_id: null,
+        contributed_by: `${data.name} (Shared)`,
+        version: 1,
+        storage_place: 'pantry',
+        shelf_life_days: 90,
+        is_non_veg: false,
+      },
+      [`stk_${Date.now()}_4`]: {
+        id: `stk_${Date.now()}_4`,
+        household_id: hhId,
+        ingredient_id: 'ing_aloo',
+        name: 'Potatoes (Aloo)',
+        name_hi: 'आलू',
+        qty_base: 2000,
+        unit_base: 'g',
+        location: 'pantry',
+        owner_user_id: null,
+        contributed_by: `${data.name} (Shared)`,
+        version: 1,
+        storage_place: 'pantry',
+        shelf_life_days: 30,
+        is_non_veg: false,
+      },
+      [`stk_${Date.now()}_5`]: {
+        id: `stk_${Date.now()}_5`,
+        household_id: hhId,
+        ingredient_id: 'ing_pyaz',
+        name: 'Onions (Pyaz)',
+        name_hi: 'प्याज',
+        qty_base: 2000,
+        unit_base: 'g',
+        location: 'pantry',
+        owner_user_id: null,
+        contributed_by: `${data.name} (Shared)`,
+        version: 1,
+        storage_place: 'pantry',
+        shelf_life_days: 30,
+        is_non_veg: false,
+      },
+    };
+
+    if (data.has_fridge) {
+      seedStock[`stk_${Date.now()}_6`] = {
+        id: `stk_${Date.now()}_6`,
+        household_id: hhId,
+        ingredient_id: 'ing_tamatar',
+        name: 'Fresh Tomatoes',
+        name_hi: 'ताज़ा टमाटर',
+        qty_base: 1000,
+        unit_base: 'g',
+        location: 'fridge',
+        owner_user_id: null,
+        contributed_by: `${data.name} (Shared)`,
+        version: 1,
+        storage_place: 'fridge',
+        shelf_life_days: 7,
+        is_non_veg: false,
+      };
+      seedStock[`stk_${Date.now()}_7`] = {
+        id: `stk_${Date.now()}_7`,
+        household_id: hhId,
+        ingredient_id: 'ing_dahi',
+        name: 'Fresh Dahi / Curd',
+        name_hi: 'अमूल ताज़ा दही',
+        qty_base: 500,
+        unit_base: 'ml',
+        location: 'fridge',
+        owner_user_id: null,
+        contributed_by: `${data.name} (Shared)`,
+        version: 1,
+        storage_place: 'fridge',
+        shelf_life_days: 5,
+        is_non_veg: false,
+      };
+      if (data.diet_pref === 'veg') {
+        seedStock[`stk_${Date.now()}_8`] = {
+          id: `stk_${Date.now()}_8`,
+          household_id: hhId,
+          ingredient_id: 'ing_paneer',
+          name: 'Malai Paneer',
+          name_hi: 'ताज़ा मलाई पनीर',
+          qty_base: 400,
+          unit_base: 'g',
+          location: 'fridge',
+          owner_user_id: null,
+          contributed_by: `${data.name} (Shared)`,
+          version: 1,
+          storage_place: 'fridge',
+          shelf_life_days: 4,
+          is_non_veg: false,
+        };
+      } else {
+        seedStock[`stk_${Date.now()}_8`] = {
+          id: `stk_${Date.now()}_8`,
+          household_id: hhId,
+          ingredient_id: 'ing_anda',
+          name: 'Farm Fresh Eggs',
+          name_hi: 'अंडे (Eggs)',
+          qty_base: 6,
+          unit_base: 'pcs',
+          location: 'fridge',
+          owner_user_id: null,
+          contributed_by: `${data.name} (Shared)`,
+          version: 1,
+          storage_place: 'fridge',
+          shelf_life_days: 14,
+          is_non_veg: true,
+        };
+      }
+    }
+
+    this.state.stock[hhId] = seedStock;
+    this.state.recipes[hhId] = (this.state.recipes['hh_alpha'] || []).map((r) => ({
+      ...r,
+      household_id: hhId,
+    }));
+
+    // 6. Set context & clear logged out state
+    this.isExplicitlyLoggedOut = false;
+    this.state.currentUserId = userId;
+    this.state.currentHouseholdId = hhId;
+
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('mastmeals_auth_session_v1');
+      }
+    } catch {}
+
+    this.revalidateMealsForDiet(data.diet_pref);
+    this.persist();
+    return { success: true, user: newUser };
   }
 
   public completeOnboarding(diet_pref: DietPreference, is_beginner_cook: boolean) {
@@ -3271,8 +4014,918 @@ class StoreService {
     });
   }
 
+  // --- Swiggy Instamart Account Connection & Cart Sync ---
+  public getSwiggyConnection(): SwiggyAccountConnection {
+    try {
+      const saved = localStorage.getItem(SWIGGY_CONN_KEY);
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch {}
+    return {
+      isConnected: false,
+    };
+  }
+
+  public saveSwiggyConnection(conn: SwiggyAccountConnection): void {
+    try {
+      localStorage.setItem(SWIGGY_CONN_KEY, JSON.stringify(conn));
+      this.logAudit('swiggy_connection_saved', { isConnected: conn.isConnected, user: conn.userProfile?.name });
+    } catch (e) {
+      console.error('Failed to save Swiggy connection to storage:', e);
+    }
+  }
+
+  public disconnectSwiggy(): void {
+    try {
+      localStorage.removeItem(SWIGGY_CONN_KEY);
+      this.logAudit('swiggy_disconnected', {});
+    } catch (e) {
+      console.error('Failed to clear Swiggy connection from storage:', e);
+    }
+  }
+
+  public markItemsInSwiggyCart(itemIds: string[], cartId?: string): void {
+    const hhId = this.state.currentHouseholdId;
+    const shoppingLists = this.state.shoppingLists[hhId] || {};
+    let changed = false;
+
+    for (const weekKey of Object.keys(shoppingLists)) {
+      const list = shoppingLists[weekKey] || [];
+      for (const item of list) {
+        if (itemIds.includes(item.id) || itemIds.includes(item.name)) {
+          item.in_swiggy_cart = true;
+          changed = true;
+        }
+      }
+    }
+
+    if (changed) {
+      this.logAudit('swiggy_cart_items_marked', { itemIds, cartId });
+      this.persist();
+    }
+  }
+
+  // =========================================================================
+  // Cloud Kitchen Management Methods
+  // =========================================================================
+
+  public getCloudKitchenRole(householdId = this.state.currentHouseholdId): CloudKitchenRole {
+    return this.state.cloudRole?.[householdId] || 'owner';
+  }
+
+  public setCloudKitchenRole(role: CloudKitchenRole, householdId = this.state.currentHouseholdId): void {
+    if (!this.state.cloudRole) this.state.cloudRole = {};
+    this.state.cloudRole[householdId] = role;
+    this.logAudit('cloud_role_changed', { householdId, role });
+    this.persist();
+  }
+
+  public isPureVegOnly(householdId = this.state.currentHouseholdId): boolean {
+    return Boolean(this.state.pureVegOnly?.[householdId]);
+  }
+
+  public setPureVegOnly(enabled: boolean, householdId = this.state.currentHouseholdId): void {
+    if (!this.state.pureVegOnly) this.state.pureVegOnly = {};
+    this.state.pureVegOnly[householdId] = enabled;
+    this.logAudit('cloud_pure_veg_toggled', { householdId, enabled });
+    this.persist();
+  }
+
+  public getMenuItems(householdId = this.state.currentHouseholdId): MenuItem[] {
+    const list = this.state.menuItems?.[householdId] || [];
+    const isPureVeg = this.isPureVegOnly(householdId);
+    const stockItems = this.getStock();
+
+    return list
+      .filter((item) => {
+        if (!isPureVeg) return true;
+        // Strictly filter out any item that has nonveg diet_tag or meat ingredients
+        if (item.diet_tag === 'nonveg') return false;
+        return true;
+      })
+      .map((item) => {
+        // Calculate dynamic food cost from ingredients
+        const calculatedCost = item.ingredients.reduce(
+          (sum, ing) => sum + (ing.cost_estimate_inr || 0),
+          0
+        );
+        // Compute portion feasibility
+        const feasibility = calculatePortionsFeasibility(item, 1, stockItems);
+        return {
+          ...item,
+          cost_inr: calculatedCost > 0 ? calculatedCost : item.cost_inr,
+          // Auto sold out when stock cannot cover even 1 portion
+          is_sold_out: !feasibility.canCook && (item.cook_method === 'to_order' || (item.cooked_portions_available || 0) <= 0),
+        } as MenuItem & { is_sold_out?: boolean };
+      });
+  }
+
+  public addOrUpdateMenuItem(item: MenuItem, householdId = this.state.currentHouseholdId): MenuItem {
+    const currentRole = this.getCloudKitchenRole(householdId);
+    if (currentRole !== 'owner') {
+      throw new Error('Only the kitchen Owner can create or modify menu items and prices.');
+    }
+
+    if (!this.state.menuItems) this.state.menuItems = {};
+    if (!this.state.menuItems[householdId]) this.state.menuItems[householdId] = [];
+
+    // Derive diet tag deterministically in code from ingredients
+    const { tag, hasConflict, conflictReason } = deriveDietTag(item.ingredients);
+    const cleanItem: MenuItem = {
+      ...item,
+      household_id: householdId,
+      diet_tag: tag,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (this.isPureVegOnly(householdId) && tag === 'nonveg') {
+      throw new Error('Cannot add non-veg items while Pure Veg Kitchen mode is enabled.');
+    }
+
+    const idx = this.state.menuItems[householdId].findIndex((m) => m.id === item.id);
+    if (idx >= 0) {
+      this.state.menuItems[householdId][idx] = cleanItem;
+    } else {
+      cleanItem.id = cleanItem.id || 'menu_' + Date.now();
+      cleanItem.created_at = new Date().toISOString();
+      this.state.menuItems[householdId].push(cleanItem);
+    }
+
+    this.logAudit('menu_item_saved', { id: cleanItem.id, name: cleanItem.name, diet_tag: tag, hasConflict });
+    this.persist();
+    return cleanItem;
+  }
+
+  public deleteMenuItem(itemId: string, householdId = this.state.currentHouseholdId): void {
+    const currentRole = this.getCloudKitchenRole(householdId);
+    if (currentRole !== 'owner') {
+      throw new Error('Only the kitchen Owner can delete menu items.');
+    }
+    if (!this.state.menuItems?.[householdId]) return;
+    this.state.menuItems[householdId] = this.state.menuItems[householdId].filter((m) => m.id !== itemId);
+    this.logAudit('menu_item_deleted', { itemId });
+    this.persist();
+  }
+
+  public toggleMenuItemAvailability(itemId: string, isAvailable: boolean, householdId = this.state.currentHouseholdId): void {
+    const list = this.state.menuItems?.[householdId] || [];
+    const item = list.find((m) => m.id === itemId);
+    if (item) {
+      item.is_available = isAvailable;
+      item.updated_at = new Date().toISOString();
+      this.logAudit('menu_availability_toggled', { itemId, isAvailable });
+      this.persist();
+    }
+  }
+
+  public getCloudOrders(householdId = this.state.currentHouseholdId): CloudOrder[] {
+    return this.state.orders?.[householdId] || [];
+  }
+
+  public createCloudOrder(
+    data: {
+      customer_name: string;
+      customer_phone?: string;
+      items: { menu_item_id: string; quantity: number; variant_name?: string; unit_price_inr?: number; notes?: string }[];
+      source?: OrderSource;
+      notes?: string;
+      scheduled_time?: string;
+      payment_status?: PaymentStatus;
+    },
+    householdId = this.state.currentHouseholdId
+  ): CloudOrder {
+    if (!this.state.orders) this.state.orders = {};
+    if (!this.state.orders[householdId]) this.state.orders[householdId] = [];
+
+    const menuItems = this.getMenuItems(householdId);
+    const existingOrders = this.state.orders[householdId];
+    const nextOrderNum = existingOrders.length > 0 ? Math.max(...existingOrders.map((o) => o.order_number)) + 1 : 101;
+
+    let totalAmount = 0;
+    const orderItems: CloudOrderItem[] = [];
+    const reservationIds: string[] = [];
+
+    for (const raw of data.items) {
+      const menuItem = menuItems.find((m) => m.id === raw.menu_item_id);
+      if (!menuItem) continue;
+
+      const price = raw.unit_price_inr ?? menuItem.price_inr;
+      const itemTotal = price * raw.quantity;
+      totalAmount += itemTotal;
+
+      orderItems.push({
+        item_id: 'oi_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+        menu_item_id: menuItem.id,
+        name: menuItem.name,
+        variant_name: raw.variant_name,
+        quantity: raw.quantity,
+        unit_price_inr: price,
+        total_price_inr: itemTotal,
+        notes: raw.notes,
+      });
+
+      // Handle Reservation for Cook-to-Order vs Batch items
+      if (menuItem.cook_method === 'to_order') {
+        for (const ing of menuItem.ingredients) {
+          if (ing.is_pinch_or_taste) continue;
+          const resId = 'res_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+          const reservation: StockReservation = {
+            id: resId,
+            household_id: householdId,
+            order_id: 'ord_' + nextOrderNum,
+            ingredient_id: ing.ingredient_id,
+            ingredient_name: ing.name,
+            qty_reserved: ing.qty_per_portion * raw.quantity,
+            unit: ing.unit,
+            status: 'active',
+            created_at: new Date().toISOString(),
+          };
+          if (!this.state.stockReservations) this.state.stockReservations = {};
+          if (!this.state.stockReservations[householdId]) this.state.stockReservations[householdId] = [];
+          this.state.stockReservations[householdId].push(reservation);
+          reservationIds.push(resId);
+        }
+      } else if (menuItem.cook_method === 'batch') {
+        // Decrement from cooked portions available pool
+        const currentPool = menuItem.cooked_portions_available || 0;
+        menuItem.cooked_portions_available = Math.max(0, currentPool - raw.quantity);
+      }
+    }
+
+    const newOrder: CloudOrder = {
+      id: 'ord_' + nextOrderNum,
+      household_id: householdId,
+      order_number: nextOrderNum,
+      customer_name: data.customer_name || 'Walk-in Guest',
+      customer_phone: data.customer_phone || '',
+      items: orderItems,
+      total_amount_inr: totalAmount,
+      source: data.source || 'walk_in',
+      notes: data.notes || '',
+      scheduled_time: data.scheduled_time || 'Immediate Prep',
+      status: 'new',
+      payment_status: data.payment_status || 'pending',
+      reserved_stock_ids: reservationIds,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    this.state.orders[householdId].unshift(newOrder);
+    this.logAudit('cloud_order_created', { orderNumber: nextOrderNum, totalAmount, itemsCount: orderItems.length });
+    this.persist();
+    return newOrder;
+  }
+
+  public updateCloudOrderStatus(
+    orderId: string,
+    nextStatus: OrderStatus,
+    overrideReason?: string,
+    householdId = this.state.currentHouseholdId
+  ): { success: boolean; message?: string } {
+    const orders = this.state.orders?.[householdId] || [];
+    const order = orders.find((o) => o.id === orderId);
+    if (!order) return { success: false, message: 'Order not found' };
+
+    const oldStatus = order.status;
+    if (oldStatus === nextStatus) return { success: true };
+
+    const role = this.getCloudKitchenRole(householdId);
+    const userMe = this.getMe();
+    const performer = userMe.user.name || role.toUpperCase();
+
+    // 1. Moving to PREPARING or READY: DEDUCT stock from reservations
+    if ((nextStatus === 'preparing' || nextStatus === 'ready') && oldStatus !== 'preparing' && oldStatus !== 'ready') {
+      const reservations = this.state.stockReservations?.[householdId] || [];
+      const orderRes = reservations.filter((r) => r.order_id === order.id && r.status === 'active');
+
+      const stockMap = this.state.stock[householdId] || {};
+
+      for (const res of orderRes) {
+        // Deduct across matching stock items (multi-lot deduction)
+        const matchingStocks = Object.values(stockMap).filter((s) => s.ingredient_id === res.ingredient_id);
+        if (matchingStocks.length > 0) {
+          const qtyToDeduct = res.qty_reserved;
+          let remainingToDeduct = qtyToDeduct;
+
+          for (const stockItem of matchingStocks) {
+            if (remainingToDeduct <= 0) break;
+            const deductFromThis = Math.min(stockItem.qty_base, remainingToDeduct);
+            stockItem.qty_base -= deductFromThis;
+            remainingToDeduct -= deductFromThis;
+          }
+
+          if (remainingToDeduct > 0) {
+            matchingStocks[0].qty_base = Math.max(0, matchingStocks[0].qty_base - remainingToDeduct);
+          }
+
+          const balanceAfter = matchingStocks.reduce((sum, s) => sum + s.qty_base, 0);
+          res.status = 'deducted';
+
+          // Write to Stock Audit Ledger
+          this.logStockLedgerEntry({
+            household_id: householdId,
+            timestamp: new Date().toISOString(),
+            ingredient_id: res.ingredient_id,
+            ingredient_name: res.ingredient_name,
+            change_qty: -qtyToDeduct,
+            unit: res.unit,
+            balance_after: balanceAfter,
+            reason: 'order_prep',
+            linked_order_id: order.id,
+            performed_by: performer,
+            notes: `KOT Order #${order.order_number} (${order.customer_name})`,
+          });
+        }
+      }
+    }
+
+    // 2. CANCELLED: Release active reservations and restore batch portions
+    if (nextStatus === 'cancelled') {
+      const reservations = this.state.stockReservations?.[householdId] || [];
+      const orderRes = reservations.filter((r) => r.order_id === order.id);
+
+      for (const res of orderRes) {
+        if (res.status === 'active') {
+          res.status = 'released';
+        } else if (res.status === 'deducted') {
+          // Restore stock if it was already deducted!
+          const stockMap = this.state.stock[householdId] || {};
+          const matchingStocks = Object.values(stockMap).filter((s) => s.ingredient_id === res.ingredient_id);
+          if (matchingStocks.length > 0) {
+            matchingStocks[0].qty_base += res.qty_reserved;
+            res.status = 'released';
+            const balanceAfter = matchingStocks.reduce((sum, s) => sum + s.qty_base, 0);
+            this.logStockLedgerEntry({
+              household_id: householdId,
+              timestamp: new Date().toISOString(),
+              ingredient_id: res.ingredient_id,
+              ingredient_name: res.ingredient_name,
+              change_qty: res.qty_reserved,
+              unit: res.unit,
+              balance_after: balanceAfter,
+              reason: 'cancellation_restore',
+              linked_order_id: order.id,
+              performed_by: performer,
+              notes: `Order #${order.order_number} cancelled - inventory restored`,
+            });
+          }
+        }
+      }
+
+      // Restore batch item cooked portions pool
+      const menuList = this.state.menuItems?.[householdId] || [];
+      for (const item of order.items) {
+        const menuItem = menuList.find((m) => m.id === item.menu_item_id);
+        if (menuItem && menuItem.cook_method === 'batch') {
+          menuItem.cooked_portions_available = (menuItem.cooked_portions_available || 0) + item.quantity;
+        }
+      }
+    }
+
+    order.status = nextStatus;
+    order.updated_at = new Date().toISOString();
+    this.logAudit('cloud_order_status_updated', { orderId, oldStatus, nextStatus });
+    this.persist();
+    return { success: true };
+  }
+
+  public getBatches(householdId = this.state.currentHouseholdId): CookBatch[] {
+    return this.state.batches?.[householdId] || [];
+  }
+
+  public announceBatch(
+    menuItemId: string,
+    portions: number,
+    allowNegativeOverride = false,
+    overrideReason?: string,
+    householdId = this.state.currentHouseholdId
+  ): { success: boolean; batch?: CookBatch; shortages?: any[]; error?: string } {
+    const menuList = this.state.menuItems?.[householdId] || [];
+    const menuItem = menuList.find((m) => m.id === menuItemId);
+    if (!menuItem) return { success: false, error: 'Menu item not found' };
+
+    const stockMap = this.state.stock[householdId] || {};
+    const feasibility = calculatePortionsFeasibility(menuItem, portions, stockMap);
+
+    if (!feasibility.canCook && !allowNegativeOverride) {
+      return {
+        success: false,
+        shortages: feasibility.shortages,
+        error: `Insufficient stock for ${portions} portions of ${menuItem.name}`,
+      };
+    }
+
+    const userMe = this.getMe();
+    const performer = userMe.user.name || 'Chef Divyansh';
+    const deductedList: { ingredient_id: string; name: string; qty: number; unit: BaseUnit }[] = [];
+
+    // Deduct stock for each ingredient scaled to portions across matching lots
+    for (const ing of menuItem.ingredients) {
+      if (ing.is_pinch_or_taste) continue;
+      const totalNeeded = ing.qty_per_portion * portions;
+      const matchingStockItems = Object.values(stockMap).filter(
+        (s) => s.ingredient_id === ing.ingredient_id || s.name.toLowerCase().includes(ing.name.toLowerCase())
+      );
+
+      if (matchingStockItems.length > 0) {
+        let remainingToDeduct = totalNeeded;
+        for (const stockItem of matchingStockItems) {
+          if (remainingToDeduct <= 0) break;
+          const deductFromThis = Math.min(stockItem.qty_base, remainingToDeduct);
+          stockItem.qty_base -= deductFromThis;
+          remainingToDeduct -= deductFromThis;
+        }
+
+        if (remainingToDeduct > 0) {
+          matchingStockItems[0].qty_base = Math.max(0, matchingStockItems[0].qty_base - remainingToDeduct);
+        }
+
+        const balanceAfter = matchingStockItems.reduce((sum, s) => sum + s.qty_base, 0);
+
+        deductedList.push({
+          ingredient_id: ing.ingredient_id,
+          name: ing.name,
+          qty: totalNeeded,
+          unit: ing.unit,
+        });
+
+        // Write to Stock Audit Ledger
+        this.logStockLedgerEntry({
+          household_id: householdId,
+          timestamp: new Date().toISOString(),
+          ingredient_id: ing.ingredient_id,
+          ingredient_name: ing.name,
+          change_qty: -totalNeeded,
+          unit: ing.unit,
+          balance_after: balanceAfter,
+          reason: 'batch_cook',
+          performed_by: performer,
+          notes: `Batch Cook: ${portions} portions of ${menuItem.name}`,
+        });
+      }
+    }
+
+    // Add to CookBatch and increment cooked portions pool
+    const batchId = 'batch_' + Date.now();
+    const newBatch: CookBatch = {
+      id: batchId,
+      household_id: householdId,
+      menu_item_id: menuItem.id,
+      item_name: menuItem.name,
+      portions_announced: portions,
+      portions_cooked: portions,
+      portions_remaining: portions,
+      status: 'ready',
+      announced_by: performer,
+      ingredients_deducted: deductedList,
+      notes: overrideReason ? `Override reason: ${overrideReason}` : undefined,
+      started_at: new Date().toISOString(),
+      completed_at: new Date().toISOString(),
+    };
+
+    if (!this.state.batches) this.state.batches = {};
+    if (!this.state.batches[householdId]) this.state.batches[householdId] = [];
+    this.state.batches[householdId].unshift(newBatch);
+
+    // Update menuItem cooked portions available pool
+    menuItem.cooked_portions_available = (menuItem.cooked_portions_available || 0) + portions;
+
+    this.logAudit('cloud_batch_announced', { batchId, menuItem: menuItem.name, portions });
+    this.persist();
+    return { success: true, batch: newBatch };
+  }
+
+  public completeBatch(batchId: string, householdId = this.state.currentHouseholdId): void {
+    const batches = this.state.batches?.[householdId] || [];
+    const b = batches.find((item) => item.id === batchId);
+    if (b) {
+      b.status = 'ready';
+      b.completed_at = new Date().toISOString();
+      this.persist();
+    }
+  }
+
+  public getStockReservations(householdId = this.state.currentHouseholdId): StockReservation[] {
+    return this.state.stockReservations?.[householdId] || [];
+  }
+
+  public getStockLedger(householdId = this.state.currentHouseholdId): StockLedgerEntry[] {
+    return this.state.stockLedger?.[householdId] || [];
+  }
+
+  private logStockLedgerEntry(entry: Omit<StockLedgerEntry, 'id'>): void {
+    const hhId = entry.household_id;
+    if (!this.state.stockLedger) this.state.stockLedger = {};
+    if (!this.state.stockLedger[hhId]) this.state.stockLedger[hhId] = [];
+
+    const fullEntry: StockLedgerEntry = {
+      ...entry,
+      id: 'led_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+    };
+    this.state.stockLedger[hhId].unshift(fullEntry);
+  }
+
+  public getWastageEntries(householdId = this.state.currentHouseholdId): WastageEntry[] {
+    return this.state.wastage?.[householdId] || [];
+  }
+
+  public logWastage(
+    ingredientId: string,
+    qty: number,
+    unit: BaseUnit,
+    reason: WastageEntry['reason'],
+    costInr: number,
+    notes?: string,
+    householdId = this.state.currentHouseholdId
+  ): WastageEntry {
+    const stockMap = this.state.stock[householdId] || {};
+    const stockItem = Object.values(stockMap).find((s) => s.ingredient_id === ingredientId);
+
+    const userMe = this.getMe();
+    const performer = userMe.user.name || 'Chef';
+
+    if (stockItem) {
+      stockItem.qty_base = Math.max(0, stockItem.qty_base - qty);
+      this.logStockLedgerEntry({
+        household_id: householdId,
+        timestamp: new Date().toISOString(),
+        ingredient_id: ingredientId,
+        ingredient_name: stockItem.name,
+        change_qty: -qty,
+        unit,
+        balance_after: stockItem.qty_base,
+        reason: 'spoilage',
+        performed_by: performer,
+        notes: `Wastage logged (${reason}): ${notes || ''}`,
+      });
+    }
+
+    const entry: WastageEntry = {
+      id: 'w_' + Date.now(),
+      household_id: householdId,
+      ingredient_id: ingredientId,
+      ingredient_name: stockItem ? stockItem.name : ingredientId,
+      qty,
+      unit,
+      reason,
+      cost_inr: costInr,
+      logged_by: performer,
+      notes,
+      created_at: new Date().toISOString(),
+    };
+
+    if (!this.state.wastage) this.state.wastage = {};
+    if (!this.state.wastage[householdId]) this.state.wastage[householdId] = [];
+    this.state.wastage[householdId].unshift(entry);
+
+    this.logAudit('wastage_logged', { ingredientId, qty, reason, costInr });
+    this.persist();
+    return entry;
+  }
+
+  public getSuppliers(householdId = this.state.currentHouseholdId): Supplier[] {
+    if (!this.state.suppliers) this.state.suppliers = {};
+    if (!this.state.suppliers[householdId] || this.state.suppliers[householdId].length === 0) {
+      this.state.suppliers[householdId] = getDefaultSuppliers(householdId);
+      this.persist();
+    }
+    return this.state.suppliers[householdId];
+  }
+
+  public addSupplier(
+    data: Omit<Supplier, 'id' | 'household_id' | 'created_at' | 'updated_at'>,
+    householdId = this.state.currentHouseholdId
+  ): Supplier {
+    if (!this.state.suppliers) this.state.suppliers = {};
+    if (!this.state.suppliers[householdId]) {
+      this.state.suppliers[householdId] = getDefaultSuppliers(householdId);
+    }
+
+    const newSupplier: Supplier = {
+      id: 'sup_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+      household_id: householdId,
+      name: data.name.trim(),
+      category: data.category.trim() || 'General Food & Provisions',
+      phone: data.phone.trim(),
+      contact_person: data.contact_person?.trim() || undefined,
+      email: data.email?.trim() || undefined,
+      address: data.address?.trim() || undefined,
+      notes: data.notes?.trim() || undefined,
+      lead_time_hours: Number(data.lead_time_hours) || 2,
+      preferred_brands: Array.isArray(data.preferred_brands) ? data.preferred_brands : [],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    this.state.suppliers[householdId].push(newSupplier);
+    this.logAudit('supplier_added', { supplierId: newSupplier.id, name: newSupplier.name });
+    this.persist();
+    return newSupplier;
+  }
+
+  public updateSupplier(
+    supplierId: string,
+    updates: Partial<Omit<Supplier, 'id' | 'household_id'>>,
+    householdId = this.state.currentHouseholdId
+  ): { success: boolean; supplier?: Supplier; message?: string } {
+    if (!this.state.suppliers || !this.state.suppliers[householdId]) {
+      return { success: false, message: 'Supplier not found' };
+    }
+
+    const supplier = this.state.suppliers[householdId].find((s) => s.id === supplierId);
+    if (!supplier) {
+      return { success: false, message: 'Supplier not found' };
+    }
+
+    if (updates.name !== undefined) supplier.name = updates.name.trim();
+    if (updates.category !== undefined) supplier.category = updates.category.trim();
+    if (updates.phone !== undefined) supplier.phone = updates.phone.trim();
+    if (updates.contact_person !== undefined) supplier.contact_person = updates.contact_person?.trim();
+    if (updates.email !== undefined) supplier.email = updates.email?.trim();
+    if (updates.address !== undefined) supplier.address = updates.address?.trim();
+    if (updates.notes !== undefined) supplier.notes = updates.notes?.trim();
+    if (updates.lead_time_hours !== undefined) supplier.lead_time_hours = Number(updates.lead_time_hours) || 2;
+    if (updates.preferred_brands !== undefined) supplier.preferred_brands = updates.preferred_brands;
+
+    supplier.updated_at = new Date().toISOString();
+
+    this.logAudit('supplier_updated', { supplierId, name: supplier.name });
+    this.persist();
+    return { success: true, supplier };
+  }
+
+  public deleteSupplier(
+    supplierId: string,
+    householdId = this.state.currentHouseholdId
+  ): { success: boolean; message?: string } {
+    if (!this.state.suppliers || !this.state.suppliers[householdId]) {
+      return { success: false, message: 'Supplier not found' };
+    }
+
+    const initialLen = this.state.suppliers[householdId].length;
+    this.state.suppliers[householdId] = this.state.suppliers[householdId].filter((s) => s.id !== supplierId);
+
+    if (this.state.suppliers[householdId].length === initialLen) {
+      return { success: false, message: 'Supplier not found' };
+    }
+
+    this.logAudit('supplier_deleted', { supplierId });
+    this.persist();
+    return { success: true };
+  }
+
+  public getPurchaseLists(householdId = this.state.currentHouseholdId): PurchaseList[] {
+    return this.state.purchaseLists?.[householdId] || [];
+  }
+
+  public generatePurchaseList(householdId = this.state.currentHouseholdId): PurchaseList {
+    const stockMap = this.state.stock[householdId] || {};
+    const suppliers = this.getSuppliers(householdId);
+    const items: PurchaseListItem[] = [];
+
+    // Check each stock item par level (default par level is 5000g / 5000ml)
+    for (const s of Object.values(stockMap)) {
+      if (this.isPureVegOnly(householdId) && s.is_non_veg) continue;
+      const parLevel = s.unit_base === 'pcs' ? 50 : 5000;
+      if (s.qty_base < parLevel) {
+        const needed = parLevel - s.qty_base;
+        // Match supplier
+        const cat = s.location === 'fridge' ? 'Dairy' : 'Dry Grains';
+        const sup = suppliers.find((sp) => sp.category.toLowerCase().includes(cat.toLowerCase())) || suppliers[0];
+
+        items.push({
+          ingredient_id: s.ingredient_id,
+          name: s.name,
+          supplier_id: sup?.id,
+          supplier_name: sup?.name,
+          current_stock: s.qty_base,
+          par_level: parLevel,
+          needed_qty: needed,
+          unit: s.unit_base as BaseUnit,
+          estimated_price_inr: Math.round((needed / 1000) * 80),
+          price_as_of: 'Today',
+          source: 'par_reorder',
+        });
+      }
+    }
+
+    const list: PurchaseList = {
+      id: 'pur_' + Date.now(),
+      household_id: householdId,
+      date: new Date().toISOString().slice(0, 10),
+      items,
+      total_estimated_cost_inr: items.reduce((sum, i) => sum + i.estimated_price_inr, 0),
+      status: 'draft',
+      created_at: new Date().toISOString(),
+    };
+
+    if (!this.state.purchaseLists) this.state.purchaseLists = {};
+    if (!this.state.purchaseLists[householdId]) this.state.purchaseLists[householdId] = [];
+    this.state.purchaseLists[householdId].unshift(list);
+
+    this.persist();
+    return list;
+  }
+
+  public receiveGoods(
+    purchaseListId: string,
+    items: { ingredient_id: string; qty_received: number; unit: BaseUnit }[],
+    householdId = this.state.currentHouseholdId
+  ): void {
+    const stockMap = this.state.stock[householdId] || {};
+    const userMe = this.getMe();
+    const performer = userMe.user.name || 'Owner';
+
+    for (const rec of items) {
+      let stockItem = Object.values(stockMap).find((s) => s.ingredient_id === rec.ingredient_id);
+      if (stockItem) {
+        stockItem.qty_base += rec.qty_received;
+        this.logStockLedgerEntry({
+          household_id: householdId,
+          timestamp: new Date().toISOString(),
+          ingredient_id: rec.ingredient_id,
+          ingredient_name: stockItem.name,
+          change_qty: rec.qty_received,
+          unit: rec.unit,
+          balance_after: stockItem.qty_base,
+          reason: 'receipt_purchase',
+          performed_by: performer,
+          notes: `Goods received against PO #${purchaseListId.slice(-6)}`,
+        });
+      }
+    }
+
+    const pLists = this.state.purchaseLists?.[householdId] || [];
+    const targetList = pLists.find((p) => p.id === purchaseListId);
+    if (targetList) {
+      targetList.status = 'received';
+    }
+
+    this.persist();
+  }
+
+  public getCloudKitchenReport(dateStr = new Date().toISOString().slice(0, 10), householdId = this.state.currentHouseholdId): CloudKitchenReport {
+    const orders = this.getCloudOrders(householdId);
+    const wastage = this.getWastageEntries(householdId);
+    const menuItems = this.getMenuItems(householdId);
+
+    const completed = orders.filter((o) => o.status === 'delivered' || o.status === 'ready' || o.status === 'preparing');
+    const cancelled = orders.filter((o) => o.status === 'cancelled');
+
+    const grossRevenue = completed.reduce((sum, o) => sum + o.total_amount_inr, 0);
+
+    // Calculate food cost from item recipe costs
+    let totalFoodCost = 0;
+    const itemSales: Record<string, { name: string; portions: number; revenue: number }> = {};
+
+    for (const ord of completed) {
+      for (const it of ord.items) {
+        const menuItem = menuItems.find((m) => m.id === it.menu_item_id);
+        const costPerPortion = menuItem?.cost_inr || it.unit_price_inr * 0.32;
+        totalFoodCost += costPerPortion * it.quantity;
+
+        if (!itemSales[it.name]) {
+          itemSales[it.name] = { name: it.name, portions: 0, revenue: 0 };
+        }
+        itemSales[it.name].portions += it.quantity;
+        itemSales[it.name].revenue += it.total_price_inr;
+      }
+    }
+
+    const totalWastageCost = wastage.reduce((sum, w) => sum + (w.cost_inr || 0), 0);
+    const grossProfitPercent = grossRevenue > 0 ? Math.round(((grossRevenue - totalFoodCost) / grossRevenue) * 100) : 0;
+
+    const topSelling = Object.values(itemSales)
+      .sort((a, b) => b.portions - a.portions)
+      .slice(0, 5)
+      .map((i) => ({ name: i.name, portions: i.portions, revenue_inr: i.revenue }));
+
+    // Low margin warnings (items below 40% margin)
+    const lowMarginWarnings: { name: string; margin_percent: number }[] = [];
+    for (const m of menuItems) {
+      if (m.price_inr > 0) {
+        const margin = Math.round(((m.price_inr - m.cost_inr) / m.price_inr) * 100);
+        if (margin < 40) {
+          lowMarginWarnings.push({ name: m.name, margin_percent: margin });
+        }
+      }
+    }
+
+    return {
+      date: dateStr,
+      total_orders: orders.length,
+      completed_orders: completed.length,
+      cancelled_orders: cancelled.length,
+      gross_revenue_inr: grossRevenue,
+      estimated_food_cost_inr: Math.round(totalFoodCost),
+      gross_profit_margin_percent: grossProfitPercent,
+      wastage_cost_inr: totalWastageCost,
+      top_selling_items: topSelling,
+      low_margin_warnings: lowMarginWarnings,
+    };
+  }
+
+  public exportReportCsv(report: CloudKitchenReport): string {
+    const lines = [
+      'MAST MEALS CLOUD KITCHEN DAILY PERFORMANCE REPORT',
+      `Date,${report.date}`,
+      `Total Orders,${report.total_orders}`,
+      `Completed Orders,${report.completed_orders}`,
+      `Cancelled Orders,${report.cancelled_orders}`,
+      `Gross Revenue (INR),₹${report.gross_revenue_inr}`,
+      `Estimated Food Cost (INR),₹${report.estimated_food_cost_inr}`,
+      `Gross Profit Margin,${report.gross_profit_margin_percent}%`,
+      `Wastage Cost (INR),₹${report.wastage_cost_inr}`,
+      '',
+      'TOP SELLING ITEMS',
+      'Item Name,Portions Sold,Revenue (INR)',
+      ...report.top_selling_items.map((t) => `"${t.name}",${t.portions},${t.revenue_inr}`),
+      '',
+      'LOW MARGIN WARNINGS',
+      'Item Name,Gross Margin %',
+      ...report.low_margin_warnings.map((w) => `"${w.name}",${w.margin_percent}%`),
+    ];
+    return lines.join('\n');
+  }
+
   public getAuditLog() {
     return this.state.auditLog;
+  }
+
+  // ---------------------------------------------------------------------------
+  // COMMUNITY DISH FEED (Threads-style cooked dishes sharing)
+  // ---------------------------------------------------------------------------
+  public getCommunityPosts(): CommunityPost[] {
+    if (!this.state.communityPosts || this.state.communityPosts.length === 0) {
+      this.state.communityPosts = getDefaultCommunityPosts();
+      this.persist();
+    }
+    return this.state.communityPosts;
+  }
+
+  public createCommunityPost(data: {
+    caption: string;
+    image_url: string;
+    recipe_id?: string;
+    recipe_title?: string;
+    recipe_prep_time_mins?: number;
+    recipe_diet_tag?: 'veg' | 'nonveg' | 'egg';
+  }): CommunityPost {
+    if (!this.state.communityPosts) {
+      this.state.communityPosts = getDefaultCommunityPosts();
+    }
+
+    const me = this.getMe();
+    const newPost: CommunityPost = {
+      id: 'post_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+      household_id: me.household.id,
+      author_id: me.user.id,
+      author_name: me.user.name || 'Home Cook',
+      author_avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
+      caption: data.caption.trim(),
+      image_url: data.image_url,
+      recipe_id: data.recipe_id,
+      recipe_title: data.recipe_title,
+      recipe_prep_time_mins: data.recipe_prep_time_mins,
+      recipe_diet_tag: data.recipe_diet_tag,
+      likes_count: 0,
+      liked_by_me: false,
+      created_at: new Date().toISOString(),
+    };
+
+    this.state.communityPosts.unshift(newPost);
+    this.logAudit('community_post_created', { postId: newPost.id, recipe: data.recipe_title });
+    this.persist();
+    return newPost;
+  }
+
+  public togglePostLike(postId: string): { liked: boolean; likesCount: number } {
+    if (!this.state.communityPosts) {
+      this.state.communityPosts = getDefaultCommunityPosts();
+    }
+
+    const post = this.state.communityPosts.find((p) => p.id === postId);
+    if (!post) {
+      return { liked: false, likesCount: 0 };
+    }
+
+    post.liked_by_me = !post.liked_by_me;
+    post.likes_count = Math.max(0, post.likes_count + (post.liked_by_me ? 1 : -1));
+    this.persist();
+    return { liked: post.liked_by_me, likesCount: post.likes_count };
+  }
+
+  public deleteCommunityPost(postId: string): boolean {
+    if (!this.state.communityPosts) return false;
+    const initialLen = this.state.communityPosts.length;
+    this.state.communityPosts = this.state.communityPosts.filter((p) => p.id !== postId);
+    if (this.state.communityPosts.length !== initialLen) {
+      this.logAudit('community_post_deleted', { postId });
+      this.persist();
+      return true;
+    }
+    return false;
   }
 }
 

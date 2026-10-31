@@ -232,28 +232,52 @@ INSTRUCTIONS:
         required: ['summary', 'items'],
       };
 
-      let response;
+      const timeoutMs = 4000;
+      let timerHandle: any;
+      const timeoutPromise = new Promise((_, reject) => {
+        timerHandle = setTimeout(() => reject(new Error('Gemini API call timed out after 4s')), timeoutMs);
+        if (timerHandle && typeof timerHandle.unref === 'function') {
+          timerHandle.unref();
+        }
+      });
+
       try {
-        response = await ai.models.generateContent({
-          model: primaryModel,
-          contents: prompt,
-          config: {
-            responseMimeType: 'application/json',
-            responseSchema,
-            thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
-          },
-        });
+        response = await Promise.race([
+          ai.models.generateContent({
+            model: primaryModel,
+            contents: prompt,
+            config: {
+              responseMimeType: 'application/json',
+              responseSchema,
+              thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+            },
+          }),
+          timeoutPromise,
+        ]);
       } catch (err: any) {
-        console.warn(`Primary model (${primaryModel}) failed for shop inbox, trying ${fallbackModel}:`, err?.message);
-        response = await ai.models.generateContent({
-          model: fallbackModel,
-          contents: prompt,
-          config: {
-            responseMimeType: 'application/json',
-            responseSchema,
-            thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
-          },
-        });
+        const msg = String(err?.message || '');
+        if (msg.includes('timed out') || msg.includes('429') || msg.includes('quota') || msg.includes('RESOURCE_EXHAUSTED')) {
+          console.warn('Gemini API call rate limited or timed out, proceeding immediately with heuristic fallback');
+          return this.heuristicFallbackExtract(cleanText);
+        }
+        console.warn(`Primary model (${primaryModel}) failed for shop inbox, trying fallback:`, msg);
+        try {
+          response = await Promise.race([
+            ai.models.generateContent({
+              model: fallbackModel,
+              contents: prompt,
+              config: {
+                responseMimeType: 'application/json',
+                responseSchema,
+                thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+              },
+            }),
+            timeoutPromise,
+          ]);
+        } catch (fallbackErr: any) {
+          console.warn('Fallback model also failed, using heuristic extraction:', fallbackErr?.message);
+          return this.heuristicFallbackExtract(cleanText);
+        }
       }
 
       const raw = (response.text || '{}').trim();
@@ -282,23 +306,25 @@ INSTRUCTIONS:
 
   public heuristicFallbackExtract(text: string): { summary: string; items: ExtractedShopItem[] } {
     const items: ExtractedShopItem[] = [];
-    const lower = text.toLowerCase();
+    // Convert Devanagari digits ०-९ to standard 0-9
+    const normalizedText = text.replace(/[\u0966-\u096F]/g, (d) => String(d.charCodeAt(0) - 0x0966));
+    const lower = normalizedText.toLowerCase();
 
     const patterns = [
-      { regex: /(\d+(?:\.\d+)?)\s*(?:kg|kilo|kilos)\s+([a-zA-Z\s]+)/gi, unit: 'g', mult: 1000 },
-      { regex: /(\d+(?:\.\d+)?)\s*(?:g|gm|grams)\s+([a-zA-Z\s]+)/gi, unit: 'g', mult: 1 },
-      { regex: /(\d+(?:\.\d+)?)\s*(?:l|ltr|litre|litres|liter)\s+([a-zA-Z\s]+)/gi, unit: 'ml', mult: 1000 },
-      { regex: /(\d+(?:\.\d+)?)\s*(?:ml)\s+([a-zA-Z\s]+)/gi, unit: 'ml', mult: 1 },
-      { regex: /(\d+)\s*(?:packet|pkt|pkts|packs|pack|bottle|bottles|can|cans|pcs|piece|pieces)\s+(?:of\s+)?([a-zA-Z\s]+)/gi, unit: 'pcs', mult: 1 },
+      { regex: /(\d+(?:\.\d+)?)\s*(?:kg|kilo|kilos|किलो|किग्रा)\s+([a-zA-Z\u0900-\u097F\s]+)/gi, unit: 'g', mult: 1000 },
+      { regex: /(\d+(?:\.\d+)?)\s*(?:g|gm|grams|ग्राम|ग्रा)\s+([a-zA-Z\u0900-\u097F\s]+)/gi, unit: 'g', mult: 1 },
+      { regex: /(\d+(?:\.\d+)?)\s*(?:l|ltr|litre|litres|liter|लीटर|ली)\s+([a-zA-Z\u0900-\u097F\s]+)/gi, unit: 'ml', mult: 1000 },
+      { regex: /(\d+(?:\.\d+)?)\s*(?:ml|मिली)\s+([a-zA-Z\u0900-\u097F\s]+)/gi, unit: 'ml', mult: 1 },
+      { regex: /(\d+)\s*(?:packet|pkt|pkts|packs|pack|bottle|bottles|can|cans|pcs|piece|pieces|पैकेट|पैक|पीस)\s+(?:of\s+)?([a-zA-Z\u0900-\u097F\s]+)/gi, unit: 'pcs', mult: 1 },
     ];
 
     for (const pat of patterns) {
       let match;
-      while ((match = pat.regex.exec(text)) !== null) {
+      while ((match = pat.regex.exec(normalizedText)) !== null) {
         const qtyNum = parseFloat(match[1]) || 1;
-        const rawName = match[2].trim().split(/[,\.\n]/)[0].trim();
+        const rawName = match[2].trim().split(/(?:,|\.|\n|\s+(?:aur|और|and)\s+)/i)[0].trim();
         if (rawName.length >= 2 && !items.some((i) => i.name.toLowerCase() === rawName.toLowerCase())) {
-          const isDairyOrProduce = /milk|dahi|curd|paneer|butter|cheese|tamatar|tomato|palak|coriander|dhaniya|mirchi/i.test(rawName);
+          const isDairyOrProduce = /milk|dahi|curd|paneer|butter|cheese|tamatar|tomato|palak|coriander|dhaniya|mirchi|दूध|दही|पनीर|टमाटर|पालक|धनिया|मिर्च/i.test(rawName);
           items.push({
             name: rawName.charAt(0).toUpperCase() + rawName.slice(1),
             quantity: qtyNum * pat.mult,
@@ -315,23 +341,34 @@ INSTRUCTIONS:
     if (items.length === 0) {
       const candidates = [
         { k: 'atta', name: 'Whole Wheat Atta', name_hi: 'आटा', q: 5000, u: 'g', loc: 'pantry' as const },
+        { k: 'आटा', name: 'Whole Wheat Atta', name_hi: 'आटा', q: 5000, u: 'g', loc: 'pantry' as const },
         { k: 'chawal', name: 'Basmati Rice', name_hi: 'चावल', q: 2000, u: 'g', loc: 'pantry' as const },
+        { k: 'चावल', name: 'Basmati Rice', name_hi: 'चावल', q: 2000, u: 'g', loc: 'pantry' as const },
         { k: 'rice', name: 'Basmati Rice', name_hi: 'चावल', q: 2000, u: 'g', loc: 'pantry' as const },
         { k: 'aloo', name: 'Fresh Potatoes', name_hi: 'आलू', q: 2000, u: 'g', loc: 'pantry' as const },
+        { k: 'आलू', name: 'Fresh Potatoes', name_hi: 'आलू', q: 2000, u: 'g', loc: 'pantry' as const },
         { k: 'potato', name: 'Fresh Potatoes', name_hi: 'आलू', q: 2000, u: 'g', loc: 'pantry' as const },
         { k: 'pyaz', name: 'Onions', name_hi: 'प्याज', q: 1000, u: 'g', loc: 'pantry' as const },
+        { k: 'प्याज', name: 'Onions', name_hi: 'प्याज', q: 1000, u: 'g', loc: 'pantry' as const },
         { k: 'onion', name: 'Onions', name_hi: 'प्याज', q: 1000, u: 'g', loc: 'pantry' as const },
         { k: 'milk', name: 'Fresh Milk', name_hi: 'दूध', q: 1000, u: 'ml', loc: 'fridge' as const },
+        { k: 'दूध', name: 'Fresh Milk', name_hi: 'दूध', q: 1000, u: 'ml', loc: 'fridge' as const },
         { k: 'doodh', name: 'Fresh Milk', name_hi: 'दूध', q: 1000, u: 'ml', loc: 'fridge' as const },
         { k: 'paneer', name: 'Fresh Paneer', name_hi: 'पनीर', q: 500, u: 'g', loc: 'fridge' as const },
+        { k: 'पनीर', name: 'Fresh Paneer', name_hi: 'पनीर', q: 500, u: 'g', loc: 'fridge' as const },
         { k: 'tamatar', name: 'Fresh Tomatoes', name_hi: 'टमाटर', q: 1000, u: 'g', loc: 'fridge' as const },
+        { k: 'टमाटर', name: 'Fresh Tomatoes', name_hi: 'टमाटर', q: 1000, u: 'g', loc: 'fridge' as const },
         { k: 'tomato', name: 'Fresh Tomatoes', name_hi: 'टमाटर', q: 1000, u: 'g', loc: 'fridge' as const },
         { k: 'oil', name: 'Cooking Oil', name_hi: 'तेल', q: 1000, u: 'ml', loc: 'pantry' as const },
+        { k: 'तेल', name: 'Cooking Oil', name_hi: 'तेल', q: 1000, u: 'ml', loc: 'pantry' as const },
         { k: 'tel', name: 'Cooking Oil', name_hi: 'तेल', q: 1000, u: 'ml', loc: 'pantry' as const },
         { k: 'dal', name: 'Yellow Moong Dal', name_hi: 'दाल', q: 1000, u: 'g', loc: 'pantry' as const },
+        { k: 'दाल', name: 'Yellow Moong Dal', name_hi: 'दाल', q: 1000, u: 'g', loc: 'pantry' as const },
         { k: 'ghee', name: 'Desi Ghee', name_hi: 'घी', q: 1000, u: 'g', loc: 'pantry' as const },
+        { k: 'घी', name: 'Desi Ghee', name_hi: 'घी', q: 1000, u: 'g', loc: 'pantry' as const },
         { k: 'sugar', name: 'Sugar', name_hi: 'चीनी', q: 1000, u: 'g', loc: 'pantry' as const },
         { k: 'chini', name: 'Sugar', name_hi: 'चीनी', q: 1000, u: 'g', loc: 'pantry' as const },
+        { k: 'चीनी', name: 'Sugar', name_hi: 'चीनी', q: 1000, u: 'g', loc: 'pantry' as const },
       ];
 
       for (const cand of candidates) {
@@ -357,15 +394,34 @@ INSTRUCTIONS:
     };
   }
 
+  public clearAllItems(): void {
+    this.inbox = [];
+    this.saveToDisk();
+  }
+
   public async ingestShopMessage(payload: {
     source: 'whatsapp' | 'telegram' | 'telegram_bot' | 'manual';
     sender: string;
     text: string;
     timestamp?: number;
-  }): Promise<ShopInboxItem> {
+  }): Promise<{ item: ShopInboxItem; isDuplicate: boolean }> {
     const cleanSender = this.sanitizeInput(payload.sender, 100) || 'Shop Contact';
     const cleanText = this.sanitizeInput(payload.text, 3000);
     const ts = payload.timestamp && Number(payload.timestamp) > 0 ? Number(payload.timestamp) : Date.now();
+
+    // 24-hour deduplication check: (sender.toLowerCase() + normalized text + within 24h)
+    const twentyFourHoursMs = 24 * 60 * 60 * 1000;
+    const existing = this.inbox.find((item) => {
+      const sameSender = item.sender.trim().toLowerCase() === cleanSender.trim().toLowerCase();
+      const sameText = item.rawText.trim().toLowerCase() === cleanText.trim().toLowerCase();
+      const within24h = Math.abs(item.timestamp - ts) < twentyFourHoursMs;
+      return sameSender && sameText && within24h;
+    });
+
+    if (existing) {
+      console.log(`[ShopInboxService] Skipping duplicate message from "${cleanSender}" (id: ${existing.id})`);
+      return { item: existing, isDuplicate: true };
+    }
 
     const { summary, items } = await this.extractItemsWithGemini(cleanText, cleanSender, payload.source);
 
@@ -385,7 +441,7 @@ INSTRUCTIONS:
     this.inbox.unshift(inboxItem);
     this.saveToDisk();
 
-    return inboxItem;
+    return { item: inboxItem, isDuplicate: false };
   }
 }
 

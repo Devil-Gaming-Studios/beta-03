@@ -59,11 +59,79 @@ export const ShopInboxConfirmCard: React.FC<ShopInboxConfirmCardProps> = ({
   const [editedItemsMap, setEditedItemsMap] = useState<Record<string, ExtractedShopItem[]>>({});
   const [liveToast, setLiveToast] = useState<{ sender: string; text: string; count: number } | null>(null);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const [isMonitoringPaused, setIsMonitoringPaused] = useState<boolean>(() => {
+    return localStorage.getItem('kitchensync_shop_listener_paused') === 'true';
+  });
+  const [monitoredContact, setMonitoredContact] = useState<string>(() => {
+    return localStorage.getItem('kitchensync_shop_contact') || 'Gupta Kirana Store';
+  });
+  const [pastedText, setPastedText] = useState('');
+  const [isPasting, setIsPasting] = useState(false);
+  const [showPasteBox, setShowPasteBox] = useState(false);
+
   const [isTestModalOpen, setIsTestModalOpen] = useState(false);
   const [testSender, setTestSender] = useState('Gupta Kirana Store');
   const [testSource, setTestSource] = useState<'whatsapp' | 'telegram'>('whatsapp');
   const [testText, setTestText] = useState('Bhaiya 2kg aloo, 1L milk, 500g paneer pack kar ke bhej diya hai.');
   const [isSimulating, setIsSimulating] = useState(false);
+
+  const handleTogglePause = () => {
+    const nextState = !isMonitoringPaused;
+    setIsMonitoringPaused(nextState);
+    localStorage.setItem('kitchensync_shop_listener_paused', String(nextState));
+    setActionNotice(nextState ? 'Shop chat listener paused.' : 'Shop chat listener resumed.');
+    setTimeout(() => setActionNotice(null), 3000);
+  };
+
+  const handleClearAllStoredMessages = async () => {
+    if (!window.confirm('Delete all stored shop chat messages? This cannot be undone.')) {
+      return;
+    }
+    try {
+      await fetch('/api/shop-inbox/all', { method: 'DELETE' });
+      setInboxItems([]);
+      setEditedItemsMap({});
+      setActionNotice('All stored shop chat messages deleted.');
+      setTimeout(() => setActionNotice(null), 3000);
+    } catch (err: any) {
+      alert(`Failed to delete messages: ${err?.message}`);
+    }
+  };
+
+  const handlePasteExtract = async () => {
+    if (!pastedText.trim()) return;
+    setIsPasting(true);
+    try {
+      const res = await fetch('/api/shop-inbox', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer test_token_household_alpha',
+        },
+        body: JSON.stringify({
+          source: 'manual',
+          sender: monitoredContact || 'Shop Contact',
+          text: pastedText.trim(),
+          timestamp: Date.now(),
+        }),
+      });
+
+      if (res.ok) {
+        setPastedText('');
+        setShowPasteBox(false);
+        await fetchInbox();
+        setActionNotice('Pasted message analyzed & added to review inbox!');
+        setTimeout(() => setActionNotice(null), 4000);
+      } else {
+        const err = await res.json();
+        alert(`Failed to extract message: ${err?.error || 'Unknown error'}`);
+      }
+    } catch (err: any) {
+      alert(`Error submitting pasted message: ${err?.message}`);
+    } finally {
+      setIsPasting(false);
+    }
+  };
 
   const fetchInbox = useCallback(async () => {
     try {
@@ -371,6 +439,14 @@ export const ShopInboxConfirmCard: React.FC<ShopInboxConfirmCardProps> = ({
             </button>
             <button
               type="button"
+              onClick={() => setShowPasteBox((prev) => !prev)}
+              className="px-2.5 py-1.5 rounded-xl bg-[#FFF7ED] border border-[#FC8019]/30 text-[#EA580C] text-[11.5px] font-bold flex items-center gap-1 hover:bg-[#FFEDD5] transition-all"
+            >
+              <span className="material-symbols-outlined text-[15px]">content_paste</span>
+              <span>Paste / Web Chat</span>
+            </button>
+            <button
+              type="button"
               onClick={() => setIsTestModalOpen(true)}
               className="px-2.5 py-1.5 rounded-xl bg-[#EDF2EE] border border-[#137333]/30 text-[#137333] text-[11.5px] font-bold flex items-center gap-1 hover:bg-[#dbe7de] transition-all"
             >
@@ -380,13 +456,118 @@ export const ShopInboxConfirmCard: React.FC<ShopInboxConfirmCardProps> = ({
           </div>
         </div>
 
+        {/* Privacy & Monitoring Notice Banner */}
+        <div className="bg-[#FAF9F6] border border-[#E6E4DD] rounded-xl p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-[11.5px]">
+          <div className="flex items-start gap-2">
+            <span className="material-symbols-outlined text-[18px] text-[#137333] shrink-0 mt-0.5">
+              shield_person
+            </span>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-bold text-[#1a1c1a]">
+                  Monitored Shop Contact:
+                </span>
+                <span className="font-semibold px-2 py-0.5 rounded-md bg-white border border-[#E6E4DD] text-[#1A3826]">
+                  {monitoredContact}
+                </span>
+                <span
+                  className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${
+                    isMonitoringPaused
+                      ? 'bg-[#FEE2E2] text-[#991B1B] border border-[#FCA5A5]'
+                      : 'bg-[#DCFCE7] text-[#15803D] border border-[#86EFAC]'
+                  }`}
+                >
+                  {isMonitoringPaused ? 'PAUSED' : 'ACTIVE'}
+                </span>
+              </div>
+              <p className="text-[#727972] text-[10.5px] mt-0.5">
+                Strict privacy: Only notifications from this shop contact are processed. All other personal chats and messages are never read or stored.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0 w-full sm:w-auto justify-end">
+            <button
+              type="button"
+              onClick={handleTogglePause}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all flex items-center gap-1 ${
+                isMonitoringPaused
+                  ? 'bg-[#15803D] text-white border-[#15803D]'
+                  : 'bg-white text-[#424843] border-[#E6E4DD] hover:bg-[#f0eee6]'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[13px]">
+                {isMonitoringPaused ? 'play_arrow' : 'pause'}
+              </span>
+              <span>{isMonitoringPaused ? 'Resume' : 'Pause'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleClearAllStoredMessages}
+              className="px-2 py-1 rounded-lg text-[11px] font-bold text-[#9E2A2B] hover:bg-[#FEE2E2] border border-transparent hover:border-[#FCA5A5] transition-all flex items-center gap-1"
+              title="Delete all stored messages from server"
+            >
+              <span className="material-symbols-outlined text-[13px]">delete_sweep</span>
+              <span>Delete All</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Fallback for Web-only / iPhone Users: Paste & WhatsApp deep link */}
+        {showPasteBox && (
+          <div className="bg-[#FFFBEB] border border-[#FDE68A] rounded-xl p-3 flex flex-col gap-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-[12px] font-bold text-[#92400E]">
+                <span className="material-symbols-outlined text-[16px]">edit_note</span>
+                <span>Paste or Share Shop Message (Web & iPhone Fallback)</span>
+              </div>
+              <a
+                href="https://wa.me/?text=Hi%2C%20please%20send%20the%20grocery%20order%20status%20or%20bill"
+                target="_blank"
+                rel="noreferrer"
+                className="px-2 py-0.5 rounded-lg bg-[#25D366] text-white text-[11px] font-bold flex items-center gap-1 hover:bg-[#20ba59]"
+              >
+                <span className="material-symbols-outlined text-[13px]">chat</span>
+                <span>Open WhatsApp</span>
+              </a>
+            </div>
+
+            <textarea
+              rows={2}
+              value={pastedText}
+              onChange={(e) => setPastedText(e.target.value)}
+              placeholder="Paste WhatsApp/SMS shop text here (e.g., 'Bhaiya 5kg atta, 2L amul milk, 1kg aloo pack ready hai')..."
+              className="w-full bg-white border border-[#FDE68A] rounded-lg p-2 text-[12.5px] text-[#1a1c1a] focus:border-[#B45309] outline-none resize-none"
+            />
+
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10.5px] text-[#B45309]">
+                Gemini extracts items with Hindi transliteration & base units before user review.
+              </span>
+              <button
+                type="button"
+                onClick={handlePasteExtract}
+                disabled={isPasting || !pastedText.trim()}
+                className="px-3 py-1 rounded-lg bg-[#D97706] text-white text-[11.5px] font-bold hover:bg-[#B45309] transition-all disabled:opacity-50 flex items-center gap-1 shrink-0"
+              >
+                {isPasting ? (
+                  <span className="material-symbols-outlined text-[14px] animate-spin">refresh</span>
+                ) : (
+                  <span className="material-symbols-outlined text-[14px]">neurology</span>
+                )}
+                <span>Extract with Gemini</span>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Status notice when running in Android WebView vs Browser */}
         {hasAndroidNative && (
           <div className="bg-[#F0FDF4] border border-[#BBF7D0] rounded-xl px-3 py-2 flex items-center justify-between text-[11.5px] text-[#166534]">
             <div className="flex items-center gap-1.5">
               <span className="material-symbols-outlined text-[16px] text-[#16a34a]">android</span>
               <span>
-                Native Android Shop Listener Active (Contact: <strong>{window.AndroidNative?.getShopContactName?.() || 'Configured'}</strong>)
+                Native Android Shop Listener Active (Contact: <strong>{window.AndroidNative?.getShopContactName?.() || monitoredContact}</strong>)
               </span>
             </div>
             <button

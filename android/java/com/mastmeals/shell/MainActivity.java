@@ -24,6 +24,9 @@ import android.widget.FrameLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import android.net.Uri;
+import android.provider.MediaStore;
+import android.webkit.ValueCallback;
 import org.json.JSONObject;
 
 /**
@@ -42,9 +45,11 @@ public class MainActivity extends Activity {
     private static final String KEY_CONTACT = "shop_contact_name";
     private static final String KEY_TOKEN = "auth_token";
     private static final int PERM_REQUEST_CODE = 101;
+    private static final int FILE_CHOOSER_REQUEST_CODE = 201;
 
     private WebView web;
     private SharedPreferences prefs;
+    private ValueCallback<Uri[]> fileUploadCallback;
 
     private final BroadcastReceiver shopMessageReceiver = new BroadcastReceiver() {
         @Override
@@ -73,9 +78,23 @@ public class MainActivity extends Activity {
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
-        settings.setLoadWithOverviewMode(true);
+        // Critical: Disable overview mode so the WebView does not zoom out to desktop proportions
+        settings.setLoadWithOverviewMode(false);
         settings.setUseWideViewPort(true);
+        settings.setSupportZoom(false);
+        settings.setBuiltInZoomControls(false);
+        settings.setDisplayZoomControls(false);
         settings.setMediaPlaybackRequiresUserGesture(false);
+        settings.setDefaultTextEncodingName("utf-8");
+
+        // Maintain 1:1 responsive viewport scaling with system display metrics
+        web.setInitialScale(0);
+
+        // Identify native Android shell in User-Agent for seamless web-native responsive integration
+        String currentUa = settings.getUserAgentString();
+        if (currentUa != null && !currentUa.contains("MastMealsNative")) {
+            settings.setUserAgentString(currentUa + " MastMealsNative/0.1");
+        }
 
         // Register Native JavaScript Bridge
         web.addJavascriptInterface(new AndroidBridgeInterface(), "AndroidNative");
@@ -90,21 +109,63 @@ public class MainActivity extends Activity {
                     request.grant(resources);
                 });
             }
+
+            @Override
+            public boolean onShowFileChooser(WebView webView, ValueCallback<Uri[]> filePathCallback, FileChooserParams fileChooserParams) {
+                if (fileUploadCallback != null) {
+                    fileUploadCallback.onReceiveValue(null);
+                    fileUploadCallback = null;
+                }
+                fileUploadCallback = filePathCallback;
+
+                Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+                Intent contentSelectionIntent = new Intent(Intent.ACTION_GET_CONTENT);
+                contentSelectionIntent.addCategory(Intent.CATEGORY_OPENABLE);
+                contentSelectionIntent.setType("image/*");
+
+                Intent[] intentArray;
+                if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
+                    intentArray = new Intent[]{takePictureIntent};
+                } else {
+                    intentArray = new Intent[0];
+                }
+
+                Intent chooserIntent = new Intent(Intent.ACTION_CHOOSER);
+                chooserIntent.putExtra(Intent.EXTRA_INTENT, contentSelectionIntent);
+                chooserIntent.putExtra(Intent.EXTRA_TITLE, "Select Dish Photo");
+                chooserIntent.putExtra(Intent.EXTRA_INITIAL_INTENTS, intentArray);
+
+                try {
+                    startActivityForResult(chooserIntent, FILE_CHOOSER_REQUEST_CODE);
+                } catch (Exception e) {
+                    if (fileUploadCallback != null) {
+                        fileUploadCallback.onReceiveValue(null);
+                        fileUploadCallback = null;
+                    }
+                    return false;
+                }
+                return true;
+            }
         });
 
         root.addView(web, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
 
-        // Floating Settings Icon (Gear) to configure shop contact and notification access
+        // Floating Settings Icon (Gear) positioned safely above the bottom navigation bar (84dp from bottom)
         TextView gear = new TextView(this);
         gear.setText("\u2699");
-        gear.setTextSize(22);
+        gear.setTextSize(20);
         gear.setTextColor(Color.WHITE);
         gear.setGravity(Gravity.CENTER);
-        gear.setAlpha(0.70f);
-        gear.setBackgroundColor(Color.parseColor("#801A3826"));
-        FrameLayout.LayoutParams gearParams = new FrameLayout.LayoutParams(dp(44), dp(44), Gravity.BOTTOM | Gravity.END);
-        gearParams.setMargins(0, 0, dp(14), dp(14));
+        gear.setAlpha(0.85f);
+        android.graphics.drawable.GradientDrawable gearBg = new android.graphics.drawable.GradientDrawable();
+        gearBg.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+        gearBg.setColor(Color.parseColor("#CC1A3826"));
+        gearBg.setStroke(dp(1), Color.parseColor("#44C8EBD1"));
+        gear.setBackground(gearBg);
+
+        FrameLayout.LayoutParams gearParams = new FrameLayout.LayoutParams(dp(40), dp(40), Gravity.BOTTOM | Gravity.END);
+        gearParams.setMargins(0, 0, dp(12), dp(84));
         gear.setOnClickListener(v -> openSettingsActivity());
         root.addView(gear, gearParams);
 
@@ -127,16 +188,53 @@ public class MainActivity extends Activity {
     }
 
     private void checkAndRequestMediaPermissions() {
-        boolean micGranted = checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
-        boolean camGranted = checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
-
-        if (!micGranted || !camGranted) {
-            requestPermissions(new String[]{
-                    Manifest.permission.RECORD_AUDIO,
-                    Manifest.permission.MODIFY_AUDIO_SETTINGS,
-                    Manifest.permission.CAMERA
-            }, PERM_REQUEST_CODE);
+        java.util.List<String> perms = new java.util.ArrayList<>();
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            perms.add(Manifest.permission.RECORD_AUDIO);
+            perms.add(Manifest.permission.MODIFY_AUDIO_SETTINGS);
         }
+        if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            perms.add(Manifest.permission.CAMERA);
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission("android.permission.READ_MEDIA_IMAGES") != PackageManager.PERMISSION_GRANTED) {
+                perms.add("android.permission.READ_MEDIA_IMAGES");
+            }
+        } else {
+            if (checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                perms.add(Manifest.permission.READ_EXTERNAL_STORAGE);
+            }
+        }
+
+        if (!perms.isEmpty()) {
+            requestPermissions(perms.toArray(new String[0]), PERM_REQUEST_CODE);
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == FILE_CHOOSER_REQUEST_CODE) {
+            if (fileUploadCallback == null) return;
+            Uri[] results = null;
+            if (resultCode == Activity.RESULT_OK) {
+                if (data != null) {
+                    String dataString = data.getDataString();
+                    if (dataString != null) {
+                        results = new Uri[]{Uri.parse(dataString)};
+                    } else if (data.getClipData() != null) {
+                        int count = data.getClipData().getItemCount();
+                        results = new Uri[count];
+                        for (int i = 0; i < count; i++) {
+                            results[i] = data.getClipData().getItemAt(i).getUri();
+                        }
+                    }
+                }
+            }
+            fileUploadCallback.onReceiveValue(results);
+            fileUploadCallback = null;
+            return;
+        }
+        super.onActivityResult(requestCode, resultCode, data);
     }
 
     private void openSettingsActivity() {
@@ -237,6 +335,37 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void openNativeSettings() {
             openSettingsActivity();
+        }
+
+        @JavascriptInterface
+        public boolean isNativeApp() {
+            return true;
+        }
+
+        @JavascriptInterface
+        public void shareText(String text, String title) {
+            runOnUiThread(() -> {
+                Intent sendIntent = new Intent(Intent.ACTION_SEND);
+                sendIntent.putExtra(Intent.EXTRA_TEXT, text != null ? text : "");
+                sendIntent.setType("text/plain");
+                Intent shareIntent = Intent.createChooser(sendIntent, (title != null && !title.isEmpty()) ? title : "Share with Mast Meals");
+                startActivity(shareIntent);
+            });
+        }
+
+        @JavascriptInterface
+        public void vibrate(long durationMs) {
+            try {
+                android.os.Vibrator v = (android.os.Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+                if (v != null && v.hasVibrator()) {
+                    long duration = (durationMs > 0 && durationMs <= 5000) ? durationMs : 200;
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        v.vibrate(android.os.VibrationEffect.createOneShot(duration, android.os.VibrationEffect.DEFAULT_AMPLITUDE));
+                    } else {
+                        v.vibrate(duration);
+                    }
+                }
+            } catch (Exception ignored) {}
         }
     }
 }

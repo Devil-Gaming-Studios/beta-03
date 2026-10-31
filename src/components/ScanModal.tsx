@@ -326,28 +326,28 @@ export const ScanModal: React.FC<ScanModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/65 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in"
+      className="fixed inset-0 z-50 bg-black/65 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-4 animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-lg bg-white rounded-3xl p-5 shadow-2xl border border-[#E6E4DD] max-h-[92vh] overflow-y-auto flex flex-col gap-4 text-[#1a1c1a]"
+        className="w-full max-w-lg bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-5 shadow-2xl border border-[#E6E4DD] max-h-[94vh] overflow-y-auto flex flex-col gap-3.5 sm:gap-4 text-[#1a1c1a]"
         onClick={(e) => e.stopPropagation()}
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleDrop}
       >
         {/* Modal Header */}
-        <div className="flex items-center justify-between border-b border-[#E6E4DD] pb-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-full bg-[#E8F0EC] text-[#1A3826] flex items-center justify-center">
-              <span className="material-symbols-outlined text-[22px]">document_scanner</span>
+        <div className="flex items-center justify-between border-b border-[#E6E4DD] pb-2.5 sm:pb-3 gap-2">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#E8F0EC] text-[#1A3826] flex items-center justify-center shrink-0">
+              <span className="material-symbols-outlined text-[20px] sm:text-[22px]">document_scanner</span>
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-[17px] font-bold text-[#1a1c1a]">
-                  {isHindi ? 'रियल AI रसीद व फ्रिज स्कैनर' : 'Real Gemini Vision OCR Scanner'}
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <h3 className="text-[15px] sm:text-[17px] font-bold text-[#1a1c1a] truncate">
+                  {isHindi ? 'रियल AI रसीद व फ्रिज स्कैनर' : 'Real Gemini Vision OCR'}
                 </h3>
-                <span className="px-2 py-0.5 rounded-full bg-[#E8F0EC] text-[#137333] text-[10px] font-bold border border-[#137333]/20">
-                  Live AI OCR
+                <span className="px-1.5 py-0.5 rounded-full bg-[#E8F0EC] text-[#137333] text-[9.5px] sm:text-[10px] font-bold border border-[#137333]/20 shrink-0">
+                  Live OCR
                 </span>
               </div>
               <p className="text-[11px] text-[#424843]">

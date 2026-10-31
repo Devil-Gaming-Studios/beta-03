@@ -9,6 +9,11 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <!-- Cleartext HTTP restricted strictly to localhost and LAN development via network_security_config.xml -->
     <application
@@ -33,7 +38,7 @@
             android:exported="false"
             android:label="Settings" />
 
-        <!-- NotificationListenerService strictly for com.whatsapp and org.telegram.messenger -->
+        <!-- NotificationListenerService strictly for com.whatsapp, com.whatsapp.w4b, and org.telegram.messenger -->
         <service
             android:name="com.mastmeals.shell.ShopNotificationListenerService"
             android:label="Shop Chat Listener"
@@ -43,6 +48,16 @@
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
+
+        <!-- BootReceiver to rebind NotificationListenerService and sync pending offline messages on boot -->
+        <receiver
+            android:name="com.mastmeals.shell.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
     </application>
 </manifest>

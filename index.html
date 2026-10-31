@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>Mast Meals - KitchenSync</title>
     <meta name="description" content="Household meal planner, recipe graph RAG, and kitchen stock assistant for Indian households, powered by Omnirush AI." />
     <meta property="og:title" content="Mast Meals - KitchenSync" />
@@ -19,6 +19,99 @@
     <meta name="apple-mobile-web-app-title" content="KitchenSync" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <script>
+      (function () {
+        try {
+          var RealWebSocket = window.WebSocket;
+          if (RealWebSocket) {
+            window.WebSocket = function (url, protocols) {
+              var isViteHmr = false;
+              if (protocols === 'vite-hmr' || (Array.isArray(protocols) && protocols.indexOf('vite-hmr') !== -1)) {
+                isViteHmr = true;
+              } else if (typeof url === 'string' && (url.indexOf('token=') !== -1 || url.indexOf('vite-hmr') !== -1)) {
+                isViteHmr = true;
+              }
+
+              if (isViteHmr) {
+                var listeners = {};
+                var mockWs = {
+                  readyState: 1, // WebSocket.OPEN
+                  OPEN: 1,
+                  CONNECTING: 0,
+                  CLOSING: 2,
+                  CLOSED: 3,
+                  send: function () {},
+                  close: function () {},
+                  addEventListener: function (type, fn) {
+                    listeners[type] = listeners[type] || [];
+                    listeners[type].push(fn);
+                    if (type === 'open') {
+                      setTimeout(function () {
+                        try { fn({ type: 'open' }); } catch (e) {}
+                      }, 0);
+                    }
+                  },
+                  removeEventListener: function (type, fn) {
+                    if (listeners[type]) {
+                      listeners[type] = listeners[type].filter(function (f) { return f !== fn; });
+                    }
+                  },
+                  dispatchEvent: function () { return true; },
+                  onopen: null,
+                  onclose: null,
+                  onerror: null,
+                  onmessage: null,
+                };
+                setTimeout(function () {
+                  if (typeof mockWs.onopen === 'function') {
+                    try { mockWs.onopen({ type: 'open' }); } catch (e) {}
+                  }
+                }, 0);
+                return mockWs;
+              }
+
+              return new (Function.prototype.bind.apply(RealWebSocket, [null].concat(Array.prototype.slice.call(arguments))))();
+            };
+            window.WebSocket.prototype = RealWebSocket.prototype;
+            window.WebSocket.CONNECTING = 0;
+            window.WebSocket.OPEN = 1;
+            window.WebSocket.CLOSING = 2;
+            window.WebSocket.CLOSED = 3;
+          }
+
+          var nativeConsoleError = console.error;
+          console.error = function () {
+            var text = Array.prototype.slice.call(arguments).map(function (arg) {
+              return (arg && (arg.message || arg.stack)) || String(arg);
+            }).join(' ');
+            if (
+              text.indexOf('WebSocket closed without opened') !== -1 ||
+              text.indexOf('failed to connect to websocket') !== -1 ||
+              text.indexOf('vite:ws:disconnect') !== -1
+            ) {
+              return;
+            }
+            return nativeConsoleError.apply(console, arguments);
+          };
+
+          window.addEventListener('error', function (event) {
+            var msg = (event && (event.message || (event.error && event.error.message))) || '';
+            if (msg.indexOf('WebSocket') !== -1 || msg.indexOf('closed without opened') !== -1) {
+              event.stopImmediatePropagation();
+              event.preventDefault();
+            }
+          }, true);
+
+          window.addEventListener('unhandledrejection', function (event) {
+            var reason = (event && event.reason && (event.reason.message || event.reason.stack || String(event.reason))) || '';
+            if (reason.indexOf('WebSocket') !== -1 || reason.indexOf('closed without opened') !== -1) {
+              event.stopImmediatePropagation();
+              event.preventDefault();
+            }
+          }, true);
+        } catch (err) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

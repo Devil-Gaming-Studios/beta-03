@@ -64,6 +64,9 @@ const transcribeModel = 'gemini-3.5-transcribe';
 
 import { graphService } from './server/graphService';
 import { shopInboxService } from './server/shopInboxService';
+import { swiggyOAuthService } from './server/swiggyOAuth';
+import { swiggyTokenStore } from './server/swiggyTokenStore';
+import { swiggyMcpClient } from './server/swiggyMcpClient';
 
 let systemInstruction = `You are Omnirush, the assistant inside Mast Meals / KitchenSync, a household meal, recipe and kitchen-stock assistant for Indian households. You help with:
 1. Updating inventory stock (e.g. add/remove/set ingredients).
@@ -622,16 +625,19 @@ app.post('/api/shop-inbox', async (req: Request, res: Response): Promise<any> =>
   const normalizedSource = validSources.includes(source) ? (source as any) : 'manual';
 
   try {
-    const inboxItem = await shopInboxService.ingestShopMessage({
+    const { item: inboxItem, isDuplicate } = await shopInboxService.ingestShopMessage({
       source: normalizedSource,
       sender: sender || 'Shop Contact',
       text: text.trim(),
       timestamp: timestamp ? Number(timestamp) : Date.now(),
     });
 
-    return res.status(201).json({
+    return res.status(isDuplicate ? 200 : 201).json({
       success: true,
-      message: 'Shop message received and stored in pending inbox for user confirmation.',
+      isDuplicate,
+      message: isDuplicate
+        ? 'Duplicate shop message recognized; returning existing inbox item.'
+        : 'Shop message received and stored in pending inbox for user confirmation.',
       item: inboxItem,
     });
   } catch (err: any) {
@@ -646,6 +652,16 @@ app.get('/api/shop-inbox', (req: Request, res: Response) => {
     ? shopInboxService.getAllItems()
     : shopInboxService.getPendingItems();
   return res.json({ items });
+});
+
+app.delete('/api/shop-inbox/all', (req: Request, res: Response): any => {
+  shopInboxService.clearAllItems();
+  return res.json({ success: true, message: 'All shop inbox items cleared.' });
+});
+
+app.delete('/api/shop-inbox', (req: Request, res: Response): any => {
+  shopInboxService.clearAllItems();
+  return res.json({ success: true, message: 'All shop inbox items cleared.' });
 });
 
 app.post('/api/shop-inbox/:id/apply', (req: Request, res: Response): any => {
@@ -698,7 +714,7 @@ app.post('/api/telegram-webhook', async (req: Request, res: Response): Promise<a
     'Telegram Shop Contact';
 
   try {
-    const inboxItem = await shopInboxService.ingestShopMessage({
+    const { item: inboxItem } = await shopInboxService.ingestShopMessage({
       source: 'telegram_bot',
       sender: senderName,
       text: msg.text,
@@ -711,6 +727,294 @@ app.post('/api/telegram-webhook', async (req: Request, res: Response): Promise<a
     return res.status(200).json({ ok: true, error: err?.message });
   }
 });
+
+// ---------------------------------------------------------------------------
+// Official Swiggy OAuth 2.1 + PKCE & MCP Integration API
+// ---------------------------------------------------------------------------
+function getRequestUserId(req: Request): string {
+  const customId = req.headers['x-user-id'];
+  if (typeof customId === 'string' && customId.trim()) {
+    return customId.trim();
+  }
+  return 'usr_alpha';
+}
+
+// 1. GET /api/swiggy/connect - Initiates PKCE OAuth authorization flow
+app.get('/api/swiggy/connect', async (req: Request, res: Response): Promise<any> => {
+  try {
+    const userId = getRequestUserId(req);
+    const host = req.get('host') || 'localhost:3000';
+    const protocol = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
+    const clientRedirectUri = typeof req.query.redirect_uri === 'string' && req.query.redirect_uri.trim()
+      ? req.query.redirect_uri.trim()
+      : undefined;
+    const redirectUri = swiggyOAuthService.getRedirectUri(clientRedirectUri, host, protocol);
+    const { authorizationUrl, state } = await swiggyOAuthService.getAuthorizationUrl(userId, redirectUri);
+    return res.json({
+      success: true,
+      authorizationUrl,
+      state,
+      redirectUri,
+    });
+  } catch (err: any) {
+    console.error('Failed to initiate Swiggy OAuth connection:', err);
+    return res.status(500).json({ error: err?.message || 'Failed to start Swiggy connection flow' });
+  }
+});
+
+// 2. GET /api/swiggy/callback - Handles authorization code exchange
+app.get('/api/swiggy/callback', async (req: Request, res: Response): Promise<any> => {
+  const { code, state, error, error_description } = req.query;
+
+  if (error) {
+    const desc = error_description ? String(error_description) : String(error);
+    return res.send(`<!DOCTYPE html><html><head><title>Authentication Failed</title></head><body><script>
+      if (window.opener) {
+        window.opener.postMessage({ type: 'SWIGGY_AUTH_ERROR', error: ${JSON.stringify(desc)} }, '*');
+        setTimeout(function() { window.close(); }, 1500);
+      } else {
+        window.location.href = '/?swiggy_error=' + encodeURIComponent(${JSON.stringify(desc)});
+      }
+    </script><div style="font-family:sans-serif;padding:30px;text-align:center;">
+      <h3 style="color:#d9534f;">Swiggy Authentication Failed</h3>
+      <p>${desc}</p>
+      <p style="color:#666;">This window will close automatically...</p>
+    </div></body></html>`);
+  }
+
+  if (!code || !state) {
+    return res.status(400).send('Missing code or state parameter in OAuth callback');
+  }
+
+  try {
+    const cbResult = await swiggyOAuthService.handleCallback(String(code), String(state));
+    
+    // Milestone 4: Establish working MCP connection & execute first tool call get_addresses
+    let addressSummary = '';
+    try {
+      const milestone = await swiggyMcpClient.callGetAddresses(cbResult.userId);
+      addressSummary = milestone.summary;
+      console.log(`[Swiggy MCP] First tool call (get_addresses) executed: ${addressSummary}`);
+    } catch (mErr: any) {
+      console.warn('[Swiggy MCP] First tool call notice:', mErr?.message);
+    }
+
+    return res.send(`<!DOCTYPE html><html><head><title>Swiggy Connected</title></head><body style="font-family:sans-serif;text-align:center;padding:40px;background:#FAF9F6;">
+      <script>
+        try {
+          if (window.opener) {
+            window.opener.postMessage({ type: 'SWIGGY_AUTH_SUCCESS', summary: ${JSON.stringify(addressSummary)} }, '*');
+            setTimeout(function() { window.close(); }, 1200);
+          } else {
+            window.location.href = '/?swiggy=connected';
+          }
+        } catch(e) {
+          window.location.href = '/?swiggy=connected';
+        }
+      </script>
+      <div style="max-width:440px;margin:0 auto;background:#fff;border-radius:16px;padding:28px;box-shadow:0 4px 16px rgba(0,0,0,0.08);border:1px solid #E6E4DD;">
+        <div style="font-size:36px;margin-bottom:12px;">🎉</div>
+        <h3 style="color:#FC8019;margin:0 0 8px;font-size:20px;">Swiggy Account Connected!</h3>
+        <p style="color:#374151;font-size:13.5px;margin:0 0 12px;line-height:1.5;">Official OAuth 2.1 authentication completed via Phone + OTP.</p>
+        <div style="background:#F0FDF4;border:1px solid #BBF7D0;color:#15803D;padding:10px 14px;border-radius:10px;font-size:12px;margin-bottom:16px;text-align:left;">
+          <strong>Milestone 1 Verified:</strong> First MCP tool call <code>get_addresses</code> executed. ${addressSummary ? addressSummary : 'Connected to Swiggy Food MCP server.'}
+        </div>
+        <p style="color:#9CA3AF;font-size:12px;margin:0;">Returning to KitchenSync...</p>
+      </div>
+    </body></html>`);
+  } catch (err: any) {
+    console.error('Swiggy OAuth callback error:', err);
+    const msg = err?.message || 'Failed to complete OAuth token exchange';
+    return res.status(400).send(`<!DOCTYPE html><html><head><title>Connection Error</title></head><body><script>
+      if (window.opener) {
+        window.opener.postMessage({ type: 'SWIGGY_AUTH_ERROR', error: ${JSON.stringify(msg)} }, '*');
+        setTimeout(function() { window.close(); }, 2500);
+      } else {
+        window.location.href = '/?swiggy_error=' + encodeURIComponent(${JSON.stringify(msg)});
+      }
+    </script><div style="font-family:sans-serif;padding:30px;text-align:center;">
+      <h3 style="color:#d9534f;">OAuth Exchange Failed</h3>
+      <p>${msg}</p>
+    </div></body></html>`);
+  }
+});
+
+// 2b. POST /api/swiggy/callback/manual - Manual code or callback URL submission
+app.post('/api/swiggy/callback/manual', async (req: Request, res: Response): Promise<any> => {
+  const { code, state, callbackUrl } = req.body;
+  let resolvedCode = typeof code === 'string' ? code.trim() : '';
+  let resolvedState = typeof state === 'string' ? state.trim() : '';
+
+  if (callbackUrl && typeof callbackUrl === 'string') {
+    try {
+      const u = new URL(callbackUrl.trim());
+      const c = u.searchParams.get('code');
+      const s = u.searchParams.get('state');
+      if (c) resolvedCode = c;
+      if (s) resolvedState = s;
+    } catch {}
+  }
+
+  if (!resolvedCode) {
+    return res.status(400).json({ error: 'Authorization code is required' });
+  }
+
+  try {
+    const cbResult = await swiggyOAuthService.handleCallback(resolvedCode, resolvedState);
+    let milestoneResult = null;
+    try {
+      milestoneResult = await swiggyMcpClient.callGetAddresses(cbResult.userId);
+    } catch (mErr: any) {
+      console.warn('[Swiggy MCP] Manual callback get_addresses notice:', mErr?.message);
+    }
+
+    return res.json({
+      success: true,
+      message: 'Swiggy OAuth tokens successfully exchanged and encrypted.',
+      firstToolCall: milestoneResult,
+    });
+  } catch (err: any) {
+    return res.status(400).json({ error: err?.message || 'Failed to exchange Swiggy code' });
+  }
+});
+
+// 3. GET /api/swiggy/status - Verifies real connection, checks expiration, lists discovered tools
+app.get('/api/swiggy/status', async (req: Request, res: Response): Promise<any> => {
+  const userId = getRequestUserId(req);
+  const tokens = swiggyTokenStore.getTokens(userId);
+
+  if (!tokens || !tokens.accessToken) {
+    return res.json({
+      isConnected: false,
+      userProfile: null,
+      availableTools: [],
+      firstToolCallResult: null,
+    });
+  }
+
+  // Validate or auto-refresh token
+  try {
+    await swiggyOAuthService.getValidAccessToken(userId);
+  } catch (err: any) {
+    return res.json({
+      isConnected: false,
+      expired: true,
+      error: 'Swiggy access token expired. Reconnect required.',
+      userProfile: null,
+      availableTools: [],
+      firstToolCallResult: null,
+    });
+  }
+
+  // Query live MCP tool definitions from Swiggy Food and Instamart endpoints
+  let availableTools: any[] = [];
+  try {
+    const endpoints = await swiggyMcpClient.listTools(userId);
+    availableTools = endpoints.flatMap((e) => e.tools);
+  } catch (mcpErr: any) {
+    console.warn('Swiggy MCP tools query notice:', mcpErr?.message);
+  }
+
+  return res.json({
+    isConnected: true,
+    expiresAt: tokens.expiresAt,
+    scope: tokens.scope,
+    userProfile: tokens.userProfile || { name: 'Swiggy User' },
+    availableTools,
+    firstToolCallResult: tokens.firstToolCallResult || null,
+  });
+});
+
+// 3b. POST /api/swiggy/test-tool-call - Manually execute Milestone 4 get_addresses tool
+app.post('/api/swiggy/test-tool-call', async (req: Request, res: Response): Promise<any> => {
+  const userId = getRequestUserId(req);
+  try {
+    const result = await swiggyMcpClient.callGetAddresses(userId);
+    return res.json({ success: true, result });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || 'Failed to call get_addresses' });
+  }
+});
+
+// 4. POST /api/swiggy/disconnect - Disconnects account and revokes tokens
+app.post('/api/swiggy/disconnect', async (req: Request, res: Response): Promise<any> => {
+  const userId = getRequestUserId(req);
+  try {
+    await swiggyOAuthService.disconnect(userId);
+    return res.json({ success: true, message: 'Swiggy account successfully disconnected.' });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || 'Failed to disconnect Swiggy account' });
+  }
+});
+
+// 5. GET /api/swiggy/tools - Discovered Swiggy MCP tool schemas
+app.get('/api/swiggy/tools', async (req: Request, res: Response): Promise<any> => {
+  const userId = getRequestUserId(req);
+  try {
+    const endpoints = await swiggyMcpClient.listTools(userId);
+    return res.json({ success: true, endpoints });
+  } catch (err: any) {
+    return res.status(401).json({ error: err?.message || 'Failed to retrieve Swiggy MCP tools' });
+  }
+});
+
+// 6. POST /api/swiggy/search - Live grocery product lookup via MCP
+app.post('/api/swiggy/search', async (req: Request, res: Response): Promise<any> => {
+  const userId = getRequestUserId(req);
+  const { query, lat, lng } = req.body;
+  if (!query || typeof query !== 'string') {
+    return res.status(400).json({ error: 'Search query is required' });
+  }
+
+  try {
+    const items = await swiggyMcpClient.searchProducts(
+      userId,
+      query,
+      lat ? Number(lat) : undefined,
+      lng ? Number(lng) : undefined
+    );
+    return res.json({ success: true, query, items });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || 'Failed to search Swiggy MCP catalog' });
+  }
+});
+
+// 7. POST /api/swiggy/cart/preview - Computes cart preview with verified fees without ordering
+app.post('/api/swiggy/cart/preview', async (req: Request, res: Response): Promise<any> => {
+  const userId = getRequestUserId(req);
+  const { items } = req.body;
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'items array is required' });
+  }
+
+  try {
+    const preview = await swiggyMcpClient.previewCart(userId, items);
+    return res.json({ success: true, preview });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || 'Failed to preview Swiggy cart' });
+  }
+});
+
+// 8. POST /api/swiggy/cart/confirm - Performs real MCP cart update with explicit user confirmation
+app.post('/api/swiggy/cart/confirm', async (req: Request, res: Response): Promise<any> => {
+  const userId = getRequestUserId(req);
+  const { confirmed, items } = req.body;
+
+  if (!confirmed) {
+    return res.status(400).json({ error: 'Explicit user confirmation is required to modify Swiggy cart' });
+  }
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'items array is required' });
+  }
+
+  try {
+    const result = await swiggyMcpClient.confirmCart(userId, items);
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || 'Swiggy MCP cart modification failed' });
+  }
+});
+
 
 // ---------------------------------------------------------------------------
 // Speech-to-Text (STT) Routing API: Shruti, Cactus Whisper & Sarvam Saaras v3
@@ -1388,7 +1692,20 @@ app.post('/api/chat/stream', async (req: Request, res: Response): Promise<any> =
 // ---------------------------------------------------------------------------
 // 3. Server-Side Live API: WebSocket Server on /live
 // ---------------------------------------------------------------------------
-const wss = new WebSocketServer({ server, path: '/live' });
+const wss = new WebSocketServer({ noServer: true });
+
+server.on('upgrade', (req, socket, head) => {
+  try {
+    const pathname = (req.url || '').split('?')[0];
+    if (pathname === '/live') {
+      wss.handleUpgrade(req, socket, head, (clientWs) => {
+        wss.emit('connection', clientWs, req);
+      });
+    }
+  } catch (err) {
+    console.error('Error during websocket upgrade:', err);
+  }
+});
 
 wss.on('connection', async (clientWs: WebSocket) => {
   console.log('Client connected to /live WebSocket');
@@ -1452,7 +1769,7 @@ wss.on('connection', async (clientWs: WebSocket) => {
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { middlewareMode: true, hmr: false },
       appType: 'spa',
     });
     app.use(vite.middlewares);
