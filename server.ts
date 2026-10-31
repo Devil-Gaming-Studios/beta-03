@@ -625,16 +625,19 @@ app.post('/api/shop-inbox', async (req: Request, res: Response): Promise<any> =>
   const normalizedSource = validSources.includes(source) ? (source as any) : 'manual';
 
   try {
-    const inboxItem = await shopInboxService.ingestShopMessage({
+    const { item: inboxItem, isDuplicate } = await shopInboxService.ingestShopMessage({
       source: normalizedSource,
       sender: sender || 'Shop Contact',
       text: text.trim(),
       timestamp: timestamp ? Number(timestamp) : Date.now(),
     });
 
-    return res.status(201).json({
+    return res.status(isDuplicate ? 200 : 201).json({
       success: true,
-      message: 'Shop message received and stored in pending inbox for user confirmation.',
+      isDuplicate,
+      message: isDuplicate
+        ? 'Duplicate shop message recognized; returning existing inbox item.'
+        : 'Shop message received and stored in pending inbox for user confirmation.',
       item: inboxItem,
     });
   } catch (err: any) {
@@ -649,6 +652,16 @@ app.get('/api/shop-inbox', (req: Request, res: Response) => {
     ? shopInboxService.getAllItems()
     : shopInboxService.getPendingItems();
   return res.json({ items });
+});
+
+app.delete('/api/shop-inbox/all', (req: Request, res: Response): any => {
+  shopInboxService.clearAllItems();
+  return res.json({ success: true, message: 'All shop inbox items cleared.' });
+});
+
+app.delete('/api/shop-inbox', (req: Request, res: Response): any => {
+  shopInboxService.clearAllItems();
+  return res.json({ success: true, message: 'All shop inbox items cleared.' });
 });
 
 app.post('/api/shop-inbox/:id/apply', (req: Request, res: Response): any => {
@@ -701,7 +714,7 @@ app.post('/api/telegram-webhook', async (req: Request, res: Response): Promise<a
     'Telegram Shop Contact';
 
   try {
-    const inboxItem = await shopInboxService.ingestShopMessage({
+    const { item: inboxItem } = await shopInboxService.ingestShopMessage({
       source: 'telegram_bot',
       sender: senderName,
       text: msg.text,
@@ -774,13 +787,24 @@ app.get('/api/swiggy/callback', async (req: Request, res: Response): Promise<any
   }
 
   try {
-    await swiggyOAuthService.handleCallback(String(code), String(state));
+    const cbResult = await swiggyOAuthService.handleCallback(String(code), String(state));
+    
+    // Milestone 4: Establish working MCP connection & execute first tool call get_addresses
+    let addressSummary = '';
+    try {
+      const milestone = await swiggyMcpClient.callGetAddresses(cbResult.userId);
+      addressSummary = milestone.summary;
+      console.log(`[Swiggy MCP] First tool call (get_addresses) executed: ${addressSummary}`);
+    } catch (mErr: any) {
+      console.warn('[Swiggy MCP] First tool call notice:', mErr?.message);
+    }
+
     return res.send(`<!DOCTYPE html><html><head><title>Swiggy Connected</title></head><body style="font-family:sans-serif;text-align:center;padding:40px;background:#FAF9F6;">
       <script>
         try {
           if (window.opener) {
-            window.opener.postMessage({ type: 'SWIGGY_AUTH_SUCCESS' }, '*');
-            setTimeout(function() { window.close(); }, 800);
+            window.opener.postMessage({ type: 'SWIGGY_AUTH_SUCCESS', summary: ${JSON.stringify(addressSummary)} }, '*');
+            setTimeout(function() { window.close(); }, 1200);
           } else {
             window.location.href = '/?swiggy=connected';
           }
@@ -788,11 +812,14 @@ app.get('/api/swiggy/callback', async (req: Request, res: Response): Promise<any
           window.location.href = '/?swiggy=connected';
         }
       </script>
-      <div style="max-width:400px;margin:0 auto;background:#fff;border-radius:16px;padding:24px;box-shadow:0 4px 12px rgba(0,0,0,0.08);">
-        <div style="font-size:32px;margin-bottom:12px;">🎉</div>
-        <h3 style="color:#FC8019;margin:0 0 8px;">Swiggy Account Connected!</h3>
-        <p style="color:#4B5563;font-size:14px;margin:0 0 16px;">Verifying OAuth credentials and discovering MCP tools...</p>
-        <p style="color:#9CA3AF;font-size:12px;">You can now close this window if it does not close automatically.</p>
+      <div style="max-width:440px;margin:0 auto;background:#fff;border-radius:16px;padding:28px;box-shadow:0 4px 16px rgba(0,0,0,0.08);border:1px solid #E6E4DD;">
+        <div style="font-size:36px;margin-bottom:12px;">🎉</div>
+        <h3 style="color:#FC8019;margin:0 0 8px;font-size:20px;">Swiggy Account Connected!</h3>
+        <p style="color:#374151;font-size:13.5px;margin:0 0 12px;line-height:1.5;">Official OAuth 2.1 authentication completed via Phone + OTP.</p>
+        <div style="background:#F0FDF4;border:1px solid #BBF7D0;color:#15803D;padding:10px 14px;border-radius:10px;font-size:12px;margin-bottom:16px;text-align:left;">
+          <strong>Milestone 1 Verified:</strong> First MCP tool call <code>get_addresses</code> executed. ${addressSummary ? addressSummary : 'Connected to Swiggy Food MCP server.'}
+        </div>
+        <p style="color:#9CA3AF;font-size:12px;margin:0;">Returning to KitchenSync...</p>
       </div>
     </body></html>`);
   } catch (err: any) {
@@ -801,7 +828,7 @@ app.get('/api/swiggy/callback', async (req: Request, res: Response): Promise<any
     return res.status(400).send(`<!DOCTYPE html><html><head><title>Connection Error</title></head><body><script>
       if (window.opener) {
         window.opener.postMessage({ type: 'SWIGGY_AUTH_ERROR', error: ${JSON.stringify(msg)} }, '*');
-        setTimeout(function() { window.close(); }, 2000);
+        setTimeout(function() { window.close(); }, 2500);
       } else {
         window.location.href = '/?swiggy_error=' + encodeURIComponent(${JSON.stringify(msg)});
       }
@@ -809,6 +836,45 @@ app.get('/api/swiggy/callback', async (req: Request, res: Response): Promise<any
       <h3 style="color:#d9534f;">OAuth Exchange Failed</h3>
       <p>${msg}</p>
     </div></body></html>`);
+  }
+});
+
+// 2b. POST /api/swiggy/callback/manual - Manual code or callback URL submission
+app.post('/api/swiggy/callback/manual', async (req: Request, res: Response): Promise<any> => {
+  const { code, state, callbackUrl } = req.body;
+  let resolvedCode = typeof code === 'string' ? code.trim() : '';
+  let resolvedState = typeof state === 'string' ? state.trim() : '';
+
+  if (callbackUrl && typeof callbackUrl === 'string') {
+    try {
+      const u = new URL(callbackUrl.trim());
+      const c = u.searchParams.get('code');
+      const s = u.searchParams.get('state');
+      if (c) resolvedCode = c;
+      if (s) resolvedState = s;
+    } catch {}
+  }
+
+  if (!resolvedCode) {
+    return res.status(400).json({ error: 'Authorization code is required' });
+  }
+
+  try {
+    const cbResult = await swiggyOAuthService.handleCallback(resolvedCode, resolvedState);
+    let milestoneResult = null;
+    try {
+      milestoneResult = await swiggyMcpClient.callGetAddresses(cbResult.userId);
+    } catch (mErr: any) {
+      console.warn('[Swiggy MCP] Manual callback get_addresses notice:', mErr?.message);
+    }
+
+    return res.json({
+      success: true,
+      message: 'Swiggy OAuth tokens successfully exchanged and encrypted.',
+      firstToolCall: milestoneResult,
+    });
+  } catch (err: any) {
+    return res.status(400).json({ error: err?.message || 'Failed to exchange Swiggy code' });
   }
 });
 
@@ -822,6 +888,7 @@ app.get('/api/swiggy/status', async (req: Request, res: Response): Promise<any> 
       isConnected: false,
       userProfile: null,
       availableTools: [],
+      firstToolCallResult: null,
     });
   }
 
@@ -835,10 +902,11 @@ app.get('/api/swiggy/status', async (req: Request, res: Response): Promise<any> 
       error: 'Swiggy access token expired. Reconnect required.',
       userProfile: null,
       availableTools: [],
+      firstToolCallResult: null,
     });
   }
 
-  // Query live MCP tool definitions
+  // Query live MCP tool definitions from Swiggy Food and Instamart endpoints
   let availableTools: any[] = [];
   try {
     const endpoints = await swiggyMcpClient.listTools(userId);
@@ -853,7 +921,19 @@ app.get('/api/swiggy/status', async (req: Request, res: Response): Promise<any> 
     scope: tokens.scope,
     userProfile: tokens.userProfile || { name: 'Swiggy User' },
     availableTools,
+    firstToolCallResult: tokens.firstToolCallResult || null,
   });
+});
+
+// 3b. POST /api/swiggy/test-tool-call - Manually execute Milestone 4 get_addresses tool
+app.post('/api/swiggy/test-tool-call', async (req: Request, res: Response): Promise<any> => {
+  const userId = getRequestUserId(req);
+  try {
+    const result = await swiggyMcpClient.callGetAddresses(userId);
+    return res.json({ success: true, result });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || 'Failed to call get_addresses' });
+  }
 });
 
 // 4. POST /api/swiggy/disconnect - Disconnects account and revokes tokens

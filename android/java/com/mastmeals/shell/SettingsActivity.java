@@ -32,13 +32,16 @@ public class SettingsActivity extends Activity {
     private static final String KEY_CONTACT = "shop_contact_name";
     private static final String KEY_URL = "server_url_v2";
     private static final String KEY_TOKEN = "auth_token";
+    private static final String KEY_PAUSED = "shop_listener_paused";
 
     private SharedPreferences prefs;
     private EditText editContact;
     private EditText editUrl;
     private EditText editToken;
     private TextView textNotifStatus;
+    private TextView textBatteryStatus;
     private TextView textOfflineCount;
+    private android.widget.CheckBox checkPause;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -98,10 +101,52 @@ public class SettingsActivity extends Activity {
         btnOpenNotif.setOnClickListener(v -> openNotificationAccessSettings());
         layout.addView(btnOpenNotif);
 
+        // Section 2b: Battery Optimization
+        layout.addView(createLabel("Battery Optimization (Background Reliability)"));
+        textBatteryStatus = new TextView(this);
+        updateBatteryStatusText();
+        textBatteryStatus.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+        textBatteryStatus.setPadding(0, dp(2), 0, dp(8));
+        layout.addView(textBatteryStatus);
+
+        Button btnBattery = new Button(this);
+        btnBattery.setText("Disable Battery Optimization");
+        btnBattery.setBackgroundColor(Color.parseColor("#374151"));
+        btnBattery.setTextColor(Color.WHITE);
+        btnBattery.setOnClickListener(v -> requestIgnoreBatteryOptimization());
+        layout.addView(btnBattery);
+
         View divider1 = createDivider();
         layout.addView(divider1);
 
-        // Section 3: Server URL
+        // Section 3: Privacy & Pause Monitoring
+        layout.addView(createLabel("Privacy & Monitoring Controls"));
+        checkPause = new android.widget.CheckBox(this);
+        checkPause.setText("Pause shop chat monitoring (Temporarily stop reading notifications)");
+        checkPause.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
+        checkPause.setTextColor(Color.parseColor("#1A3826"));
+        checkPause.setChecked(prefs.getBoolean(KEY_PAUSED, false));
+        checkPause.setOnCheckedChangeListener((btn, isChecked) -> {
+            prefs.edit().putBoolean(KEY_PAUSED, isChecked).apply();
+            Toast.makeText(this, isChecked ? "Monitoring paused" : "Monitoring active", Toast.LENGTH_SHORT).show();
+        });
+        layout.addView(checkPause);
+
+        Button btnDeleteAll = new Button(this);
+        btnDeleteAll.setText("Clear Stored Offline Messages (Privacy)");
+        btnDeleteAll.setBackgroundColor(Color.parseColor("#991B1B"));
+        btnDeleteAll.setTextColor(Color.WHITE);
+        btnDeleteAll.setOnClickListener(v -> {
+            ShopDatabaseHelper.getInstance(this).deleteAllMessages();
+            updateOfflineCount();
+            Toast.makeText(this, "All offline queued shop messages cleared.", Toast.LENGTH_SHORT).show();
+        });
+        layout.addView(btnDeleteAll);
+
+        View divider1b = createDivider();
+        layout.addView(divider1b);
+
+        // Section 4: Server URL
         layout.addView(createLabel("Express Server URL"));
         editUrl = new EditText(this);
         editUrl.setText(prefs.getString(KEY_URL, BuildConfig.SERVER_URL));
@@ -116,7 +161,7 @@ public class SettingsActivity extends Activity {
         urlNote.setPadding(0, dp(2), 0, dp(16));
         layout.addView(urlNote);
 
-        // Section 4: Auth Token
+        // Section 5: Auth Token
         layout.addView(createLabel("User Authorization Token"));
         editToken = new EditText(this);
         editToken.setText(prefs.getString(KEY_TOKEN, "test_token_household_alpha"));
@@ -127,7 +172,7 @@ public class SettingsActivity extends Activity {
         View divider2 = createDivider();
         layout.addView(divider2);
 
-        // Section 5: Offline Sync
+        // Section 6: Offline Sync
         layout.addView(createLabel("Offline Queue"));
         textOfflineCount = new TextView(this);
         updateOfflineCount();
@@ -168,7 +213,9 @@ public class SettingsActivity extends Activity {
     protected void onResume() {
         super.onResume();
         updateNotifStatusText();
+        updateBatteryStatusText();
         updateOfflineCount();
+        ShopNotificationListenerService.requestRebindService(this);
     }
 
     private void updateNotifStatusText() {
@@ -179,6 +226,42 @@ public class SettingsActivity extends Activity {
         } else {
             textNotifStatus.setText("Status: NOT GRANTED (Tap button below to enable)");
             textNotifStatus.setTextColor(Color.parseColor("#B91C1C"));
+        }
+    }
+
+    private void updateBatteryStatusText() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            android.os.PowerManager pm = (android.os.PowerManager) getSystemService(Context.POWER_SERVICE);
+            boolean ignoring = pm != null && pm.isIgnoringBatteryOptimizations(getPackageName());
+            if (ignoring) {
+                textBatteryStatus.setText("Status: UNRESTRICTED (Background service protected)");
+                textBatteryStatus.setTextColor(Color.parseColor("#15803D"));
+            } else {
+                textBatteryStatus.setText("Status: OPTIMIZED (OS may sleep background listener - tap to disable)");
+                textBatteryStatus.setTextColor(Color.parseColor("#D97706"));
+            }
+        } else {
+            textBatteryStatus.setText("Status: Not applicable (Android < 6.0)");
+            textBatteryStatus.setTextColor(Color.parseColor("#15803D"));
+        }
+    }
+
+    private void requestIgnoreBatteryOptimization() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            try {
+                android.net.Uri uri = android.net.Uri.parse("package:" + getPackageName());
+                Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, uri);
+                startActivity(intent);
+            } catch (Exception e) {
+                try {
+                    Intent fallback = new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS);
+                    startActivity(fallback);
+                } catch (Exception ex) {
+                    Toast.makeText(this, "Could not open Battery Settings: " + ex.getMessage(), Toast.LENGTH_LONG).show();
+                }
+            }
+        } else {
+            Toast.makeText(this, "Battery optimization not supported on this Android version.", Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -229,6 +312,8 @@ public class SettingsActivity extends Activity {
                 .putString(KEY_URL, url)
                 .putString(KEY_TOKEN, token)
                 .apply();
+
+        ShopNotificationListenerService.requestRebindService(this);
 
         Toast.makeText(this, "Settings saved!", Toast.LENGTH_SHORT).show();
         finish();

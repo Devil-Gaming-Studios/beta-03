@@ -216,6 +216,14 @@ export interface SwiggyAccountConnection {
   } | null;
   availableTools?: SwiggyMcpTool[];
   lastCheckedAt?: string;
+  firstToolCallResult?: {
+    tool: string;
+    calledAt: string;
+    success: boolean;
+    summary: string;
+    addressCount?: number;
+    error?: string;
+  } | null;
 }
 
 export interface GraphRecipe {

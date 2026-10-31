@@ -17,8 +17,9 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Manages posting shop messages to /api/shop-inbox and syncing offline queued messages.
@@ -30,6 +31,8 @@ public class ShopSyncManager {
     public static final String EXTRA_MESSAGE_JSON = "extra_message_json";
 
     private static final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private static final ScheduledExecutorService retryScheduler = Executors.newSingleThreadScheduledExecutor();
+    private static ScheduledFuture<?> periodicTask = null;
     private static final Handler mainHandler = new Handler(Looper.getMainLooper());
 
     public static void enqueueOrSend(Context context, String source, String sender, String text, long timestamp) {
@@ -88,8 +91,9 @@ public class ShopSyncManager {
             if (!success) {
                 // Queue offline in local SQLite database
                 ShopDatabaseHelper db = ShopDatabaseHelper.getInstance(context);
-                db.insertMessage(source, sender, text, timestamp);
-                Log.i(TAG, "Message queued in offline database. Pending count: " + db.getUnsyncedCount());
+                long rowId = db.insertMessage(source, sender, text, timestamp);
+                Log.i(TAG, "Message queued in offline database (id=" + rowId + "). Pending count: " + db.getUnsyncedCount());
+                scheduleRetryLoop(context.getApplicationContext());
             }
 
             // Broadcast to MainActivity so WebView can show live toast
@@ -107,6 +111,23 @@ public class ShopSyncManager {
                 context.sendBroadcast(intent);
             } catch (Exception ignored) {}
         });
+    }
+
+    public static synchronized void scheduleRetryLoop(Context appContext) {
+        if (periodicTask != null && !periodicTask.isDone()) {
+            return;
+        }
+        periodicTask = retryScheduler.scheduleWithFixedDelay(() -> {
+            ShopDatabaseHelper db = ShopDatabaseHelper.getInstance(appContext);
+            if (db.getUnsyncedCount() == 0) {
+                if (periodicTask != null) {
+                    periodicTask.cancel(false);
+                    periodicTask = null;
+                }
+                return;
+            }
+            syncPendingMessages(appContext, null);
+        }, 15, 30, TimeUnit.SECONDS);
     }
 
     public static void syncPendingMessages(Context context, Runnable onComplete) {
@@ -153,6 +174,10 @@ public class ShopSyncManager {
                     Log.w(TAG, "Sync failed for message " + msg.id + ": " + e.getMessage());
                     break; // Stop trying if still offline
                 }
+            }
+
+            if (db.getUnsyncedCount() > 0) {
+                scheduleRetryLoop(context.getApplicationContext());
             }
 
             if (onComplete != null) mainHandler.post(onComplete);

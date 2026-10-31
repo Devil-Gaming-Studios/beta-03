@@ -86,6 +86,7 @@ export const App: React.FC = () => {
         onOpenProfile={() => setCurrentTab('household')}
         onOpenVoice={() => setIsVoiceOpen(true)}
         onOpenDownload={() => setIsDownloadModalOpen(true)}
+        onOpenScan={(mode) => setScanModalMode(mode || 'receipt')}
       />
 
       {/* Main Content Area */}
@@ -146,6 +147,7 @@ export const App: React.FC = () => {
             key={planRefreshKey}
             isHindi={isHindi}
             onOpenVoice={() => setIsVoiceOpen(true)}
+            onOpenScan={(mode) => setScanModalMode(mode || 'receipt')}
           />
         )}
 

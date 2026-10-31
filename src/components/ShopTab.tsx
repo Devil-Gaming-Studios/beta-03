@@ -36,6 +36,7 @@ export const ShopTab: React.FC<ShopTabProps> = ({ items, onRefresh }) => {
         userProfile: data.userProfile,
         expiresAt: data.expiresAt,
         availableTools: data.availableTools || [],
+        firstToolCallResult: data.firstToolCallResult || null,
       });
     } catch {
       setConnection({ isConnected: false });

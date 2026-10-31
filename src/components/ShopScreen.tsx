@@ -84,7 +84,8 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({ isHindi }) => {
   const handleConnectSwiggy = async () => {
     setSwiggyConnecting(true);
     try {
-      const callbackUri = encodeURIComponent(`${window.location.origin}/api/swiggy/callback`);
+      // Localhost development callback whitelisted by Swiggy without production approval
+      const callbackUri = encodeURIComponent('http://localhost:3000/api/swiggy/callback');
       const res = await fetch(`/api/swiggy/connect?redirect_uri=${callbackUri}`);
       const data = await res.json();
       if (!res.ok || !data.authorizationUrl) {
@@ -275,6 +276,11 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({ isHindi }) => {
             👤 Personal
           </button>
         </div>
+      </section>
+
+      {/* WhatsApp & Telegram Shop Chat Inbox (Confirm & Apply to Stock) */}
+      <section>
+        <ShopInboxConfirmCard isHindi={isHindi} onItemsApplied={refreshList} />
       </section>
 
       {/* Swiggy Official Connection & Cart Integration */}

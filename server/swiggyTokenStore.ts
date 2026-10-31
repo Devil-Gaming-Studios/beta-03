@@ -16,6 +16,14 @@ export interface StoredSwiggyTokens {
     name?: string;
     email?: string;
   };
+  firstToolCallResult?: {
+    tool: string;
+    calledAt: string;
+    success: boolean;
+    summary: string;
+    addressCount?: number;
+    error?: string;
+  };
 }
 
 interface EncryptedPayload {
@@ -151,6 +159,7 @@ class SwiggyTokenStore {
       expiresAt: tokens.expiresAt,
       issuedAt: tokens.issuedAt || Date.now(),
       userProfile: tokens.userProfile || {},
+      firstToolCallResult: tokens.firstToolCallResult,
       // Encrypt sensitive access and refresh tokens at rest
       encryptedAccessToken: this.encrypt(tokens.accessToken),
       encryptedRefreshToken: tokens.refreshToken ? this.encrypt(tokens.refreshToken) : undefined,
@@ -159,6 +168,17 @@ class SwiggyTokenStore {
     const all = this.readAllEncrypted();
     all[userId] = encryptedRecord;
     this.writeAllEncrypted(all);
+  }
+
+  public saveFirstToolCallResult(
+    userId: string,
+    result: { tool: string; calledAt: string; success: boolean; summary: string; addressCount?: number; error?: string }
+  ): void {
+    const tokens = this.getTokens(userId);
+    if (tokens) {
+      tokens.firstToolCallResult = result;
+      this.saveTokens(userId, tokens);
+    }
   }
 
   public getTokens(userId: string): StoredSwiggyTokens | null {
@@ -183,6 +203,7 @@ class SwiggyTokenStore {
         expiresAt: record.expiresAt,
         issuedAt: record.issuedAt,
         userProfile: record.userProfile,
+        firstToolCallResult: record.firstToolCallResult,
         accessToken,
         refreshToken,
       };

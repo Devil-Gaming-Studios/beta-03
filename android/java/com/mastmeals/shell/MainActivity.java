@@ -73,9 +73,23 @@ public class MainActivity extends Activity {
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
-        settings.setLoadWithOverviewMode(true);
+        // Critical: Disable overview mode so the WebView does not zoom out to desktop proportions
+        settings.setLoadWithOverviewMode(false);
         settings.setUseWideViewPort(true);
+        settings.setSupportZoom(false);
+        settings.setBuiltInZoomControls(false);
+        settings.setDisplayZoomControls(false);
         settings.setMediaPlaybackRequiresUserGesture(false);
+        settings.setDefaultTextEncodingName("utf-8");
+
+        // Maintain 1:1 responsive viewport scaling with system display metrics
+        web.setInitialScale(0);
+
+        // Identify native Android shell in User-Agent for seamless web-native responsive integration
+        String currentUa = settings.getUserAgentString();
+        if (currentUa != null && !currentUa.contains("MastMealsNative")) {
+            settings.setUserAgentString(currentUa + " MastMealsNative/0.1");
+        }
 
         // Register Native JavaScript Bridge
         web.addJavascriptInterface(new AndroidBridgeInterface(), "AndroidNative");
@@ -95,16 +109,21 @@ public class MainActivity extends Activity {
         root.addView(web, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT));
 
-        // Floating Settings Icon (Gear) to configure shop contact and notification access
+        // Floating Settings Icon (Gear) positioned safely above the bottom navigation bar (84dp from bottom)
         TextView gear = new TextView(this);
         gear.setText("\u2699");
-        gear.setTextSize(22);
+        gear.setTextSize(20);
         gear.setTextColor(Color.WHITE);
         gear.setGravity(Gravity.CENTER);
-        gear.setAlpha(0.70f);
-        gear.setBackgroundColor(Color.parseColor("#801A3826"));
-        FrameLayout.LayoutParams gearParams = new FrameLayout.LayoutParams(dp(44), dp(44), Gravity.BOTTOM | Gravity.END);
-        gearParams.setMargins(0, 0, dp(14), dp(14));
+        gear.setAlpha(0.85f);
+        android.graphics.drawable.GradientDrawable gearBg = new android.graphics.drawable.GradientDrawable();
+        gearBg.setShape(android.graphics.drawable.GradientDrawable.OVAL);
+        gearBg.setColor(Color.parseColor("#CC1A3826"));
+        gearBg.setStroke(dp(1), Color.parseColor("#44C8EBD1"));
+        gear.setBackground(gearBg);
+
+        FrameLayout.LayoutParams gearParams = new FrameLayout.LayoutParams(dp(40), dp(40), Gravity.BOTTOM | Gravity.END);
+        gearParams.setMargins(0, 0, dp(12), dp(84));
         gear.setOnClickListener(v -> openSettingsActivity());
         root.addView(gear, gearParams);
 

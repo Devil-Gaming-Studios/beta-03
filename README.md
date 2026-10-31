@@ -98,15 +98,30 @@ The script compiles all Java files with `javac`, packages with `d8`, links with 
    ```
 2. Open **Mast Meals** on the device.
 3. Tap the floating **⚙ (Settings)** button in the bottom right:
-   - Set **Shop Contact Name** to your shopkeeper's exact WhatsApp or Telegram contact name (e.g. `Gupta Kirana Store`).
-   - Tap **Open Notification Access Settings** and toggle **ON** for Mast Meals.
-   - Verify status shows **GRANTED (Active)**.
+   - **Shop Contact Name**: Set to your shopkeeper's exact WhatsApp or Telegram contact name (e.g. `Gupta Kirana Store`).
+   - **Notification Access**: Tap **Open Notification Access Settings** and toggle **ON** for Mast Meals. Verify status shows **GRANTED (Active)**.
+   - **Battery Optimization**: Tap **Disable Battery Optimization** to ensure Android does not sleep the background listener when idle.
+   - **Privacy & Pause Monitoring**: Toggle the pause switch at any time to temporarily stop monitoring, or tap **Clear Stored Offline Messages** to delete local cached data.
+   - **Auto-Rebind & Boot Reliability**: The app registers a `BootReceiver` that automatically rebinds `ShopNotificationListenerService` and retries unsynced messages when the device reboots.
    - Configure **Server URL** (default `http://localhost:3000`).
    - Configure **User Authorization Token** (default `test_token_household_alpha`).
-4. When your shopkeeper sends a message like `"Bhaiya 5kg atta aur 1L doodh pack ho gaya"`, it is automatically received, queued offline if disconnected, and sent to `/api/shop-inbox`.
-5. Review and confirm the items in the **Shop tab** under **Shop Chat Listener**.
+4. When your shopkeeper sends a WhatsApp message (`com.whatsapp` or `com.whatsapp.w4b`) or Telegram message:
+   - The service extracts individual messages from grouped `MessagingStyle` notifications (`EXTRA_MESSAGES`).
+   - Filters out group summaries and `"N new messages"` placeholder previews.
+   - Dedupes by `(sender, timestamp, text)` in local cache.
+   - Sends the message to `POST /api/shop-inbox`.
+   - If offline, queues the message in local SQLite (`shop_inbox.db`) and automatically retries every 30 seconds when network reconnects.
+5. In the web app **Shop tab**:
+   - Review pending messages in the **Shop Chat Listener** card.
+   - Edit item names, quantities, base units (`g`, `ml`, `pcs`), storage locations (`fridge`, `pantry`), or household scope (`shared`, `personal`).
+   - Click **Confirm & Add to Stock** or **Add to Shop List**. Items are **never** written to inventory without your explicit manual confirmation.
+   - When running on Web-only or iPhone, use the **Paste / Web Chat** button to paste copied shopkeeper messages or click **Open WhatsApp** (`wa.me`) to open the chat directly.
 
----
+### 6. Automated Testing
+Run the automated test suite for WhatsApp shop chat extraction schema, prompt injection defense, and 24h deduplication:
+```bash
+npm run test:shop-inbox
+```
 
 ## Telegram Bot Ingestion Setup
 

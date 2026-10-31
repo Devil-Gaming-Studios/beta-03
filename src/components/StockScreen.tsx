@@ -6,6 +6,7 @@ import { ScanModal } from './ScanModal';
 interface StockScreenProps {
   isHindi: boolean;
   onOpenVoice: () => void;
+  onOpenScan?: (mode?: 'receipt' | 'fridge') => void;
 }
 
 const getFutureDateStr = (days: number): string => {
@@ -14,13 +15,21 @@ const getFutureDateStr = (days: number): string => {
   return d.toISOString().slice(0, 10);
 };
 
-export const StockScreen: React.FC<StockScreenProps> = ({ isHindi, onOpenVoice }) => {
+export const StockScreen: React.FC<StockScreenProps> = ({ isHindi, onOpenVoice, onOpenScan }) => {
   const [scope, setScope] = useState<'all' | 'mine' | 'shared'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState<'all' | 'fridge' | 'pantry' | 'expiring'>('all');
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
   const [isScanOpen, setIsScanOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const handleOpenScan = (mode: 'receipt' | 'fridge' = 'receipt') => {
+    if (onOpenScan) {
+      onOpenScan(mode);
+    } else {
+      setIsScanOpen(true);
+    }
+  };
 
   // Inline Restock State
   const [restockingStockId, setRestockingStockId] = useState<string | null>(null);
@@ -198,75 +207,107 @@ export const StockScreen: React.FC<StockScreenProps> = ({ isHindi, onOpenVoice }
 
       {/* Header & Scan Button */}
       <section className="pt-2 flex flex-col gap-2.5">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-[24px] font-bold text-[#1a1c1a] tracking-tight leading-tight">
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0 flex-1 pr-1">
+            <h1 className="text-[20px] sm:text-[24px] font-bold text-[#1a1c1a] tracking-tight leading-tight truncate">
               {isHindi ? 'रसोई का स्टॉक' : 'Kitchen Stock'}
             </h1>
-            <p className="text-[12px] text-[#424843]">
-              {isHindi ? 'मल्टी-बैच एक्सपायरी और इनलाइन रीस्टॉक' : 'Multi-batch expiry & instant inline restocking'}
+            <p className="text-[11.5px] sm:text-[12px] text-[#424843] truncate">
+              {isHindi ? 'मल्टी-बैच एक्सपायरी और इनलाइन रीस्टॉक' : 'Multi-batch expiry & instant restocking'}
             </p>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 shrink-0">
+            {/* Primary AI Scan Button: high priority, never pushed off-screen */}
             <button
-              className="w-9 h-9 rounded-full bg-[#1A3826] text-white flex items-center justify-center shadow-xs active:scale-95 transition-all hover:bg-[#132a1d] cursor-pointer"
-              onClick={onOpenVoice}
-              title="Voice Update Stock (Shruti / Cactus Whisper)"
-            >
-              <span className="material-symbols-outlined text-[19px]">mic</span>
-            </button>
-
-            <button
-              className="px-3 py-2 rounded-full bg-[#1A3826] text-white text-[12px] font-semibold flex items-center gap-1.5 shadow-xs active:scale-95 transition-all hover:bg-[#132a1d] cursor-pointer"
-              onClick={() => setIsScanOpen(true)}
-              title="Scan Receipt or Fridge with Vision AI"
+              className="px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-full bg-[#1A3826] text-white text-[11.5px] sm:text-[12px] font-semibold flex items-center gap-1 sm:gap-1.5 shadow-xs active:scale-95 transition-all hover:bg-[#132a1d] cursor-pointer shrink-0"
+              onClick={() => handleOpenScan('receipt')}
+              title={isHindi ? 'AI रसीद व फ्रिज स्कैनर' : 'Scan Receipt or Fridge with Vision AI'}
             >
               <span className="material-symbols-outlined text-[17px] text-[#c8ebd1]">document_scanner</span>
               <span>{isHindi ? 'स्कैन करें' : 'AI Scan'}</span>
             </button>
 
             <button
-              className="w-9 h-9 rounded-full bg-white border border-[#E6E4DD] flex items-center justify-center text-[#1A3826] hover:bg-[#f4f4f0] cursor-pointer"
+              className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-full bg-[#1A3826] text-white flex items-center justify-center shadow-xs active:scale-95 transition-all hover:bg-[#132a1d] cursor-pointer shrink-0"
+              onClick={onOpenVoice}
+              title="Voice Update Stock (Shruti / Cactus Whisper)"
+            >
+              <span className="material-symbols-outlined text-[18px]">mic</span>
+            </button>
+
+            <button
+              className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-full bg-white border border-[#E6E4DD] flex items-center justify-center text-[#1A3826] hover:bg-[#f4f4f0] cursor-pointer shrink-0"
               onClick={() => setShowAddModal(true)}
               title="Add Item Manually"
             >
-              <span className="material-symbols-outlined text-[20px]">add</span>
+              <span className="material-symbols-outlined text-[19px]">add</span>
             </button>
+          </div>
+        </div>
+
+        {/* Dedicated Prominent AI Scan Quick-Action Banner: Always 100% visible on any screen proportion */}
+        <div
+          onClick={() => handleOpenScan('receipt')}
+          className="p-3 rounded-2xl bg-gradient-to-r from-[#1A3826] to-[#254d35] text-white flex items-center justify-between gap-3 shadow-xs cursor-pointer hover:opacity-95 active:scale-[0.99] transition-all"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center shrink-0 border border-white/20">
+              <span className="material-symbols-outlined text-[22px] text-[#c8ebd1]">document_scanner</span>
+            </div>
+            <div className="flex flex-col min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[13px] font-bold">
+                  {isHindi ? 'AI रसीद व फ्रिज स्कैनर' : 'Gemini AI Vision Scanner'}
+                </span>
+                <span className="text-[9.5px] bg-[#c8ebd1] text-[#032212] font-extrabold px-1.5 py-0.2 rounded-full">
+                  AI OCR
+                </span>
+              </div>
+              <span className="text-[11px] text-white/85 truncate">
+                {isHindi
+                  ? 'किराना बिल या फ्रिज फोटो से ऑटो-स्टॉक करें'
+                  : 'Scan Blinkit / Zepto bills or fridge shelves'}
+              </span>
+            </div>
+          </div>
+          <div className="px-2.5 sm:px-3 py-1.5 rounded-full bg-white text-[#1A3826] text-[11px] font-bold shrink-0 shadow-xs flex items-center gap-1">
+            <span>{isHindi ? 'स्कैन' : 'Scan'}</span>
+            <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
           </div>
         </div>
 
         {/* 2-Scope Inventory Tabs */}
         <div className="flex rounded-2xl bg-[#f4f4f0] p-1 border border-[#E6E4DD]">
           <button
-            className={`flex-1 py-1.5 rounded-xl text-[12.5px] font-semibold transition-all cursor-pointer ${
+            className={`flex-1 py-1.5 rounded-xl text-[12px] sm:text-[12.5px] font-semibold transition-all cursor-pointer ${
               scope === 'all'
                 ? 'bg-[#1A3826] text-white shadow-xs'
                 : 'text-[#424843] hover:text-[#1a1c1a]'
             }`}
             onClick={() => setScope('all')}
           >
-            All Stock (Kitchen)
+            All Stock
           </button>
           <button
-            className={`flex-1 py-1.5 rounded-xl text-[12.5px] font-semibold transition-all cursor-pointer ${
+            className={`flex-1 py-1.5 rounded-xl text-[12px] sm:text-[12.5px] font-semibold transition-all cursor-pointer ${
               scope === 'mine'
                 ? 'bg-[#1A3826] text-white shadow-xs'
                 : 'text-[#424843] hover:text-[#1a1c1a]'
             }`}
             onClick={() => setScope('mine')}
           >
-            👤 Personal (Mine)
+            👤 Personal
           </button>
           <button
-            className={`flex-1 py-1.5 rounded-xl text-[12.5px] font-semibold transition-all cursor-pointer ${
+            className={`flex-1 py-1.5 rounded-xl text-[12px] sm:text-[12.5px] font-semibold transition-all cursor-pointer ${
               scope === 'shared'
                 ? 'bg-[#1A3826] text-white shadow-xs'
                 : 'text-[#424843] hover:text-[#1a1c1a]'
             }`}
             onClick={() => setScope('shared')}
           >
-            👥 Shared (Room 304)
+            👥 Shared
           </button>
         </div>
       </section>

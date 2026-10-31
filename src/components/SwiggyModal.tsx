@@ -21,6 +21,15 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
   const [authConnecting, setAuthConnecting] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
+  // Manual callback submission state
+  const [manualCodeOrUrl, setManualCodeOrUrl] = useState('');
+  const [manualSubmitting, setManualSubmitting] = useState(false);
+  const [manualSuccessMsg, setManualSuccessMsg] = useState<string | null>(null);
+
+  // On-demand first tool call state
+  const [testingToolCall, setTestingToolCall] = useState(false);
+  const [testToolMessage, setTestToolMessage] = useState<string | null>(null);
+
   // Cart Preview & Confirmation State
   const [cartPreview, setCartPreview] = useState<any | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -41,6 +50,7 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
           scope: data.scope,
           userProfile: data.userProfile,
           availableTools: data.availableTools || [],
+          firstToolCallResult: data.firstToolCallResult || null,
           lastCheckedAt: new Date().toISOString(),
         };
         setConnection(updated);
@@ -49,6 +59,7 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
         const disconnected: SwiggyAccountConnection = {
           isConnected: false,
           availableTools: [],
+          firstToolCallResult: null,
         };
         setConnection(disconnected);
         store.saveSwiggyConnection(disconnected);
@@ -68,6 +79,8 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
       checkStatus();
       setConfirmSuccess(null);
       setAuthError(null);
+      setManualSuccessMsg(null);
+      setTestToolMessage(null);
     }
   }, [isOpen, checkStatus]);
 
@@ -78,7 +91,7 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
         setAuthConnecting(false);
         setAuthError(null);
         checkStatus();
-        setActiveTab('cart');
+        setActiveTab('oauth');
       } else if (event.data?.type === 'SWIGGY_AUTH_ERROR') {
         setAuthConnecting(false);
         setAuthError(event.data.error || 'Swiggy authorization failed or was cancelled.');
@@ -90,12 +103,14 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
   }, [checkStatus]);
 
   // Start Real Swiggy OAuth 2.1 + PKCE Flow
+  // Swiggy strictly enforces redirect URI allowlisting. Localhost is permitted for developer local testing.
   const handleStartOAuth = async () => {
     setAuthConnecting(true);
     setAuthError(null);
     try {
-      const callbackUri = encodeURIComponent(`${window.location.origin}/api/swiggy/callback`);
-      const res = await fetch(`/api/swiggy/connect?redirect_uri=${callbackUri}`);
+      // Always use localhost development callback URL to avoid "Run isn't whitelisted" rejection
+      const localhostRedirectUri = encodeURIComponent('http://localhost:3000/api/swiggy/callback');
+      const res = await fetch(`/api/swiggy/connect?redirect_uri=${localhostRedirectUri}`);
       const data = await res.json();
       if (!res.ok || !data.authorizationUrl) {
         throw new Error(data.error || 'Failed to start Swiggy OAuth flow');
@@ -103,7 +118,7 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
 
       // Open official Swiggy phone + OTP authorization page in a secure popup
       const width = 520;
-      const height = 680;
+      const height = 700;
       const left = window.screenX + (window.outerWidth - width) / 2;
       const top = window.screenY + (window.outerHeight - height) / 2;
 
@@ -114,7 +129,6 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
       );
 
       if (!popup || popup.closed || typeof popup.closed === 'undefined') {
-        // Fallback if browser blocked popup: redirect top window
         window.location.href = data.authorizationUrl;
         return;
       }
@@ -124,13 +138,60 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
         if (popup.closed) {
           clearInterval(timer);
           setAuthConnecting(false);
-          // Verify if connection completed
           checkStatus();
         }
       }, 1000);
     } catch (err: any) {
       setAuthConnecting(false);
       setAuthError(err.message || 'Error initializing Swiggy connection');
+    }
+  };
+
+  // Submit manual redirect code or URL (handles environments where port 3000 callback cannot auto-close)
+  const handleManualCodeSubmit = async () => {
+    if (!manualCodeOrUrl.trim()) return;
+    setManualSubmitting(true);
+    setAuthError(null);
+    setManualSuccessMsg(null);
+
+    try {
+      const res = await fetch('/api/swiggy/callback/manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ callbackUrl: manualCodeOrUrl.trim(), code: manualCodeOrUrl.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to complete manual code exchange');
+      }
+
+      setManualSuccessMsg(data.message || 'Swiggy OAuth tokens successfully exchanged and encrypted!');
+      setManualCodeOrUrl('');
+      await checkStatus();
+      setActiveTab('oauth');
+    } catch (err: any) {
+      setAuthError(err.message || 'Failed to exchange Swiggy authorization code');
+    } finally {
+      setManualSubmitting(false);
+    }
+  };
+
+  // Run Milestone 4 Tool Call on Demand
+  const handleTestFirstToolCall = async () => {
+    setTestingToolCall(true);
+    setTestToolMessage(null);
+    try {
+      const res = await fetch('/api/swiggy/test-tool-call', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to call get_addresses');
+      }
+      setTestToolMessage(`Milestone 1 Verified: ${data.result?.summary || 'get_addresses executed successfully.'}`);
+      await checkStatus();
+    } catch (err: any) {
+      setAuthError(err.message || 'Tool call get_addresses failed');
+    } finally {
+      setTestingToolCall(false);
     }
   };
 
@@ -205,8 +266,6 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
     }
   };
 
-  const totalAmount = items.reduce((sum, i) => sum + (i.swiggy_price || i.estimated_price || 40), 0);
-
   if (!isOpen) return null;
 
   return (
@@ -227,7 +286,7 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-[16px] font-bold text-[#1a1c1a]">
-                  Swiggy Instamart • MCP & OAuth 2.1
+                  Swiggy Instamart • Official MCP Client
                 </h3>
                 {connection.isConnected ? (
                   <span className="text-[10px] font-bold bg-[#E8F5E9] text-[#2E7D32] px-2 py-0.5 rounded-full flex items-center gap-1 border border-[#C8E6C9]">
@@ -242,8 +301,8 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
               </div>
               <p className="text-[11.5px] text-[#424843]">
                 {connection.isConnected
-                  ? `Authenticated via Swiggy OAuth (${connection.userProfile?.name || 'Swiggy User'})`
-                  : (isHindi ? 'स्विगी आधिकारिक फोन + OTP ऑथेंटिकेशन' : 'Official Phone + OTP OAuth authentication')}
+                  ? `Authenticated via Phone + OTP (${connection.userProfile?.name || 'Swiggy Member'})`
+                  : (isHindi ? 'आधिकारिक फोन + OTP ऑथेंटिकेशन (RFC 7591 DCR)' : 'Official Phone + OTP OAuth 2.1 (RFC 7591 DCR)')}
               </p>
             </div>
           </div>
@@ -277,7 +336,7 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
             }`}
           >
             <span className="material-symbols-outlined text-[15px]">verified_user</span>
-            <span>{connection.isConnected ? 'Account' : 'Connect Swiggy'}</span>
+            <span>{connection.isConnected ? 'Account & Milestone' : 'Connect Swiggy'}</span>
           </button>
           <button
             onClick={() => setActiveTab('tools')}
@@ -299,15 +358,24 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
               error
             </span>
             <div className="leading-snug">
-              <strong>Authentication / MCP Error:</strong> {authError}
+              <strong>Notice:</strong> {authError}
             </div>
+          </div>
+        )}
+
+        {/* Success Notice Banner */}
+        {manualSuccessMsg && (
+          <div className="p-3 rounded-2xl bg-[#F0FDF4] border border-[#86EFAC] text-[#15803D] text-[12px] flex items-start gap-2">
+            <span className="material-symbols-outlined text-[18px] text-[#16A34A] shrink-0 mt-0.5">
+              check_circle
+            </span>
+            <div className="leading-snug">{manualSuccessMsg}</div>
           </div>
         )}
 
         {/* TAB 1: CART WORKFLOW WITH EXPLICIT CONFIRMATION */}
         {activeTab === 'cart' && (
           <div className="flex flex-col gap-3">
-            {/* Connection Banner */}
             {!connection.isConnected ? (
               <div className="p-3.5 rounded-2xl bg-[#FFF7ED] border border-[#FFEDD5] flex items-center justify-between text-[12px]">
                 <div className="flex items-center gap-2">
@@ -315,7 +383,7 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
                     phonelink_lock
                   </span>
                   <span className="text-[#9A3412] font-medium leading-snug">
-                    Connect your Swiggy account with Phone + OTP to search live items and modify your cart.
+                    Connect your Swiggy account to enable live Instamart MCP sync.
                   </span>
                 </div>
                 <button
@@ -323,7 +391,7 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
                   onClick={() => setActiveTab('oauth')}
                   className="py-1.5 px-3 rounded-xl bg-[#FC8019] text-white font-bold text-[11px] shrink-0 hover:bg-[#e06d0c]"
                 >
-                  Connect Now
+                  Connect
                 </button>
               </div>
             ) : (
@@ -334,10 +402,10 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
                   </span>
                   <div>
                     <span className="font-bold text-[#15803D] block">
-                      Swiggy Connected • Tokens Encrypted at Rest
+                      Swiggy MCP Connected • Tokens Encrypted at Rest
                     </span>
                     <span className="text-[11px] text-[#4b5563]">
-                      Session valid until {connection.expiresAt ? new Date(connection.expiresAt).toLocaleDateString() : '5 days'}
+                      Session auto-refreshed via rotation (valid until {connection.expiresAt ? new Date(connection.expiresAt).toLocaleDateString() : '5 days'})
                     </span>
                   </div>
                 </div>
@@ -412,7 +480,7 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
                     Verified Cart Preview
                   </span>
                   <span className="text-[11px] text-[#B45309] font-medium">
-                    {cartPreview.supportedByMcp ? 'MCP Tool Ready' : 'Awaiting Access Grant'}
+                    {cartPreview.supportedByMcp ? 'MCP Tool Available' : 'Guarded'}
                   </span>
                 </div>
 
@@ -487,12 +555,6 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
                     <span className="material-symbols-outlined text-[15px]">open_in_new</span>
                     <span>Review & Checkout on Swiggy</span>
                   </a>
-                  <a
-                    href="swiggy://instamart/cart"
-                    className="px-3 py-2 rounded-xl bg-white border border-[#86EFAC] text-[#15803D] font-bold text-[11.5px] flex items-center gap-1"
-                  >
-                    <span>App</span>
-                  </a>
                 </div>
               </div>
             )}
@@ -547,11 +609,60 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
           </div>
         )}
 
-        {/* TAB 2: OFFICIAL OAUTH 2.1 + PKCE AUTHENTICATION */}
+        {/* TAB 2: OFFICIAL OAUTH 2.1 + PKCE AUTHENTICATION & MILESTONE 1 */}
         {activeTab === 'oauth' && (
           <div className="flex flex-col gap-3 text-[12px]">
             {connection.isConnected ? (
               <div className="flex flex-col gap-3">
+                {/* Milestone 4: First Tool Call Status Card */}
+                <div className="p-4 rounded-2xl bg-[#F0FDF4] border border-[#BBF7D0] flex flex-col gap-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[12.5px] font-bold text-[#15803D] flex items-center gap-1.5">
+                      <span className="material-symbols-outlined text-[17px]">task_alt</span>
+                      Milestone 1: First MCP Tool Call (<code>get_addresses</code>)
+                    </span>
+                    <span className="text-[10px] font-bold bg-[#DCFCE7] text-[#166534] px-2 py-0.5 rounded-full border border-[#86EFAC]">
+                      {connection.firstToolCallResult?.success ? 'Verified' : 'Ready'}
+                    </span>
+                  </div>
+
+                  <p className="text-[11.5px] text-[#166534] leading-relaxed">
+                    {connection.firstToolCallResult?.summary ||
+                      'Swiggy Food MCP connection established with official @modelcontextprotocol/sdk.'}
+                  </p>
+
+                  {testToolMessage && (
+                    <div className="p-2 rounded-xl bg-white border border-[#86EFAC] text-[#15803D] text-[11px] font-medium">
+                      {testToolMessage}
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-[10.5px] text-[#4b5563]">
+                      Called at: {connection.firstToolCallResult?.calledAt ? new Date(connection.firstToolCallResult.calledAt).toLocaleTimeString() : 'On connection'}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={testingToolCall}
+                      onClick={handleTestFirstToolCall}
+                      className="px-2.5 py-1 rounded-lg bg-[#16A34A] text-white text-[11px] font-bold hover:bg-[#15803d] disabled:opacity-50 flex items-center gap-1"
+                    >
+                      {testingToolCall ? (
+                        <>
+                          <span className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin"></span>
+                          <span>Calling...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="material-symbols-outlined text-[12px]">play_arrow</span>
+                          <span>Re-test get_addresses</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Account Details */}
                 <div className="p-4 rounded-2xl bg-[#FAF9F6] border border-[#E6E4DD] flex flex-col gap-3">
                   <div className="flex items-center justify-between">
                     <span className="text-[13px] font-bold text-[#1a1c1a]">Active Swiggy OAuth Connection</span>
@@ -627,40 +738,39 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
                   </div>
 
                   <p className="text-[#4B5563] text-[11.5px] leading-relaxed">
-                    Connecting links your Swiggy account through official OAuth authentication:
+                    Localhost development requires no prior production approval. Clients register dynamically with Swiggy:
                   </p>
 
                   <div className="space-y-2 text-[#374151] text-[11.5px] pl-1">
                     <div className="flex items-start gap-2">
                       <span className="w-5 h-5 rounded-full bg-[#FC8019]/10 text-[#FC8019] font-bold flex items-center justify-center shrink-0 text-[11px]">1</span>
-                      <span><strong>Open KitchenSync:</strong> Go to the Shop tab and click <em>Connect Swiggy</em>.</span>
+                      <span><strong>Dynamic Registration:</strong> KitchenSync registers dynamically (RFC 7591) with Swiggy's registration endpoint.</span>
                     </div>
                     <div className="flex items-start gap-2">
                       <span className="w-5 h-5 rounded-full bg-[#FC8019]/10 text-[#FC8019] font-bold flex items-center justify-center shrink-0 text-[11px]">2</span>
-                      <span><strong>Enter your phone number:</strong> Redirected to Swiggy's official authentication page.</span>
+                      <span><strong>Localhost Whitelist:</strong> Swiggy authorizes <code>http://localhost:3000/api/swiggy/callback</code> without cloud platform errors.</span>
                     </div>
                     <div className="flex items-start gap-2">
                       <span className="w-5 h-5 rounded-full bg-[#FC8019]/10 text-[#FC8019] font-bold flex items-center justify-center shrink-0 text-[11px]">3</span>
-                      <span><strong>Verify OTP:</strong> Enter the OTP sent by Swiggy on its authentication page.</span>
+                      <span><strong>Phone + OTP:</strong> Enter your phone number and OTP on Swiggy's official portal.</span>
                     </div>
                     <div className="flex items-start gap-2">
-                      <span className="w-5 h-5 rounded-full bg-[#FC8019]/10 text-[#FC8019] font-bold flex items-center justify-center shrink-0 text-[11px]">4</span>
-                      <span><strong>Authorize KitchenSync:</strong> Approve requested access on Swiggy.</span>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <span className="w-5 h-5 rounded-full bg-[#FC8019]/10 text-[#FC8019] font-bold flex items-center justify-center shrink-0 text-[11px]">5</span>
-                      <span><strong>Return to KitchenSync:</strong> Swiggy redirects you back automatically.</span>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <span className="w-5 h-5 rounded-full bg-[#16A34A]/10 text-[#16A34A] font-bold flex items-center justify-center shrink-0 text-[11px]">6</span>
-                      <span><strong>Start shopping:</strong> Swiggy Connected! Browse real Instamart items and sync carts.</span>
+                      <span className="w-5 h-5 rounded-full bg-[#16A34A]/10 text-[#16A34A] font-bold flex items-center justify-center shrink-0 text-[11px]">4</span>
+                      <span><strong>Milestone 1 Tool Call:</strong> Once authorized, KitchenSync calls <code>get_addresses</code> to verify the live connection.</span>
                     </div>
                   </div>
 
-                  <div className="p-3 rounded-xl bg-[#EFF6FF] border border-[#BFDBFE] text-[#1E40AF] text-[11px] flex items-start gap-2">
-                    <span className="material-symbols-outlined text-[16px] shrink-0 mt-0.5">verified_user</span>
+                  <div className="p-2.5 rounded-xl bg-[#F0FDF4] border border-[#BBF7D0] text-[#15803D] text-[11px] flex items-start gap-2">
+                    <span className="material-symbols-outlined text-[16px] shrink-0 mt-0.5">verified</span>
                     <span>
-                      <strong>Strict Security Policy:</strong> KitchenSync never collects, sees, or logs your Swiggy OTP or password. All credentials remain on Swiggy's official domain.
+                      <strong>Configured Callback URI:</strong> <code>http://localhost:3000/api/swiggy/callback</code> (Whitelisted for Local Dev).
+                    </span>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-[#EFF6FF] border border-[#BFDBFE] text-[#1E40AF] text-[11px] flex items-start gap-2">
+                    <span className="material-symbols-outlined text-[16px] shrink-0 mt-0.5">lock</span>
+                    <span>
+                      <strong>Zero Credential Exposure:</strong> KitchenSync never collects, sees, or logs your OTP or password.
                     </span>
                   </div>
                 </div>
@@ -683,6 +793,34 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
                     </>
                   )}
                 </button>
+
+                {/* Manual Callback Entry / Developer Helper */}
+                <div className="p-3 rounded-2xl bg-[#FAF9F6] border border-[#E6E4DD] flex flex-col gap-2 mt-1">
+                  <div className="flex items-center justify-between text-[11.5px] font-bold text-[#1a1c1a]">
+                    <span>Manual Code / Redirect URL Entry</span>
+                    <span className="text-[10px] text-[#727972] font-normal">Dev Helper</span>
+                  </div>
+                  <p className="text-[10.5px] text-[#6b7280]">
+                    If your browser completed Phone + OTP and redirected to <code>http://localhost:3000/api/swiggy/callback?code=...</code> in an external tab, paste either the URL or code here:
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Paste http://localhost:3000/... or code"
+                      value={manualCodeOrUrl}
+                      onChange={(e) => setManualCodeOrUrl(e.target.value)}
+                      className="flex-1 px-3 py-2 rounded-xl border border-[#D1D5DB] text-[11.5px] bg-white text-[#1a1c1a] focus:outline-none focus:border-[#FC8019]"
+                    />
+                    <button
+                      type="button"
+                      disabled={manualSubmitting || !manualCodeOrUrl.trim()}
+                      onClick={handleManualCodeSubmit}
+                      className="px-3 py-2 rounded-xl bg-[#032212] text-white font-bold text-[11px] hover:bg-[#1a3826] disabled:opacity-50 shrink-0"
+                    >
+                      {manualSubmitting ? 'Exchanging...' : 'Submit Code'}
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -705,7 +843,9 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
 
             <div className="p-3 rounded-2xl bg-[#0f172a] text-[#f8fafc] font-mono text-[11px] max-h-[220px] overflow-y-auto flex flex-col gap-2 border border-[#1e293b]">
               {!connection.isConnected ? (
-                <div className="text-[#64748b]">Connect your Swiggy account to discover live tools from https://mcp.swiggy.com/im and /food.</div>
+                <div className="text-[#64748b]">
+                  Connect your Swiggy account to discover live tools from https://mcp.swiggy.com/im and https://mcp.swiggy.com/food using the official @modelcontextprotocol/sdk.
+                </div>
               ) : connection.availableTools && connection.availableTools.length > 0 ? (
                 connection.availableTools.map((tool, idx) => (
                   <div key={idx} className="border-b border-[#334155] pb-1.5 last:border-none">

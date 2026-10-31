@@ -68,7 +68,27 @@ public class ShopDatabaseHelper extends SQLiteOpenHelper {
         onCreate(db);
     }
 
+    public synchronized boolean isDuplicate(String sender, long timestamp, String text) {
+        SQLiteDatabase db = getReadableDatabase();
+        // Check within +/- 5 seconds or exact text and sender
+        long timeWindow = 5000;
+        String query = "SELECT 1 FROM " + TABLE_MESSAGES + " WHERE " + COL_SENDER + " = ? AND " + COL_TEXT + " = ? AND abs(" + COL_TIMESTAMP + " - ?) < ?";
+        Cursor c = db.rawQuery(query, new String[]{sender, text, String.valueOf(timestamp), String.valueOf(timeWindow)});
+        boolean exists = false;
+        if (c != null) {
+            try {
+                exists = c.moveToFirst();
+            } finally {
+                c.close();
+            }
+        }
+        return exists;
+    }
+
     public synchronized long insertMessage(String source, String sender, String text, long timestamp) {
+        if (isDuplicate(sender, timestamp, text)) {
+            return -1;
+        }
         SQLiteDatabase db = getWritableDatabase();
         ContentValues cv = new ContentValues();
         cv.put(COL_SOURCE, source);
@@ -78,6 +98,11 @@ public class ShopDatabaseHelper extends SQLiteOpenHelper {
         cv.put(COL_SYNCED, 0);
         cv.put(COL_CREATED_AT, System.currentTimeMillis());
         return db.insert(TABLE_MESSAGES, null, cv);
+    }
+
+    public synchronized void deleteAllMessages() {
+        SQLiteDatabase db = getWritableDatabase();
+        db.delete(TABLE_MESSAGES, null, null);
     }
 
     public synchronized List<QueuedMessage> getUnsyncedMessages() {
