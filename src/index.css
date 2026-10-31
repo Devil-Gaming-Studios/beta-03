@@ -66,12 +66,20 @@ body {
   width: 100%;
   max-width: 100%;
   overflow-x: hidden;
+  overflow-y: auto;
   background-color: #faf9f6;
   color: #1a1c1a;
   font-family: 'Noto Sans', system-ui, -apple-system, sans-serif;
-  overscroll-behavior: none;
+  overscroll-behavior-y: auto;
+  -webkit-overflow-scrolling: touch;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
 }
 
 .no-scrollbar::-webkit-scrollbar {

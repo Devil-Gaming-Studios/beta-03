@@ -54,6 +54,8 @@ npm run build
 npm run start
 ```
 
+For microphone access from another phone or computer, open the app over **HTTPS** (for example, its deployed HTTPS URL or an HTTPS tunnel). Browsers allow microphone access on `localhost`, but a local-network address such as `http://192.168.x.x:3000` is not a secure context and will block the microphone. Also allow microphone permission for the site in that device's browser settings.
+
 ---
 
 ## Native Android App (`android/`)

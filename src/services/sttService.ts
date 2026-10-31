@@ -388,6 +388,14 @@ export class STTController {
     }
 
     const { preference, onInterim, onFinal, onError, onStatusChange, onVolumeChange } = options;
+    if (typeof window !== 'undefined' && window.isSecureContext === false) {
+      onStatusChange?.('idle');
+      onError(
+        'Microphone access requires a secure HTTPS connection on this device. Open the app using its HTTPS address; a local network HTTP address will not allow microphone access.'
+      );
+      return;
+    }
+
     this.isListening = true;
     this.accumulatedSentences = [];
     this.recordedText = '';
@@ -398,6 +406,8 @@ export class STTController {
     onStatusChange?.('listening');
 
     let streamObtained = false;
+    let recorderStarted = false;
+    let microphoneErrorMessage = '';
     const isEmbeddedIframe = typeof window !== 'undefined' && window.self !== window.top;
     const reqStartMs = Date.now();
 
@@ -482,6 +492,7 @@ export class STTController {
             };
 
             this.mediaRecorder.start(250);
+            recorderStarted = true;
           } catch (recErr) {
             console.warn('MediaRecorder init fallback:', recErr);
           }
@@ -490,10 +501,24 @@ export class STTController {
     } catch (micErr: any) {
       const elapsedMs = Date.now() - reqStartMs;
       const errMsg = String(micErr?.message || micErr || '');
+      const errorName = String(micErr?.name || '');
       console.warn('Microphone access error:', errMsg, `(${elapsedMs}ms)`);
-      this.micPermissionDenied = true;
+      this.micPermissionDenied = ['NotAllowedError', 'PermissionDeniedError', 'SecurityError'].includes(errorName);
       if (isEmbeddedIframe && (elapsedMs < 150 || /policy|not allowed by the user agent/i.test(errMsg))) {
         this.iframePolicyBlocked = true;
+      }
+      if (this.iframePolicyBlocked) {
+        microphoneErrorMessage =
+          'The embedded preview blocked microphone access. Open the app directly in a new tab and allow microphone access.';
+      } else if (this.micPermissionDenied) {
+        microphoneErrorMessage =
+          'Microphone permission is blocked for this site. Allow microphone access in your browser or device settings, then try again.';
+      } else if (errorName === 'NotFoundError' || errorName === 'DevicesNotFoundError') {
+        microphoneErrorMessage = 'No microphone was found. Connect or enable a microphone, then try again.';
+      } else if (errorName === 'NotReadableError' || errorName === 'AbortError') {
+        microphoneErrorMessage = 'The microphone is busy or unavailable. Close other apps using it and try again.';
+      } else {
+        microphoneErrorMessage = 'The browser could not access a microphone. Check the device and browser microphone settings.';
       }
     }
 
@@ -574,13 +599,13 @@ export class STTController {
       }
     }
 
-    if (!streamObtained && !recognitionStarted) {
+    if (!recorderStarted && !recognitionStarted) {
       this.isListening = false;
+      await this.stop();
       onStatusChange?.('idle');
       onError(
-        this.iframePolicyBlocked
-          ? 'The embedded preview frame blocked the microphone prompt. Please open the app in a new tab or use the quick suggestions below.'
-          : 'Microphone access is blocked. Please check your browser microphone permissions or use the quick suggestions.'
+        microphoneErrorMessage ||
+          'This browser cannot record microphone audio for transcription. Try the latest version of Chrome or Safari, or upload an audio recording instead.'
       );
     }
   }
