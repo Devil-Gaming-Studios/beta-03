@@ -14,7 +14,7 @@ export const SyncStatusBadge: React.FC<{ isHindi?: boolean }> = ({ isHindi }) =>
 
   const label: Record<string, string> = isHindi
     ? { off: 'सिंक बंद — टैप करें', idle: 'सिंक हो गया', syncing: 'सिंक हो रहा है…', offline: 'ऑफ़लाइन — बाद में सिंक होगा', error: 'सिंक त्रुटि' }
-    : { off: 'Sync off — tap to link', idle: 'Synced', syncing: 'Syncing…', offline: 'Offline — will sync later', error: 'Sync error' };
+    : { off: 'Not connected — tap to connect', idle: 'Saved', syncing: 'Saving…', offline: 'Offline — will save when back online', error: 'Couldn’t save' };
   const dot: Record<string, string> = {
     off: 'bg-[#9aa09a]', idle: 'bg-[#137333]', syncing: 'bg-[#d97706] animate-pulse', offline: 'bg-[#d97706]', error: 'bg-[#b91c1c]',
   };
@@ -31,8 +31,8 @@ export const SyncStatusBadge: React.FC<{ isHindi?: boolean }> = ({ isHindi }) =>
     if (r.ok) { setOpen(false); setPassword(''); return; }
     setMsg(
       /wrong password/i.test(r.error || '')
-        ? (isHindi ? 'इस ईमेल का सिंक खाता पहले से है, पर पासवर्ड अलग है। जिस पासवर्ड से वह बनाया था वही डालें।' : 'A sync account already exists for this email with a different password. Enter the password you used when you first created it.')
-        : r.error || (isHindi ? 'लिंक नहीं हो सका' : 'Could not link')
+        ? (isHindi ? 'इस ईमेल का सिंक खाता पहले से है, पर पासवर्ड अलग है। जिस पासवर्ड से वह बनाया था वही डालें।' : 'An account already exists for this email with a different password. Enter the password you used when you first created it.')
+        : r.error || (isHindi ? 'लिंक नहीं हो सका' : 'Couldn’t connect')
     );
   };
 
@@ -41,7 +41,7 @@ export const SyncStatusBadge: React.FC<{ isHindi?: boolean }> = ({ isHindi }) =>
       <button
         type="button"
         onClick={() => (status === 'off' ? setOpen((o) => !o) : syncClient.syncNow())}
-        title={error || (lastSyncAt ? `Last synced ${new Date(lastSyncAt).toLocaleTimeString()}` : 'Tap to sync now')}
+        title={error || (lastSyncAt ? `Last saved ${new Date(lastSyncAt).toLocaleTimeString()}` : 'Tap to save now')}
         className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-[#E6E4DD] bg-white text-[11.5px] font-semibold text-[#1A3826] cursor-pointer"
       >
         <span className={`w-2 h-2 rounded-full ${dot[status]}`} />
@@ -66,7 +66,7 @@ export const SyncStatusBadge: React.FC<{ isHindi?: boolean }> = ({ isHindi }) =>
             disabled={busy || !password}
             className="py-2 rounded-xl bg-[#1A3826] text-white text-[12.5px] font-bold disabled:opacity-60 cursor-pointer"
           >
-            {busy ? (isHindi ? 'लिंक हो रहा है…' : 'Linking…') : (isHindi ? 'इस डिवाइस को सिंक से जोड़ें' : 'Link this device to sync')}
+            {busy ? (isHindi ? 'लिंक हो रहा है…' : 'Connecting…') : (isHindi ? 'इस डिवाइस को सिंक से जोड़ें' : 'Connect this device')}
           </button>
         </form>
       )}

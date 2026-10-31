@@ -93,7 +93,7 @@ export const ScanModal: React.FC<ScanModalProps> = ({
     setErrorMessage(null);
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('Camera API is not available in this browser frame.');
+        throw new Error('Camera isn’t available in this browser.');
       }
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment' },
@@ -200,8 +200,8 @@ export const ScanModal: React.FC<ScanModalProps> = ({
     setErrorMessage(null);
     setStatusMessage(
       type === 'receipt'
-        ? 'Running Gemini Vision OCR on receipt lines & quantities...'
-        : 'Analyzing fridge/pantry photo with Gemini Vision...'
+        ? 'Reading the items & quantities on your bill...'
+        : 'Looking at your fridge/pantry photo...'
     );
 
     try {
@@ -231,7 +231,7 @@ export const ScanModal: React.FC<ScanModalProps> = ({
       setStatusMessage(null);
     } catch (err: any) {
       console.error('OCR Scan error:', err);
-      setErrorMessage(err.message || 'Failed to analyze image with Gemini Vision.');
+      setErrorMessage(err.message || 'Couldn’t read this photo. Please try again.');
       setStatusMessage(null);
     } finally {
       setIsScanning(false);
@@ -344,7 +344,7 @@ export const ScanModal: React.FC<ScanModalProps> = ({
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
                 <h3 className="text-[15px] sm:text-[17px] font-bold text-[#1a1c1a] truncate">
-                  {isHindi ? 'रियल AI रसीद व फ्रिज स्कैनर' : 'Real Gemini Vision OCR'}
+                  {isHindi ? 'रियल AI रसीद व फ्रिज स्कैनर' : 'Smart Bill Reader'}
                 </h3>
                 <span className="px-1.5 py-0.5 rounded-full bg-[#E8F0EC] text-[#137333] text-[9.5px] sm:text-[10px] font-bold border border-[#137333]/20 shrink-0">
                   Live OCR
@@ -379,7 +379,7 @@ export const ScanModal: React.FC<ScanModalProps> = ({
                 onClick={() => setScanType('receipt')}
               >
                 <span className="material-symbols-outlined text-[18px]">receipt_long</span>
-                {isHindi ? 'किराना रसीद (Receipt OCR)' : 'Grocery Receipt OCR'}
+                {isHindi ? 'किराना रसीद (Receipt OCR)' : 'Grocery Bill Scan'}
               </button>
               <button
                 type="button"
@@ -412,7 +412,7 @@ export const ScanModal: React.FC<ScanModalProps> = ({
                     className="flex-1 py-2.5 px-4 rounded-xl bg-[#1A3826] text-white text-[13px] font-bold flex items-center justify-center gap-1.5 cursor-pointer hover:bg-[#132a1d]"
                   >
                     <span className="material-symbols-outlined text-[18px]">photo_camera</span>
-                    <span>Capture &amp; Run OCR</span>
+                    <span>Capture &amp; Read Bill</span>
                   </button>
                   <button
                     type="button"
@@ -440,7 +440,7 @@ export const ScanModal: React.FC<ScanModalProps> = ({
                   <span className="text-[12px] text-[#424843] max-w-sm">
                     {scanType === 'receipt'
                       ? 'Supports Blinkit, Zepto, Swiggy Instamart, DMart, BigBasket screenshots, paper bills, or handwritten lists. You can also press Ctrl+V / Cmd+V to paste an image.'
-                      : 'Upload a photo of your open fridge, vegetable basket, or pantry shelf. Gemini Vision detects items and estimates quantities.'}
+                      : 'Upload a photo of your open fridge, vegetable basket, or pantry shelf. AI spots the items and estimates quantities.'}
                   </span>
                 </div>
 
@@ -541,7 +541,7 @@ export const ScanModal: React.FC<ScanModalProps> = ({
               <div className="flex-1 min-w-0">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <span className="text-[14px] font-bold text-[#1a1c1a] truncate">
-                    {scanMeta?.merchantOrSource || 'OCR Results'}
+                    {scanMeta?.merchantOrSource || 'Items Found'}
                   </span>
                   <span className="px-2 py-0.5 rounded-full bg-[#E8F0EC] text-[#1E4620] text-[10.5px] font-bold">
                     {items.length} {items.length === 1 ? 'item' : 'items'} extracted

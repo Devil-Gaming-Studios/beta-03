@@ -344,8 +344,8 @@ export const CommunityScreen: React.FC<CommunityScreenProps> = ({ isHindi, onVie
                   </span>
                   <span>
                     {selectedRecipe
-                      ? (isHindi ? 'रेसिपी जुड़ी है' : 'Recipe Linked')
-                      : (isHindi ? 'रेसिपी जोड़ें' : 'Link Recipe')}
+                      ? (isHindi ? 'रेसिपी जुड़ी है' : 'Recipe Attached')
+                      : (isHindi ? 'रेसिपी जोड़ें' : 'Attach Recipe')}
                   </span>
                 </button>
               </div>
@@ -536,7 +536,7 @@ export const CommunityScreen: React.FC<CommunityScreenProps> = ({ isHindi, onVie
                   menu_book
                 </span>
                 <h3 className="text-[15px] font-bold text-[#1a1c1a]">
-                  {isHindi ? 'रेसिपी चुनें' : 'Link Recipe from KitchenSync'}
+                  {isHindi ? 'रेसिपी चुनें' : 'Attach a Recipe from KitchenSync'}
                 </h3>
               </div>
               <button

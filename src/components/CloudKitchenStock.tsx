@@ -48,7 +48,7 @@ export const CloudKitchenStock: React.FC<CloudKitchenStockProps> = ({ isHindi })
     }
 
     store.logWastage(wasteIngId, wasteQty, wasteUnit, wasteReason, wasteCost, wasteNotes, householdId);
-    showToast(isHindi ? 'वेस्टेज दर्ज की गई और स्टॉक कम हुआ!' : 'Wastage logged and stock deducted!');
+    showToast(isHindi ? 'वेस्टेज दर्ज की गई और स्टॉक कम हुआ!' : 'Wastage recorded and stock updated!');
     setShowWastageModal(false);
     setWasteNotes('');
     setRefreshKey((k) => k + 1);
@@ -75,13 +75,13 @@ export const CloudKitchenStock: React.FC<CloudKitchenStockProps> = ({ isHindi })
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-[24px] text-[#1A3826]">inventory_2</span>
             <h1 className="text-[20px] font-bold text-[#1a1c1a]">
-              {isHindi ? 'फूड बिज़नेस स्टॉक और ऑडिट लेजर' : 'Commercial Stock & Audit Ledger'}
+              {isHindi ? 'फूड बिज़नेस स्टॉक और ऑडिट लेजर' : 'Stock & Change History'}
             </h1>
           </div>
           <p className="text-[12px] text-[#727972] mt-0.5">
             {isHindi
               ? 'ऑर्डर रिजर्वेशन, बैच कटौतियाँ और अपरिहार्य लेजर ऑडिट'
-              : 'Follow-the-work inventory tracking, par levels, reservations & immutable change ledger'}
+              : 'Stock that updates as you cook, minimum levels, reserved items & a full change history'}
           </p>
         </div>
 
@@ -118,7 +118,7 @@ export const CloudKitchenStock: React.FC<CloudKitchenStockProps> = ({ isHindi })
         </div>
       </div>
 
-      {/* Sub Tabs: Inventory vs Audit Ledger vs Wastage */}
+      {/* Sub Tabs: Inventory vs Change History vs Wastage */}
       <div className="flex border-b border-[#E6E4DD] gap-4 text-[13px] font-bold">
         <button
           type="button"
@@ -130,7 +130,7 @@ export const CloudKitchenStock: React.FC<CloudKitchenStockProps> = ({ isHindi })
           }`}
         >
           <span className="material-symbols-outlined text-[17px]">inventory</span>
-          <span>{isHindi ? 'वर्तमान स्टॉक' : 'Inventory Levels'}</span>
+          <span>{isHindi ? 'वर्तमान स्टॉक' : 'Stock Levels'}</span>
         </button>
 
         <button
@@ -143,7 +143,7 @@ export const CloudKitchenStock: React.FC<CloudKitchenStockProps> = ({ isHindi })
           }`}
         >
           <span className="material-symbols-outlined text-[17px]">history_edu</span>
-          <span>{isHindi ? 'ऑडिट लेजर (Audit Trail)' : 'Audit Ledger'}</span>
+          <span>{isHindi ? 'ऑडिट लेजर (Audit Trail)' : 'Change History'}</span>
           <span className="text-[10px] bg-gray-100 text-[#424843] px-1.5 py-0.2 rounded-full">
             {ledger.length}
           </span>
@@ -250,7 +250,7 @@ export const CloudKitchenStock: React.FC<CloudKitchenStockProps> = ({ isHindi })
                   <th className="py-3 px-4">Balance After</th>
                   <th className="py-3 px-4">Reason</th>
                   <th className="py-3 px-4">Performed By</th>
-                  <th className="py-3 px-4">Notes / Linked ID</th>
+                  <th className="py-3 px-4">Notes / Order Reference</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#F0EFEA]">
@@ -414,7 +414,7 @@ export const CloudKitchenStock: React.FC<CloudKitchenStockProps> = ({ isHindi })
                   className="w-full px-3 py-2 rounded-xl border border-[#E6E4DD] text-[12px] bg-[#FAF9F6]"
                 >
                   <option value="spoilage">Spoilage / Expired / Bruised</option>
-                  <option value="spill">Spill / Preparation Drop</option>
+                  <option value="spill">Spillage / Prep Waste</option>
                   <option value="staff_meal">Staff Meal Consumption</option>
                   <option value="customer_return">Customer Return / Replaced Dish</option>
                 </select>

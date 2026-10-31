@@ -132,7 +132,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         setQuickAddNotice(`"${meal.title}" is already marked as cooked!`);
       } else {
         setQuickAddNotice(
-          `Marked "${meal.title}" as Cooked! Deducted: ${res.deductions || 'kitchen stock'}`
+          `Marked "${meal.title}" as Cooked! Used from stock: ${res.deductions || 'kitchen stock'}`
         );
       }
       refresh();
@@ -220,7 +220,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#eeeeea] text-[#1a1c1a] border border-[#E6E4DD] shrink-0">
             <span
               className="w-2 h-2 rounded-full bg-[#1A3826] animate-pulse shrink-0"
-              title="Live DB Synced"
+              title="Up to date"
             ></span>
             <span className="text-[13px] font-semibold truncate max-w-[200px]">
               {me.household.name}
@@ -432,7 +432,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                     {!hasMissing ? (
                       <span className="px-2 py-0.5 rounded-full bg-[#E8F0EC] text-[#1E4620] text-[11px] font-semibold flex items-center gap-1 border border-[#D1E2D7]">
                         <span className="material-symbols-outlined text-[13px]">check_circle</span>{' '}
-                        {isDone ? 'Stock Deducted' : 'Stock OK'}
+                        {isDone ? 'Used from Stock' : 'Stock OK'}
                       </span>
                     ) : (
                       <span className="px-2 py-0.5 rounded-full bg-[#FAF6F0] text-[#B45309] text-[11px] font-semibold flex items-center gap-1 border border-[#E9E1D6]">
@@ -676,7 +676,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </div>
             <div className="flex flex-col">
               <span className="text-[13px] font-bold text-[#1a1c1a]">Scan Receipt</span>
-              <span className="text-[11px] text-[#424843]">Blinkit / Zepto Bill OCR</span>
+              <span className="text-[11px] text-[#424843]">Scan Blinkit / Zepto Bill</span>
             </div>
           </button>
 
@@ -723,7 +723,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </div>
           </button>
 
-          {/* Action 4: AI Leftovers */}
+          {/* Action 4: Leftover Ideas */}
           <button
             className="p-4 rounded-xl bg-[#1A3826] text-left flex flex-col justify-between gap-3 border border-[#1A3826] hover:bg-[#132a1d] active:scale-95 transition-all min-h-[96px] shadow-xs text-white"
             type="button"
@@ -733,7 +733,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               <span className="material-symbols-outlined text-[20px]">auto_awesome</span>
             </div>
             <div className="flex flex-col">
-              <span className="text-[13px] font-bold text-white">AI Leftovers</span>
+              <span className="text-[13px] font-bold text-white">Leftover Ideas</span>
               <span className="text-[11px] text-white/80">बचे खाने से नई डिश</span>
             </div>
           </button>

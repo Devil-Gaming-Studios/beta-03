@@ -73,7 +73,7 @@ export const CloudKitchenMenu: React.FC<CloudKitchenMenuProps> = ({ isHindi }) =
           <p className="text-[12px] text-[#727972] mt-0.5">
             {isHindi
               ? 'व्यंजनों का मूल्य, फूड कॉस्ट, ग्रॉस मार्जिन %, और ऑटो सोल्ड-आउट'
-              : 'Linked to recipes, cost-per-portion, yield scaling, variants & auto sold-out'}
+              : 'Linked to recipes, cost per portion, portion sizes, variants & automatic sold-out'}
           </p>
         </div>
 
@@ -191,7 +191,7 @@ export const CloudKitchenMenu: React.FC<CloudKitchenMenuProps> = ({ isHindi }) =
                     </span>
 
                     <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-[#F4F3EE] text-[#424843]">
-                      {item.cook_method === 'batch' ? 'Batch Cook' : 'Cook to Order'}
+                      {item.cook_method === 'batch' ? 'Bulk Cook' : 'Cook to Order'}
                     </span>
                   </div>
 
@@ -238,7 +238,7 @@ export const CloudKitchenMenu: React.FC<CloudKitchenMenuProps> = ({ isHindi }) =
                     <strong className="text-[14px] text-[#5A605B]">₹{item.cost_inr}</strong>
                   </div>
                   <div>
-                    <span className="text-[10px] text-[#727972] block">Gross Margin</span>
+                    <span className="text-[10px] text-[#727972] block">Profit Margin</span>
                     <strong className={`text-[14px] font-extrabold ${isLowMargin ? 'text-amber-700' : 'text-emerald-700'}`}>
                       {margin}% {isLowMargin && '⚠️'}
                     </strong>
@@ -275,7 +275,7 @@ export const CloudKitchenMenu: React.FC<CloudKitchenMenuProps> = ({ isHindi }) =
                     className="px-3 py-1.5 rounded-lg border border-[#E6E4DD] hover:bg-gray-50 text-[11px] font-bold text-[#424843] flex items-center gap-1 cursor-pointer"
                   >
                     <span className="material-symbols-outlined text-[14px]">edit</span>
-                    <span>Edit Price &amp; Yield</span>
+                    <span>Edit Price &amp; Portions</span>
                   </button>
                 </div>
               )}
@@ -344,12 +344,12 @@ export const CloudKitchenMenu: React.FC<CloudKitchenMenuProps> = ({ isHindi }) =
                     onChange={(e) => setShowEditModal({ ...showEditModal, cook_method: e.target.value as MenuItemCookMethod })}
                     className="w-full px-3 py-2 rounded-xl border border-[#E6E4DD] text-[12px] bg-[#FAF9F6]"
                   >
-                    <option value="batch">Batch Cook (Biryani, Dal)</option>
+                    <option value="batch">Bulk Cook (Biryani, Dal)</option>
                     <option value="to_order">Cook to Order (Roti, Fresh Tadka)</option>
                   </select>
                 </div>
                 <div>
-                  <label className="font-bold text-[#424843] block mb-1">Batch Yield (Portions)</label>
+                  <label className="font-bold text-[#424843] block mb-1">Portions per Batch</label>
                   <input
                     type="number"
                     value={showEditModal.yield_per_batch}

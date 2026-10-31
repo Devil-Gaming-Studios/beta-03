@@ -26,7 +26,7 @@ const STATUS_COLUMNS: {
 }[] = [
   { status: 'new', labelEn: 'New Orders', labelHi: 'नए ऑर्डर्स', color: 'text-amber-800 border-amber-300', bgLight: 'bg-amber-50', icon: 'new_releases' },
   { status: 'accepted', labelEn: 'Accepted', labelHi: 'स्वीकृत (Reserved)', color: 'text-blue-800 border-blue-300', bgLight: 'bg-blue-50', icon: 'check_circle' },
-  { status: 'preparing', labelEn: 'Cooking / In Prep', labelHi: 'तैयार हो रहा है', color: 'text-purple-800 border-purple-300', bgLight: 'bg-purple-50', icon: 'skillet' },
+  { status: 'preparing', labelEn: 'Cooking / Being Prepared', labelHi: 'तैयार हो रहा है', color: 'text-purple-800 border-purple-300', bgLight: 'bg-purple-50', icon: 'skillet' },
   { status: 'ready', labelEn: 'Ready / Packing', labelHi: 'तैयार / पैकिंग', color: 'text-emerald-800 border-emerald-300', bgLight: 'bg-emerald-50', icon: 'inventory' },
   { status: 'delivered', labelEn: 'Delivered', labelHi: 'डिलीवर हो गया', color: 'text-gray-700 border-gray-300', bgLight: 'bg-gray-100', icon: 'done_all' },
 ];
@@ -166,10 +166,10 @@ export const CloudKitchenHome: React.FC<CloudKitchenHomeProps> = ({
     );
 
     if (!res.success) {
-      showToast(res.error || 'Stock shortage! Check required ingredients.');
+      showToast(res.error || 'Not enough ingredients! Please check.');
       setAnnounceOverride(true);
     } else {
-      showToast(isHindi ? `बैच शुरू: ${announcePortions} पोर्शन तैयार!` : `Batch announced: ${announcePortions} portions!`);
+      showToast(isHindi ? `बैच शुरू: ${announcePortions} पोर्शन तैयार!` : `Cooking started: ${announcePortions} portions!`);
       setShowAnnounceModal(false);
       setAnnounceOverride(false);
       setAnnounceOverrideReason('');
@@ -198,14 +198,14 @@ export const CloudKitchenHome: React.FC<CloudKitchenHomeProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-[17px] font-bold text-[#1a1c1a] tracking-tight">
-                {me.household.name || 'Food Business Live Ops'}
+                {me.household.name || 'Food Business Today'}
               </h1>
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
                 ● LIVE
               </span>
             </div>
             <p className="text-[11.5px] text-[#727972]">
-              {isHindi ? 'ऑर्डर्स, बैच कुकिंग और KDS डिस्प्ले' : 'Real-time KDS, Cook-to-Order & Inventory Follow-the-Work'}
+              {isHindi ? 'ऑर्डर्स, बैच कुकिंग और KDS डिस्प्ले' : 'Live order screen, cook-to-order and automatic stock updates'}
             </p>
           </div>
         </div>
@@ -254,13 +254,13 @@ export const CloudKitchenHome: React.FC<CloudKitchenHomeProps> = ({
             {isHindi ? 'सक्रिय ऑर्डर्स' : 'Active Orders'}
           </span>
           <span className="text-[22px] font-bold text-[#1a1c1a] mt-0.5">{activeOrders.length}</span>
-          <span className="text-[9.5px] text-amber-700 font-medium">In KDS Prep Queue</span>
+          <span className="text-[9.5px] text-amber-700 font-medium">On the kitchen screen</span>
         </div>
 
         <div className="bg-white p-3 rounded-2xl border border-[#E6E4DD] shadow-xs flex flex-col">
           <span className="text-[11px] text-[#727972] font-medium flex items-center gap-1">
             <span className="material-symbols-outlined text-[15px] text-purple-600">soup_kitchen</span>
-            {isHindi ? 'पकाए जा रहे बैच' : 'Cooking Batches'}
+            {isHindi ? 'पकाए जा रहे बैच' : 'Bulk Cooking'}
           </span>
           <span className="text-[22px] font-bold text-[#1a1c1a] mt-0.5">{batches.length}</span>
           <span className="text-[9.5px] text-purple-700 font-medium">Portions tracked live</span>
@@ -281,7 +281,7 @@ export const CloudKitchenHome: React.FC<CloudKitchenHomeProps> = ({
             {isHindi ? 'स्टॉक कमी चेतावनी' : 'Stock Alerts'}
           </span>
           <span className="text-[22px] font-bold text-rose-700 mt-0.5">{lowStockCount}</span>
-          <span className="text-[9.5px] text-rose-700 font-medium">SKUs near reorder point</span>
+          <span className="text-[9.5px] text-rose-700 font-medium">Items running low</span>
         </div>
       </div>
 
@@ -293,7 +293,7 @@ export const CloudKitchenHome: React.FC<CloudKitchenHomeProps> = ({
           className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-[#1A3826] hover:bg-[#142d1e] text-white text-[12.5px] font-bold flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-95 transition-all"
         >
           <span className="material-symbols-outlined text-[18px]">skillet</span>
-          <span>{isHindi ? '🍳 मैं क्या बना रहा हूँ (बैच)' : '🍳 Announce Cooking (Batch)'}</span>
+          <span>{isHindi ? '🍳 मैं क्या बना रहा हूँ (बैच)' : '🍳 Start Bulk Cooking'}</span>
         </button>
 
         <button
@@ -302,7 +302,7 @@ export const CloudKitchenHome: React.FC<CloudKitchenHomeProps> = ({
           className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-white hover:bg-gray-50 text-[#1a1c1a] border border-[#E6E4DD] text-[12.5px] font-bold flex items-center justify-center gap-2 shadow-xs cursor-pointer active:scale-95 transition-all"
         >
           <span className="material-symbols-outlined text-[18px] text-[#1A3826]">add_circle</span>
-          <span>{isHindi ? '➕ नया मैनुअल ऑर्डर' : '➕ New Manual Order'}</span>
+          <span>{isHindi ? '➕ नया मैनुअल ऑर्डर' : '➕ Add an Order'}</span>
         </button>
 
         <button
@@ -321,7 +321,7 @@ export const CloudKitchenHome: React.FC<CloudKitchenHomeProps> = ({
           className="px-3 py-2.5 rounded-xl bg-white hover:bg-gray-50 text-[#424843] border border-[#E6E4DD] text-[12px] font-semibold flex items-center justify-center gap-1.5 shadow-xs cursor-pointer active:scale-95 transition-all"
         >
           <span className="material-symbols-outlined text-[17px]">inventory_2</span>
-          <span>{isHindi ? 'स्टॉक व लेजर' : 'Stock & Ledger'}</span>
+          <span>{isHindi ? 'स्टॉक व लेजर' : 'Stock & History'}</span>
         </button>
       </div>
 
@@ -331,7 +331,7 @@ export const CloudKitchenHome: React.FC<CloudKitchenHomeProps> = ({
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-[20px] text-[#1A3826]">view_kanban</span>
             <h2 className="text-[15px] font-bold text-[#1a1c1a]">
-              {isHindi ? 'किचन डिस्प्ले सिस्टम (Live KDS Queue)' : 'Live Kitchen Display (KDS Prep Queue)'}
+              {isHindi ? 'किचन डिस्प्ले सिस्टम (Live KDS Queue)' : 'Live Kitchen Screen (Orders to Prepare)'}
             </h2>
           </div>
           <span className="text-[11px] text-[#727972]">
@@ -500,7 +500,7 @@ export const CloudKitchenHome: React.FC<CloudKitchenHomeProps> = ({
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-[19px] text-[#1A3826]">soup_kitchen</span>
             <h2 className="text-[14px] font-bold text-[#1a1c1a]">
-              {isHindi ? 'सक्रिय बैच (Cooking Now & Pools)' : 'Active Batches & Cooked Portions Available'}
+              {isHindi ? 'सक्रिय बैच (Cooking Now & Pools)' : 'Cooking Now & Portions Ready'}
             </h2>
           </div>
           <button
@@ -542,7 +542,7 @@ export const CloudKitchenHome: React.FC<CloudKitchenHomeProps> = ({
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-[22px] text-[#1A3826]">receipt_long</span>
                 <h3 className="text-[16px] font-bold text-[#1a1c1a]">
-                  {isHindi ? 'नया मैनुअल ऑर्डर दर्ज करें' : 'Create Manual Order (KOT)'}
+                  {isHindi ? 'नया मैनुअल ऑर्डर दर्ज करें' : 'Add an Order (Kitchen Slip)'}
                 </h3>
               </div>
               <button
@@ -730,7 +730,7 @@ export const CloudKitchenHome: React.FC<CloudKitchenHomeProps> = ({
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-[22px] text-[#1A3826]">skillet</span>
                 <h3 className="text-[16px] font-bold text-[#1a1c1a]">
-                  {isHindi ? 'मैं क्या बना रहा हूँ (बैच उत्पादन)' : 'Announce Cooking Batch'}
+                  {isHindi ? 'मैं क्या बना रहा हूँ (बैच उत्पादन)' : 'Start Bulk Cooking'}
                 </h3>
               </div>
               <button
@@ -754,7 +754,7 @@ export const CloudKitchenHome: React.FC<CloudKitchenHomeProps> = ({
                 >
                   {menuItems.map((m) => (
                     <option key={m.id} value={m.id}>
-                      {m.name} ({m.cook_method === 'batch' ? 'Batch Dish' : 'To Order'})
+                      {m.name} ({m.cook_method === 'batch' ? 'Bulk Dish' : 'To Order'})
                     </option>
                   ))}
                 </select>
@@ -824,7 +824,7 @@ export const CloudKitchenHome: React.FC<CloudKitchenHomeProps> = ({
 
               {announceOverride && (
                 <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-900 flex flex-col gap-1">
-                  <span className="font-bold">⚠️ Stock Shortage Override:</span>
+                  <span className="font-bold">⚠️ Continue Anyway (Owner Approval):</span>
                   <input
                     type="text"
                     value={announceOverrideReason}
@@ -863,7 +863,7 @@ export const CloudKitchenHome: React.FC<CloudKitchenHomeProps> = ({
               <h2 className="text-[17px] font-black uppercase tracking-wider text-[#1a1c1a]">
                 {me.household.name || 'MAST MEALS FOOD BUSINESS'}
               </h2>
-              <div className="text-[11px] text-gray-600">KITCHEN ORDER TICKET (KOT)</div>
+              <div className="text-[11px] text-gray-600">KITCHEN ORDER SLIP</div>
               <div className="text-[15px] font-black mt-1 text-[#1A3826]">
                 ORDER #{showKOTModal.order_number}
               </div>
@@ -909,7 +909,7 @@ export const CloudKitchenHome: React.FC<CloudKitchenHomeProps> = ({
                 type="button"
                 onClick={async () => {
                   const kotText = [
-                    `🍳 KOT / ORDER #${showKOTModal.id.slice(-6).toUpperCase()}`,
+                    `🍳 KITCHEN SLIP / ORDER #${showKOTModal.id.slice(-6).toUpperCase()}`,
                     `Customer: ${showKOTModal.customer_name} ${showKOTModal.customer_phone ? `(${showKOTModal.customer_phone})` : ''}`,
                     `Source: ${showKOTModal.source.toUpperCase()} | Scheduled: ${showKOTModal.scheduled_time}`,
                     '---------------------------',
@@ -919,7 +919,7 @@ export const CloudKitchenHome: React.FC<CloudKitchenHomeProps> = ({
                     showKOTModal.notes ? `Note: ${showKOTModal.notes}` : '',
                   ].filter(Boolean).join('\n');
 
-                  const shared = await shareNative(kotText, `KOT Order #${showKOTModal.id.slice(-6).toUpperCase()}`);
+                  const shared = await shareNative(kotText, `Kitchen Slip #${showKOTModal.id.slice(-6).toUpperCase()}`);
                   if (shared) showToast('KOT shared successfully');
                 }}
                 className="flex-1 py-2 rounded-xl bg-[#047857] text-white text-[12px] font-bold flex items-center justify-center gap-1 shadow-xs hover:bg-[#065f46]"

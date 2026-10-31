@@ -45,6 +45,8 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({ isHindi }) => {
   };
 
   useEffect(() => {
+    // Auto-update: bring shortages and the list in line with the current meal plan every time Shop opens
+    store.refreshPlanShortages();
     refreshList();
     checkSwiggyStatus();
 
@@ -72,7 +74,7 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({ isHindi }) => {
         setTimeout(() => setNotice(null), 5000);
       } else if (event.data?.type === 'SWIGGY_AUTH_ERROR') {
         setSwiggyConnecting(false);
-        setNotice(`⚠️ Swiggy authorization error: ${event.data.error || 'Failed'}`);
+        setNotice(`⚠️ Swiggy sign-in error: ${event.data.error || 'Failed'}`);
         setTimeout(() => setNotice(null), 5000);
       }
     };
@@ -147,7 +149,7 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({ isHindi }) => {
       setNotice(
         generated.length === 0
           ? 'All planned meal ingredients are in stock! Zero missing items.'
-          : `Computed ${generated.length} shortfall item(s) from weekly meal plan!`
+          : `Found ${generated.length} item(s) you need for this week’s meals!`
       );
       setTimeout(() => setNotice(null), 3500);
     } finally {
@@ -159,7 +161,7 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({ isHindi }) => {
     const res = store.restockAllMissingItems();
     setItems([...res.shoppingList]);
     setNotice(
-      `Restocked ${res.appliedItems.length} item(s) into Kitchen Stock! Missing items cleared.`
+      `Added ${res.appliedItems.length} item(s) to Kitchen Stock! Shopping list cleared.`
     );
     setTimeout(() => setNotice(null), 4000);
   };
@@ -214,7 +216,7 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({ isHindi }) => {
               {isHindi ? 'खरीदारी सूची' : 'Shopping List & Deals'}
             </h1>
             <p className="text-[12px] text-[#424843]">
-              {isHindi ? 'प्लान की कमी से स्वचालित सूची और मूल्य तुलना' : 'Auto-computed from meal plan shortfalls'}
+              {isHindi ? 'प्लान की कमी से स्वचालित सूची और मूल्य तुलना' : 'Made automatically from your meal plan'}
             </p>
           </div>
 
@@ -238,7 +240,7 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({ isHindi }) => {
               <span className={`material-symbols-outlined text-[18px] ${loading ? 'animate-spin' : ''}`}>
                 refresh
               </span>
-              <span>{isHindi ? 'अपडेट करें' : 'Compute Plan'}</span>
+              <span>{isHindi ? 'अपडेट करें' : 'Update List'}</span>
             </button>
           </div>
         </div>
@@ -446,8 +448,8 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({ isHindi }) => {
               </div>
               <p className="text-[12px] text-[#424843] mt-0.5">
                 {swiggyConnection.isConnected
-                  ? `Authenticated as ${swiggyConnection.userProfile?.name || 'Swiggy User'} • ${swiggyConnection.availableTools?.length || 0} MCP tools active`
-                  : 'Official Swiggy OAuth 2.1 + PKCE connection using your registered phone number & OTP'}
+                  ? `Signed in as ${swiggyConnection.userProfile?.name || 'Swiggy User'} • Ready to use`
+                  : 'Secure Swiggy sign-in using your registered phone number & OTP'}
               </p>
             </div>
           </div>
@@ -499,7 +501,7 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({ isHindi }) => {
         {!swiggyConnection.isConnected && (
           <div className="bg-[#FAF9F6] border border-[#E6E4DD] rounded-xl p-3 text-[11.5px] text-[#424843] flex flex-col gap-2">
             <div className="font-bold text-[#1a1c1a] flex items-center justify-between">
-              <span>Official Connection Flow:</span>
+              <span>How to Connect:</span>
               <button
                 type="button"
                 onClick={() => setIsSwiggyModalOpen(true)}
@@ -523,11 +525,11 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({ isHindi }) => {
               </div>
               <div className="flex items-start gap-1.5">
                 <span className="w-4 h-4 rounded-full bg-[#FC8019] text-white font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">4</span>
-                <span>Authorize KitchenSync</span>
+                <span>Allow KitchenSync</span>
               </div>
               <div className="flex items-start gap-1.5">
                 <span className="w-4 h-4 rounded-full bg-[#FC8019] text-white font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">5</span>
-                <span>Automatic return redirect</span>
+                <span>You’ll come back here automatically</span>
               </div>
               <div className="flex items-start gap-1.5">
                 <span className="w-4 h-4 rounded-full bg-[#16A34A] text-white font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">6</span>
