@@ -12,7 +12,6 @@ import { RecipeModal } from './components/RecipeModal';
 import { ScanModal } from './components/ScanModal';
 import { OnboardingScreen } from './components/OnboardingScreen';
 import { store } from './services/store';
-
 import { DietPreference, MealSlot } from './types';
 
 export const App: React.FC = () => {

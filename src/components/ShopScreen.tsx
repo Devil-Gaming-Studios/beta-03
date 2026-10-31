@@ -185,14 +185,14 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({ isHindi }) => {
         </section>
       )}
 
-      {/* Price Comparison Table Matrix (Spec 2.8) */}
+      {/* Quick-Commerce Benchmark Price Comparison (Spec 2.8) */}
       <section className="flex flex-col gap-2.5">
         <div className="flex items-center justify-between">
           <h2 className="text-[14px] font-bold text-[#1a1c1a]">
-            Price Comparison Matrix
+            Estimated Quick-Commerce Price Benchmarks
           </h2>
           <span className="text-[11px] text-[#727972]">
-            As of: {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            Regional estimates • Live scrapers disabled pending partner approval
           </span>
         </div>
 

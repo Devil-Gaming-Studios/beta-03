@@ -59,21 +59,36 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
           </button>
         </div>
 
-        {/* Safety Notice Box (Spec 2.7) */}
-        <div className="p-3 rounded-xl bg-[#E8F0EC] border border-[#D1E2D7] text-[#1E4620] text-[12px] flex items-start gap-2">
-          <span className="material-symbols-outlined text-[18px] text-[#1A3826] shrink-0 mt-0.5">
-            verified_user
+        {/* Safety & Integration Status Notice Box */}
+        <div className="p-3 rounded-xl bg-[#FAF6F0] border border-[#E9E1D6] text-[#B45309] text-[12px] flex items-start gap-2">
+          <span className="material-symbols-outlined text-[18px] text-[#B45309] shrink-0 mt-0.5">
+            info
           </span>
           <p className="leading-snug">
-            <strong>Security Boundary Active:</strong> Items are placed in your Swiggy cart for instant review. The app will <strong>never</strong> place or charge orders automatically.
+            <strong>MCP Integration Status:</strong> Automated background cart insertion is pending Swiggy partner client approval. Tapping below opens Swiggy Instamart directly. You can copy the item list to quickly search or reorder.
           </p>
         </div>
 
         {/* Cart Item Breakdown */}
         <div className="flex flex-col gap-2">
-          <span className="text-[11.5px] font-bold text-[#727972] uppercase tracking-wider">
-            Items to Export ({items.length})
-          </span>
+          <div className="flex items-center justify-between">
+            <span className="text-[11.5px] font-bold text-[#727972] uppercase tracking-wider">
+              Shortfall Items to Buy ({items.length})
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                const text = items.map((i) => `• ${i.name}: ${i.qty_base} ${i.base_unit}`).join('\n');
+                navigator.clipboard?.writeText(text);
+                setIsExported(true);
+                setTimeout(() => setIsExported(false), 2500);
+              }}
+              className="text-[11px] font-bold text-[#FC8019] hover:underline flex items-center gap-1"
+            >
+              <span className="material-symbols-outlined text-[14px]">content_copy</span>
+              <span>{isExported ? 'Copied to Clipboard!' : 'Copy List'}</span>
+            </button>
+          </div>
           <div className="flex flex-col gap-1.5 max-h-[220px] overflow-y-auto pr-1">
             {items.map((item) => (
               <div
@@ -98,7 +113,7 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
         <div className="p-3 rounded-2xl bg-[#f4f4f0] border border-[#E6E4DD] flex items-center justify-between">
           <div>
             <span className="text-[13px] font-semibold text-[#1a1c1a] block">Estimated Cart Total:</span>
-            <span className="text-[11px] text-[#424843]">Delivery in ~12 mins by Instamart</span>
+            <span className="text-[11px] text-[#424843]">Reference market prices</span>
           </div>
           <span className="text-[20px] font-bold text-[#FC8019]">₹{totalAmount}</span>
         </div>
@@ -108,19 +123,16 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
           <button
             className="w-full py-3 px-4 rounded-2xl bg-[#FC8019] text-white text-[14px] font-bold shadow-md shadow-[#FC8019]/20 flex items-center justify-center gap-2 active:scale-95 transition-all hover:bg-[#e06d0c]"
             onClick={handleExportCart}
-            disabled={isExported}
           >
-            <span className="material-symbols-outlined text-[20px]">shopping_cart_checkout</span>
+            <span className="material-symbols-outlined text-[20px]">open_in_new</span>
             <span>
-              {isExported
-                ? 'Handoff complete! Redirecting...'
-                : isHindi
-                ? 'स्विगी कार्ट में भेजें (Handoff)'
-                : 'Send to Swiggy Instamart Cart'}
+              {isHindi
+                ? 'स्विगी इंस्टामार्ट खोलें'
+                : 'Open Swiggy Instamart'}
             </span>
           </button>
           <span className="text-[11px] text-center text-[#727972]">
-            Redirects to your official Swiggy app with pre-filled cart.
+            Opens the official Swiggy Instamart store. Never places automated orders.
           </span>
         </div>
       </div>

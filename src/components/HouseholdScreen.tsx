@@ -83,6 +83,8 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi }) => 
   const [newWeight, setNewWeight] = useState(65);
   const [newCautions, setNewCautions] = useState<DietCaution[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
+  const [joinCodeInput, setJoinCodeInput] = useState('');
+  const [isCopiedCode, setIsCopiedCode] = useState(false);
 
   // Add habitual regular dish form state
   const [showAddHabitModal, setShowAddHabitModal] = useState(false);
@@ -94,6 +96,29 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi }) => 
   const refresh = () => {
     setMe({ ...store.getMe() });
     setDietMemory({ ...store.getDietMemory() });
+  };
+
+  const handleCopyInviteCode = () => {
+    const code = store.getHouseholdInviteCode();
+    navigator.clipboard?.writeText(code);
+    setIsCopiedCode(true);
+    showToast(`Invite code ${code} copied to clipboard!`);
+    setTimeout(() => setIsCopiedCode(false), 2500);
+  };
+
+  const handleRegenerateCode = () => {
+    const newCode = store.regenerateInviteCode();
+    refresh();
+    showToast(`Generated new invite code: ${newCode}`);
+  };
+
+  const handleJoinHousehold = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!joinCodeInput.trim()) return;
+    const res = store.joinHouseholdWithCode(joinCodeInput);
+    refresh();
+    showToast(res.message);
+    setJoinCodeInput('');
   };
 
   const showToast = (msg: string) => {
@@ -893,6 +918,73 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi }) => 
             );
           })}
         </div>
+      </div>
+
+      {/* 6. Household Invite Codes & Multi-User Sharing (Spec 2.1) */}
+      <div className="bg-white rounded-2xl p-4 border border-[#E6E4DD] shadow-xs flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-[#1A3826] text-[20px]">share</span>
+            <h2 className="text-[15px] font-bold text-[#1a1c1a]">
+              {isHindi ? 'घर का इनवाइट कोड और शेयरिंग' : 'Household Invite Code & Join'}
+            </h2>
+          </div>
+          <span className="text-[11px] text-[#727972]">Roommates &amp; Family</span>
+        </div>
+
+        <p className="text-[11.5px] text-[#424843]">
+          Share this invite code with roommates or family members so they can join this household, view shared stock, and plan meals together.
+        </p>
+
+        <div className="flex items-center justify-between p-3 rounded-xl bg-[#FAF9F6] border border-[#E6E4DD]">
+          <div className="flex flex-col">
+            <span className="text-[10px] uppercase font-bold text-[#727972]">Your Invite Code</span>
+            <span className="text-[18px] font-mono font-bold text-[#1A3826]">
+              {store.getHouseholdInviteCode()}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={handleCopyInviteCode}
+              className="px-3 py-1.5 rounded-lg bg-[#1A3826] text-white text-[12px] font-semibold flex items-center gap-1 hover:bg-[#132a1d] active:scale-95"
+            >
+              <span className="material-symbols-outlined text-[15px]">content_copy</span>
+              <span>{isCopiedCode ? 'Copied!' : 'Copy Code'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleRegenerateCode}
+              className="px-2.5 py-1.5 rounded-lg bg-white border border-[#E6E4DD] text-[#424843] hover:text-[#1a1c1a] text-[12px] font-medium"
+              title="Generate fresh invite code"
+            >
+              <span className="material-symbols-outlined text-[15px]">refresh</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Join another household */}
+        <form onSubmit={handleJoinHousehold} className="pt-2 border-t border-[#E6E4DD] flex flex-col gap-2">
+          <label className="text-[12px] font-bold text-[#424843]">
+            {isHindi ? 'दूसरा घर जॉइन करें (Enter Code):' : 'Join Existing Household with Code:'}
+          </label>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={joinCodeInput}
+              onChange={(e) => setJoinCodeInput(e.target.value.toUpperCase())}
+              placeholder="e.g. BLR-402"
+              className="flex-1 px-3 py-2 rounded-xl bg-[#FAF9F6] border border-[#E6E4DD] text-[13px] font-mono uppercase text-[#1a1c1a] focus:outline-none focus:border-[#1A3826]"
+            />
+            <button
+              type="submit"
+              className="px-4 py-2 rounded-xl bg-[#3b684a] text-white text-[12px] font-bold hover:bg-[#2d5239] active:scale-95"
+            >
+              Join
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

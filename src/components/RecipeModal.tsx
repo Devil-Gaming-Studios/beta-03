@@ -30,6 +30,28 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
   );
   const [planSlot, setPlanSlot] = useState<MealSlot>(initialSlot);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const [timerSeconds, setTimerSeconds] = useState<number | null>(null);
+  const [isTimerRunning, setIsTimerRunning] = useState(false);
+  const [showGlossary, setShowGlossary] = useState(false);
+
+  useEffect(() => {
+    let interval: any = null;
+    if (isTimerRunning && timerSeconds !== null && timerSeconds > 0) {
+      interval = setInterval(() => {
+        setTimerSeconds((prev) => (prev !== null && prev > 0 ? prev - 1 : 0));
+      }, 1000);
+    } else if (timerSeconds === 0) {
+      setIsTimerRunning(false);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isTimerRunning, timerSeconds]);
+
+  const handleStartTimer = (seconds: number) => {
+    setTimerSeconds(seconds);
+    setIsTimerRunning(true);
+  };
 
   useEffect(() => {
     setServings(initialServings);
@@ -318,6 +340,145 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
               </div>
             ))}
           </div>
+        </div>
+
+        {/* Health Cautions Alerts (Spec 2.11) */}
+        {(() => {
+          const me = store.getMe();
+          const allCautions = Array.from(new Set((me.members || []).flatMap((m) => m.cautions || [])));
+          const warnings: { icon: string; title: string; text: string }[] = [];
+
+          if (allCautions.includes('bp')) {
+            warnings.push({
+              icon: 'warning',
+              title: 'Blood Pressure / Salt Advisory',
+              text: 'A diner has high blood pressure caution. Reduce added salt/namak by half and avoid extra chaat masala.',
+            });
+          }
+          if (allCautions.includes('cholesterol') || allCautions.includes('heart')) {
+            warnings.push({
+              icon: 'favorite',
+              title: 'Heart Health / Low Oil Advisory',
+              text: 'A diner has heart/cholesterol caution. Prepare with a single teaspoon of oil; prefer steaming or dry-roasting over deep frying.',
+            });
+          }
+          if (allCautions.includes('diabetes')) {
+            warnings.push({
+              icon: 'bloodtype',
+              title: 'Diabetes / Low-GI Advisory',
+              text: 'A diner has diabetes caution. Pair with a high-fiber kachumber salad to blunt glycemic response.',
+            });
+          }
+
+          if (warnings.length === 0) return null;
+
+          return (
+            <div className="flex flex-col gap-1.5 p-3 rounded-2xl bg-[#FFF9E6] border border-[#F0D58C] text-[#8C5200]">
+              <span className="text-[11px] font-bold uppercase tracking-wider flex items-center gap-1">
+                <span className="material-symbols-outlined text-[15px]">medical_services</span>
+                <span>Personalized Diner Health Cautions</span>
+              </span>
+              {warnings.map((w, idx) => (
+                <div key={idx} className="text-[12px] leading-snug">
+                  <strong>{w.title}:</strong> {w.text}
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+
+        {/* Perishable Storage Advice (Spec 2.12) */}
+        {(() => {
+          const me = store.getMe();
+          const hasFridge = me.household.has_fridge;
+          const hasPerishables = detail.ingredients.some((i: any) =>
+            ['paneer', 'dahi', 'curd', 'doodh', 'milk', 'palak', 'spinach', 'tamatar', 'tomato'].some((k) =>
+              i.name.toLowerCase().includes(k)
+            )
+          );
+
+          if (!hasPerishables && hasFridge) return null;
+
+          return (
+            <div className="p-2.5 rounded-xl bg-[#FAF9F6] border border-[#E6E4DD] text-[11.5px] text-[#424843] flex items-center gap-2">
+              <span className="material-symbols-outlined text-[#3b684a] text-[17px] shrink-0">
+                {hasFridge ? 'kitchen' : 'inventory_2'}
+              </span>
+              <span>
+                {!hasFridge
+                  ? 'No Fridge Household Notice: Buy perishable ingredients (paneer, milk, curd) in exact 1-meal quantities to cook immediately without storage.'
+                  : 'Storage & Freshness Tip: Keep paneer immersed in water in the fridge; store greens wrapped in cloth/paper.'}
+              </span>
+            </div>
+          );
+        })()}
+
+        {/* Beginner Cooking Timers & Glossary (Spec 2.16) */}
+        <div className="p-3 bg-[#f4f7f5] rounded-2xl border border-[#d6e3da] flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5 text-[12px] font-bold text-[#1A3826]">
+              <span className="material-symbols-outlined text-[16px]">timer</span>
+              <span>Beginner Cooking Timers</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowGlossary((g) => !g)}
+              className="text-[11px] font-bold text-[#3b684a] hover:underline flex items-center gap-0.5"
+            >
+              <span className="material-symbols-outlined text-[14px]">menu_book</span>
+              <span>{showGlossary ? 'Hide Glossary' : 'Kitchen Glossary'}</span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => handleStartTimer(120)}
+              className="px-2.5 py-1 rounded-lg bg-white border border-[#d6e3da] text-[11px] font-semibold text-[#1A3826] hover:bg-[#EDF2EE] active:scale-95"
+            >
+              ⏱️ 2m Tadka
+            </button>
+            <button
+              type="button"
+              onClick={() => handleStartTimer(300)}
+              className="px-2.5 py-1 rounded-lg bg-white border border-[#d6e3da] text-[11px] font-semibold text-[#1A3826] hover:bg-[#EDF2EE] active:scale-95"
+            >
+              ⏱️ 5m Bhunao
+            </button>
+            <button
+              type="button"
+              onClick={() => handleStartTimer(600)}
+              className="px-2.5 py-1 rounded-lg bg-white border border-[#d6e3da] text-[11px] font-semibold text-[#1A3826] hover:bg-[#EDF2EE] active:scale-95"
+            >
+              ⏱️ 10m Simmer
+            </button>
+            {timerSeconds !== null && (
+              <div className="flex items-center gap-2 ml-auto">
+                <span className="px-2.5 py-0.5 rounded-full bg-[#1A3826] text-white text-[11.5px] font-mono font-bold">
+                  {Math.floor(timerSeconds / 60)}:{(timerSeconds % 60).toString().padStart(2, '0')}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTimerSeconds(null);
+                    setIsTimerRunning(false);
+                  }}
+                  className="text-[11px] text-[#ba1a1a] font-bold"
+                >
+                  Reset
+                </button>
+              </div>
+            )}
+          </div>
+
+          {showGlossary && (
+            <div className="mt-1 pt-2 border-t border-[#d6e3da] grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px] text-[#424843]">
+              <div><strong>Tadka (तड़का):</strong> Quick spice tempering in hot oil or ghee.</div>
+              <div><strong>Bhunao (भूनना):</strong> Sautéing onions/spices on medium heat until oil releases.</div>
+              <div><strong>Dheemi Aanch (धीमी आंच):</strong> Cooking on low flame with lid closed.</div>
+              <div><strong>Katori (कटोरी):</strong> Standard Indian bowl measure (~150 to 200 ml).</div>
+            </div>
+          )}
         </div>
 
         {/* Instructions & Cooking Steps */}

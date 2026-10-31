@@ -42,7 +42,6 @@ function getApiKey(): string {
   return (
     process.env.GEMINI_API_KEY ||
     process.env.GOOGLE_API_KEY ||
-    process.env.VITE_GEMINI_API_KEY ||
     ''
   ).trim();
 }
@@ -107,7 +106,7 @@ app.get('/api/graph/recipes', (req: Request, res: Response) => {
   const { query, diet_pref, is_beginner, cuisine, course, max_time, high_protein, page, limit } = req.query;
   const result = graphService.searchRecipes({
     query: typeof query === 'string' ? query : undefined,
-    diet_pref: diet_pref === 'veg' ? 'veg' : diet_pref === 'nonveg' ? 'nonveg' : undefined,
+    diet_pref: diet_pref === 'nonveg' ? 'nonveg' : 'veg',
     is_beginner: is_beginner === 'true' || is_beginner === '1',
     cuisine: typeof cuisine === 'string' ? cuisine : undefined,
     course: typeof course === 'string' ? course : undefined,
@@ -129,7 +128,7 @@ app.post('/api/graph/suggest-from-stock', (req: Request, res: Response) => {
   const { stock, diet_pref, is_beginner, course, limit } = req.body;
   const stockList = Array.isArray(stock) ? stock : [];
   const suggestions = graphService.suggestFromStock(stockList, {
-    diet_pref: diet_pref === 'veg' ? 'veg' : 'nonveg',
+    diet_pref: diet_pref === 'nonveg' ? 'nonveg' : 'veg',
     is_beginner: Boolean(is_beginner),
     course: typeof course === 'string' ? course : undefined,
     limit: limit ? Number(limit) : 10,
@@ -141,15 +140,6 @@ app.post('/api/graph/substitutions', (req: Request, res: Response) => {
   const { ingredient } = req.body;
   const subs = graphService.getSubstitutions(String(ingredient || ''));
   return res.json({ substitutions: subs });
-});
-
-app.post('/api/graph/rebuild', (req: Request, res: Response) => {
-  try {
-    const stats = graphService.rebuild(req.body.csvPath);
-    return res.json({ success: true, stats });
-  } catch (err: any) {
-    return res.status(500).json({ error: err.message || 'Failed to rebuild graph' });
-  }
 });
 
 // ---------------------------------------------------------------------------
@@ -762,20 +752,20 @@ Output ONLY valid JSON:
     }
   }
 
-  // Format response engine tag
-  const engineLabels: Record<string, 'Shruti (offline)' | 'Cactus Whisper (offline)' | 'Sarvam Saaras v3 (cloud fallback)'> = {
-    shruti: 'Shruti (offline)',
-    cactus_whisper: 'Cactus Whisper (offline)',
+  // Format response engine tag (accurate labeling: Web Speech API / Sarvam Saaras)
+  const engineLabels: Record<string, string> = {
+    shruti: 'Browser Speech Recognition (Hinglish tuned)',
+    cactus_whisper: 'Browser Speech Recognition (English)',
     sarvam_saaras: 'Sarvam Saaras v3 (cloud fallback)',
   };
 
   return res.json({
     transcript: finalTranscript,
-    engine: engineLabels[finalEngine] || 'Shruti (offline)',
+    engine: engineLabels[finalEngine] || 'Browser Speech Recognition',
     engineId: finalEngine,
     confidence: Math.round(baseScore * 100) / 100,
     language: detectedLang,
-    isOffline: finalEngine !== 'sarvam_saaras',
+    isOffline: false,
     lowConfidence: baseScore < 0.75,
     fallbackTriggered,
     matchedIngredients,
@@ -868,6 +858,51 @@ app.post('/api/chat', async (req: Request, res: Response): Promise<any> => {
       // Clean up markdown block if present
       const clean = outputText.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
       parsed = JSON.parse(clean);
+    }
+
+    // Dietary re-check on model output: enforce vegetarian boundary strictly
+    const isHouseholdVeg = household?.diet_pref !== 'nonveg';
+    if (isHouseholdVeg && parsed && parsed.proposal) {
+      const nonVegKws = [
+        'chicken', 'mutton', 'fish', 'egg', 'eggs', 'meat', 'prawn', 'prawns',
+        'beef', 'pork', 'bacon', 'gelatin', 'murgh', 'machli', 'keema', 'gosht',
+        'shrimp', 'crab', 'ham', 'sausage'
+      ];
+      const isWordNonVeg = (str: string) => {
+        const l = (str || '').toLowerCase();
+        return nonVegKws.some((kw) => new RegExp(`\\b${kw}\\b`, 'i').test(l));
+      };
+
+      if (Array.isArray(parsed.proposal.items)) {
+        parsed.proposal.items = parsed.proposal.items.filter((it: any) => {
+          if (isWordNonVeg(it.name) || isWordNonVeg(it.ingredient_id)) {
+            parsed.warnings = parsed.warnings || [];
+            parsed.warnings.push(`Blocked non-vegetarian item "${it.name}" to respect vegetarian household preference.`);
+            return false;
+          }
+          return true;
+        });
+      }
+
+      if (Array.isArray(parsed.proposal.plan_changes)) {
+        parsed.proposal.plan_changes = parsed.proposal.plan_changes.filter((pc: any) => {
+          if (isWordNonVeg(pc.recipe_title) || isWordNonVeg(pc.household_recipe_id)) {
+            parsed.warnings = parsed.warnings || [];
+            parsed.warnings.push(`Blocked non-vegetarian dish "${pc.recipe_title}" from meal plan.`);
+            return false;
+          }
+          return true;
+        });
+      }
+
+      if (parsed.proposal.recipe_modification) {
+        const rm = parsed.proposal.recipe_modification;
+        if (isWordNonVeg(rm.ingredient_name)) {
+          parsed.warnings = parsed.warnings || [];
+          parsed.warnings.push(`Rejected adding non-vegetarian ingredient "${rm.ingredient_name}" to recipe.`);
+          parsed.proposal.recipe_modification = null;
+        }
+      }
     }
 
     return res.json(parsed);
