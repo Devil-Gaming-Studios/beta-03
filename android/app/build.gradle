@@ -1,0 +1,52 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.mastmeals.shell'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.mastmeals.shell"
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName "0.1-test"
+
+        // Default: loads Express server over adb reverse tcp:3000 tcp:3000
+        buildConfigField "String", "SERVER_URL", "\"http://localhost:3000\""
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    buildTypes {
+        debug {
+            applicationIdSuffix ".debug"
+            debuggable true
+        }
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    sourceSets {
+        main {
+            manifest.srcFile '../AndroidManifest.xml'
+            java.srcDirs = ['../java']
+            res.srcDirs = ['../res']
+        }
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'androidx.core:core:1.12.0'
+}

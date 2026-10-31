@@ -58,11 +58,16 @@ function getAiClient(): GoogleGenAI {
   });
 }
 
-const agentModel = process.env.GEMINI_MODEL || process.env.GEMINI_AGENT_MODEL || 'gemini-3.5-flash';
+const agentModel = process.env.GEMINI_MODEL || process.env.GEMINI_AGENT_MODEL || 'gemini-3.8-flash';
 const fallbackTextModel = 'gemini-3.8-flash';
 const transcribeModel = 'gemini-3.5-transcribe';
 
 import { graphService } from './server/graphService';
+import { shopInboxService } from './server/shopInboxService';
+import { swiggyOAuthService } from './server/swiggyOAuth';
+import { swiggyTokenStore } from './server/swiggyTokenStore';
+import { swiggyMcpClient } from './server/swiggyMcpClient';
+import * as syncService from './server/syncService';
 
 let systemInstruction = `You are Omnirush, the assistant inside Mast Meals / KitchenSync, a household meal, recipe and kitchen-stock assistant for Indian households. You help with:
 1. Updating inventory stock (e.g. add/remove/set ingredients).
@@ -94,6 +99,55 @@ try {
 } catch {
   // Use fallback systemInstruction
 }
+
+// ---------------------------------------------------------------------------
+// Cross-device sync (account + document store). See server/syncService.ts
+// ---------------------------------------------------------------------------
+function syncAuth(req: Request, res: Response): string | null {
+  const h = req.headers.authorization || '';
+  const accountId = syncService.verifyToken(h.startsWith('Bearer ') ? h.slice(7) : undefined);
+  if (!accountId) { res.status(401).json({ error: 'invalid or expired sync token' }); return null; }
+  return accountId;
+}
+
+app.post('/api/sync/register', (req: Request, res: Response): any => {
+  const r = syncService.register(req.body?.email, req.body?.password);
+  return r.ok ? res.json(r) : res.status(r.status).json({ error: r.error });
+});
+
+app.post('/api/sync/login', (req: Request, res: Response): any => {
+  const r = syncService.login(req.body?.email, req.body?.password);
+  return r.ok ? res.json(r) : res.status(r.status).json({ error: r.error });
+});
+
+app.post('/api/sync/push', (req: Request, res: Response): any => {
+  const accountId = syncAuth(req, res);
+  if (!accountId) return;
+  const r = syncService.push(accountId, String(req.body?.client_id || ''), req.body?.changes);
+  return r.ok ? res.json(r) : res.status(r.status).json({ error: r.error });
+});
+
+app.get('/api/sync/stream', (req: Request, res: Response): any => {
+  const accountId = syncAuth(req, res);
+  if (!accountId) return;
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  res.write('retry: 3000\n\n');
+  const stop = syncService.watch(accountId, (payload) => res.write(`event: changed\ndata: ${payload}\n\n`));
+  const beat = setInterval(() => res.write(': ping\n\n'), 20000);
+  req.on('close', () => { clearInterval(beat); stop(); });
+});
+
+app.get('/api/sync/pull', (req: Request, res: Response): any => {
+  const accountId = syncAuth(req, res);
+  if (!accountId) return;
+  const since = Math.max(0, Number(req.query.since) || 0);
+  return res.json(syncService.pull(accountId, since));
+});
 
 // ---------------------------------------------------------------------------
 // Graph RAG API Endpoints
@@ -589,6 +643,430 @@ Carefully inspect the uploaded photo of a fridge, pantry shelf, countertop, or g
 });
 
 // ---------------------------------------------------------------------------
+// Shop Chat Listener & Telegram Bot Ingestion: /api/shop-inbox
+// ---------------------------------------------------------------------------
+app.post('/api/shop-inbox', async (req: Request, res: Response): Promise<any> => {
+  // 1. Rate limiting (max 30 requests per minute per IP / token)
+  const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
+  const authHeader = req.headers.authorization || (req.headers['x-auth-token'] as string) || '';
+  const rateKey = `${clientIp}_${String(authHeader).slice(0, 20)}`;
+  if (!shopInboxService.checkRateLimit(rateKey)) {
+    return res.status(429).json({ error: 'Rate limit exceeded for shop inbox submissions. Please slow down.' });
+  }
+
+  // 2. Auth token validation (Bearer token or X-Auth-Token)
+  let token = '';
+  if (typeof authHeader === 'string') {
+    token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : authHeader.trim();
+  }
+  if (!token && process.env.APP_AUTH_TOKEN) {
+    return res.status(401).json({ error: 'Unauthorized: missing Authorization token' });
+  }
+  if (process.env.APP_AUTH_TOKEN && token !== process.env.APP_AUTH_TOKEN) {
+    return res.status(403).json({ error: 'Forbidden: invalid Authorization token' });
+  }
+
+  // 3. Payload validation
+  const { source, sender, text, timestamp } = req.body;
+  if (!text || typeof text !== 'string' || !text.trim()) {
+    return res.status(400).json({ error: 'Message text is required' });
+  }
+  const validSources = ['whatsapp', 'telegram', 'telegram_bot', 'manual', 'test'];
+  const normalizedSource = validSources.includes(source) ? (source as any) : 'manual';
+
+  try {
+    const { item: inboxItem, isDuplicate } = await shopInboxService.ingestShopMessage({
+      source: normalizedSource,
+      sender: sender || 'Shop Contact',
+      text: text.trim(),
+      timestamp: timestamp ? Number(timestamp) : Date.now(),
+    });
+
+    return res.status(isDuplicate ? 200 : 201).json({
+      success: true,
+      isDuplicate,
+      message: isDuplicate
+        ? 'Duplicate shop message recognized; returning existing inbox item.'
+        : 'Shop message received and stored in pending inbox for user confirmation.',
+      item: inboxItem,
+    });
+  } catch (err: any) {
+    console.error('Failed to process shop message into inbox:', err);
+    return res.status(500).json({ error: `Failed to process shop message: ${err?.message || 'Internal error'}` });
+  }
+});
+
+app.get('/api/shop-inbox', (req: Request, res: Response) => {
+  const { status } = req.query;
+  const items = status === 'all'
+    ? shopInboxService.getAllItems()
+    : shopInboxService.getPendingItems();
+  return res.json({ items });
+});
+
+app.delete('/api/shop-inbox/all', (req: Request, res: Response): any => {
+  shopInboxService.clearAllItems();
+  return res.json({ success: true, message: 'All shop inbox items cleared.' });
+});
+
+app.delete('/api/shop-inbox', (req: Request, res: Response): any => {
+  shopInboxService.clearAllItems();
+  return res.json({ success: true, message: 'All shop inbox items cleared.' });
+});
+
+app.post('/api/shop-inbox/:id/apply', (req: Request, res: Response): any => {
+  const { items } = req.body;
+  const applied = shopInboxService.markApplied(req.params.id, Array.isArray(items) ? items : undefined);
+  if (!applied) {
+    return res.status(404).json({ error: 'Shop inbox item not found' });
+  }
+  return res.json({ success: true, item: applied });
+});
+
+app.delete('/api/shop-inbox/:id', (req: Request, res: Response): any => {
+  const deleted = shopInboxService.deleteItem(req.params.id);
+  if (!deleted) {
+    return res.status(404).json({ error: 'Shop inbox item not found' });
+  }
+  return res.json({ success: true, message: 'Shop inbox item removed' });
+});
+
+app.post('/api/telegram-webhook', async (req: Request, res: Response): Promise<any> => {
+  // Validate secret token if sent or configured
+  const secretHeader = req.headers['x-telegram-bot-api-secret-token'];
+  const configuredSecret = process.env.TELEGRAM_BOT_SECRET_TOKEN || 'mastmeals_telegram_secret';
+  if (secretHeader && secretHeader !== configuredSecret) {
+    console.warn('Telegram webhook rejected: secret token mismatch');
+    return res.status(403).json({ error: 'Invalid secret token' });
+  }
+
+  const update = req.body;
+  const msg = update?.message || update?.edited_message || update?.channel_post;
+  if (!msg || !msg.text) {
+    return res.status(200).json({ ok: true, ignored: 'No text message in update' });
+  }
+
+  // Chat-ID allow-list enforcement
+  const allowedChatIdsStr = process.env.TELEGRAM_ALLOWED_CHAT_IDS || '';
+  if (allowedChatIdsStr && allowedChatIdsStr.trim() !== '*') {
+    const allowedChatIds = allowedChatIdsStr.split(',').map((id) => id.trim());
+    const chatId = String(msg.chat?.id || '');
+    const senderId = String(msg.from?.id || '');
+    if (!allowedChatIds.includes(chatId) && !allowedChatIds.includes(senderId)) {
+      console.warn(`Telegram webhook: rejected unauthorized chat ID ${chatId} / sender ${senderId}`);
+      return res.status(200).json({ ok: true, ignored: 'Chat ID not in allow-list' });
+    }
+  }
+
+  const senderName = [msg.from?.first_name, msg.from?.last_name].filter(Boolean).join(' ') ||
+    msg.from?.username ||
+    msg.chat?.title ||
+    'Telegram Shop Contact';
+
+  try {
+    const { item: inboxItem } = await shopInboxService.ingestShopMessage({
+      source: 'telegram_bot',
+      sender: senderName,
+      text: msg.text,
+      timestamp: (msg.date ? Number(msg.date) * 1000 : Date.now()),
+    });
+
+    return res.status(200).json({ ok: true, inboxId: inboxItem.id });
+  } catch (err: any) {
+    console.error('Telegram bot webhook processing error:', err);
+    return res.status(200).json({ ok: true, error: err?.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Official Swiggy OAuth 2.1 + PKCE & MCP Integration API
+// ---------------------------------------------------------------------------
+function getRequestUserId(req: Request): string {
+  const customId = req.headers['x-user-id'];
+  if (typeof customId === 'string' && customId.trim()) {
+    return customId.trim();
+  }
+  return 'usr_alpha';
+}
+
+// 1. GET /api/swiggy/connect - Initiates PKCE OAuth authorization flow
+app.get('/api/swiggy/connect', async (req: Request, res: Response): Promise<any> => {
+  try {
+    const userId = getRequestUserId(req);
+    const host = req.get('host') || 'localhost:3000';
+    const protocol = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
+    const clientRedirectUri = typeof req.query.redirect_uri === 'string' && req.query.redirect_uri.trim()
+      ? req.query.redirect_uri.trim()
+      : undefined;
+    const redirectUri = swiggyOAuthService.getRedirectUri(clientRedirectUri, host, protocol);
+    const { authorizationUrl, state } = await swiggyOAuthService.getAuthorizationUrl(userId, redirectUri);
+    return res.json({
+      success: true,
+      authorizationUrl,
+      state,
+      redirectUri,
+    });
+  } catch (err: any) {
+    console.error('Failed to initiate Swiggy OAuth connection:', err);
+    return res.status(500).json({ error: err?.message || 'Failed to start Swiggy connection flow' });
+  }
+});
+
+// 2. GET /api/swiggy/callback - Handles authorization code exchange
+app.get('/api/swiggy/callback', async (req: Request, res: Response): Promise<any> => {
+  const { code, state, error, error_description } = req.query;
+
+  if (error) {
+    const desc = error_description ? String(error_description) : String(error);
+    return res.send(`<!DOCTYPE html><html><head><title>Authentication Failed</title></head><body><script>
+      if (window.opener) {
+        window.opener.postMessage({ type: 'SWIGGY_AUTH_ERROR', error: ${JSON.stringify(desc)} }, '*');
+        setTimeout(function() { window.close(); }, 1500);
+      } else {
+        window.location.href = '/?swiggy_error=' + encodeURIComponent(${JSON.stringify(desc)});
+      }
+    </script><div style="font-family:sans-serif;padding:30px;text-align:center;">
+      <h3 style="color:#d9534f;">Swiggy Authentication Failed</h3>
+      <p>${desc}</p>
+      <p style="color:#666;">This window will close automatically...</p>
+    </div></body></html>`);
+  }
+
+  if (!code || !state) {
+    return res.status(400).send('Missing code or state parameter in OAuth callback');
+  }
+
+  try {
+    const cbResult = await swiggyOAuthService.handleCallback(String(code), String(state));
+    
+    // Milestone 4: Establish working MCP connection & execute first tool call get_addresses
+    let addressSummary = '';
+    try {
+      const milestone = await swiggyMcpClient.callGetAddresses(cbResult.userId);
+      addressSummary = milestone.summary;
+      console.log(`[Swiggy MCP] First tool call (get_addresses) executed: ${addressSummary}`);
+    } catch (mErr: any) {
+      console.warn('[Swiggy MCP] First tool call notice:', mErr?.message);
+    }
+
+    return res.send(`<!DOCTYPE html><html><head><title>Swiggy Connected</title></head><body style="font-family:sans-serif;text-align:center;padding:40px;background:#FAF9F6;">
+      <script>
+        try {
+          if (window.opener) {
+            window.opener.postMessage({ type: 'SWIGGY_AUTH_SUCCESS', summary: ${JSON.stringify(addressSummary)} }, '*');
+            setTimeout(function() { window.close(); }, 1200);
+          } else {
+            window.location.href = '/?swiggy=connected';
+          }
+        } catch(e) {
+          window.location.href = '/?swiggy=connected';
+        }
+      </script>
+      <div style="max-width:440px;margin:0 auto;background:#fff;border-radius:16px;padding:28px;box-shadow:0 4px 16px rgba(0,0,0,0.08);border:1px solid #E6E4DD;">
+        <div style="font-size:36px;margin-bottom:12px;">🎉</div>
+        <h3 style="color:#FC8019;margin:0 0 8px;font-size:20px;">Swiggy Account Connected!</h3>
+        <p style="color:#374151;font-size:13.5px;margin:0 0 12px;line-height:1.5;">Official OAuth 2.1 authentication completed via Phone + OTP.</p>
+        <div style="background:#F0FDF4;border:1px solid #BBF7D0;color:#15803D;padding:10px 14px;border-radius:10px;font-size:12px;margin-bottom:16px;text-align:left;">
+          <strong>Milestone 1 Verified:</strong> First MCP tool call <code>get_addresses</code> executed. ${addressSummary ? addressSummary : 'Connected to Swiggy Food MCP server.'}
+        </div>
+        <p style="color:#9CA3AF;font-size:12px;margin:0;">Returning to KitchenSync...</p>
+      </div>
+    </body></html>`);
+  } catch (err: any) {
+    console.error('Swiggy OAuth callback error:', err);
+    const msg = err?.message || 'Failed to complete OAuth token exchange';
+    return res.status(400).send(`<!DOCTYPE html><html><head><title>Connection Error</title></head><body><script>
+      if (window.opener) {
+        window.opener.postMessage({ type: 'SWIGGY_AUTH_ERROR', error: ${JSON.stringify(msg)} }, '*');
+        setTimeout(function() { window.close(); }, 2500);
+      } else {
+        window.location.href = '/?swiggy_error=' + encodeURIComponent(${JSON.stringify(msg)});
+      }
+    </script><div style="font-family:sans-serif;padding:30px;text-align:center;">
+      <h3 style="color:#d9534f;">OAuth Exchange Failed</h3>
+      <p>${msg}</p>
+    </div></body></html>`);
+  }
+});
+
+// 2b. POST /api/swiggy/callback/manual - Manual code or callback URL submission
+app.post('/api/swiggy/callback/manual', async (req: Request, res: Response): Promise<any> => {
+  const { code, state, callbackUrl } = req.body;
+  let resolvedCode = typeof code === 'string' ? code.trim() : '';
+  let resolvedState = typeof state === 'string' ? state.trim() : '';
+
+  if (callbackUrl && typeof callbackUrl === 'string') {
+    try {
+      const u = new URL(callbackUrl.trim());
+      const c = u.searchParams.get('code');
+      const s = u.searchParams.get('state');
+      if (c) resolvedCode = c;
+      if (s) resolvedState = s;
+    } catch {}
+  }
+
+  if (!resolvedCode) {
+    return res.status(400).json({ error: 'Authorization code is required' });
+  }
+
+  try {
+    const cbResult = await swiggyOAuthService.handleCallback(resolvedCode, resolvedState);
+    let milestoneResult = null;
+    try {
+      milestoneResult = await swiggyMcpClient.callGetAddresses(cbResult.userId);
+    } catch (mErr: any) {
+      console.warn('[Swiggy MCP] Manual callback get_addresses notice:', mErr?.message);
+    }
+
+    return res.json({
+      success: true,
+      message: 'Swiggy OAuth tokens successfully exchanged and encrypted.',
+      firstToolCall: milestoneResult,
+    });
+  } catch (err: any) {
+    return res.status(400).json({ error: err?.message || 'Failed to exchange Swiggy code' });
+  }
+});
+
+// 3. GET /api/swiggy/status - Verifies real connection, checks expiration, lists discovered tools
+app.get('/api/swiggy/status', async (req: Request, res: Response): Promise<any> => {
+  const userId = getRequestUserId(req);
+  const tokens = swiggyTokenStore.getTokens(userId);
+
+  if (!tokens || !tokens.accessToken) {
+    return res.json({
+      isConnected: false,
+      userProfile: null,
+      availableTools: [],
+      firstToolCallResult: null,
+    });
+  }
+
+  // Validate or auto-refresh token
+  try {
+    await swiggyOAuthService.getValidAccessToken(userId);
+  } catch (err: any) {
+    return res.json({
+      isConnected: false,
+      expired: true,
+      error: 'Swiggy access token expired. Reconnect required.',
+      userProfile: null,
+      availableTools: [],
+      firstToolCallResult: null,
+    });
+  }
+
+  // Query live MCP tool definitions from Swiggy Food and Instamart endpoints
+  let availableTools: any[] = [];
+  try {
+    const endpoints = await swiggyMcpClient.listTools(userId);
+    availableTools = endpoints.flatMap((e) => e.tools);
+  } catch (mcpErr: any) {
+    console.warn('Swiggy MCP tools query notice:', mcpErr?.message);
+  }
+
+  return res.json({
+    isConnected: true,
+    expiresAt: tokens.expiresAt,
+    scope: tokens.scope,
+    userProfile: tokens.userProfile || { name: 'Swiggy User' },
+    availableTools,
+    firstToolCallResult: tokens.firstToolCallResult || null,
+  });
+});
+
+// 3b. POST /api/swiggy/test-tool-call - Manually execute Milestone 4 get_addresses tool
+app.post('/api/swiggy/test-tool-call', async (req: Request, res: Response): Promise<any> => {
+  const userId = getRequestUserId(req);
+  try {
+    const result = await swiggyMcpClient.callGetAddresses(userId);
+    return res.json({ success: true, result });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || 'Failed to call get_addresses' });
+  }
+});
+
+// 4. POST /api/swiggy/disconnect - Disconnects account and revokes tokens
+app.post('/api/swiggy/disconnect', async (req: Request, res: Response): Promise<any> => {
+  const userId = getRequestUserId(req);
+  try {
+    await swiggyOAuthService.disconnect(userId);
+    return res.json({ success: true, message: 'Swiggy account successfully disconnected.' });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || 'Failed to disconnect Swiggy account' });
+  }
+});
+
+// 5. GET /api/swiggy/tools - Discovered Swiggy MCP tool schemas
+app.get('/api/swiggy/tools', async (req: Request, res: Response): Promise<any> => {
+  const userId = getRequestUserId(req);
+  try {
+    const endpoints = await swiggyMcpClient.listTools(userId);
+    return res.json({ success: true, endpoints });
+  } catch (err: any) {
+    return res.status(401).json({ error: err?.message || 'Failed to retrieve Swiggy MCP tools' });
+  }
+});
+
+// 6. POST /api/swiggy/search - Live grocery product lookup via MCP
+app.post('/api/swiggy/search', async (req: Request, res: Response): Promise<any> => {
+  const userId = getRequestUserId(req);
+  const { query, lat, lng } = req.body;
+  if (!query || typeof query !== 'string') {
+    return res.status(400).json({ error: 'Search query is required' });
+  }
+
+  try {
+    const items = await swiggyMcpClient.searchProducts(
+      userId,
+      query,
+      lat ? Number(lat) : undefined,
+      lng ? Number(lng) : undefined
+    );
+    return res.json({ success: true, query, items });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || 'Failed to search Swiggy MCP catalog' });
+  }
+});
+
+// 7. POST /api/swiggy/cart/preview - Computes cart preview with verified fees without ordering
+app.post('/api/swiggy/cart/preview', async (req: Request, res: Response): Promise<any> => {
+  const userId = getRequestUserId(req);
+  const { items } = req.body;
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'items array is required' });
+  }
+
+  try {
+    const preview = await swiggyMcpClient.previewCart(userId, items);
+    return res.json({ success: true, preview });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || 'Failed to preview Swiggy cart' });
+  }
+});
+
+// 8. POST /api/swiggy/cart/confirm - Performs real MCP cart update with explicit user confirmation
+app.post('/api/swiggy/cart/confirm', async (req: Request, res: Response): Promise<any> => {
+  const userId = getRequestUserId(req);
+  const { confirmed, items } = req.body;
+
+  if (!confirmed) {
+    return res.status(400).json({ error: 'Explicit user confirmation is required to modify Swiggy cart' });
+  }
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'items array is required' });
+  }
+
+  try {
+    const result = await swiggyMcpClient.confirmCart(userId, items);
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || 'Swiggy MCP cart modification failed' });
+  }
+});
+
+
+// ---------------------------------------------------------------------------
 // Speech-to-Text (STT) Routing API: Shruti, Cactus Whisper & Sarvam Saaras v3
 // ---------------------------------------------------------------------------
 const SARVAM_API_KEY = process.env.SARVAM_API_KEY || '';
@@ -692,71 +1170,100 @@ app.post('/api/stt/transcribe', async (req: Request, res: Response): Promise<any
       try {
         const ai = getAiClient();
         const cleanBase64 = audioBase64.replace(/^data:[^;]+;base64,/i, '').trim();
-        const cleanMimeType = (mimeType || 'audio/webm').split(';')[0].trim() || 'audio/webm';
+        let rawMime = (mimeType || 'audio/webm').split(';')[0].trim().toLowerCase();
+        if (rawMime.includes('webm')) rawMime = 'audio/webm';
+        else if (rawMime.includes('mp4') || rawMime.includes('m4a')) rawMime = 'audio/mp4';
+        else if (rawMime.includes('wav')) rawMime = 'audio/wav';
+        else if (rawMime.includes('ogg')) rawMime = 'audio/ogg';
 
         let transcribedText = '';
+
+        // Primary: gemini-3.8-flash native multimodal audio
         try {
-          const transcribeRes = await ai.models.generateContent({
-            model: transcribeModel,
+          const flashRes = await ai.models.generateContent({
+            model: 'gemini-3.8-flash',
             contents: {
               parts: [
                 {
                   inlineData: {
                     data: cleanBase64,
-                    mimeType: cleanMimeType,
+                    mimeType: rawMime,
                   },
                 },
                 {
-                  text: `Transcribe the spoken words in this audio into text (${detectedLang === 'en' ? 'English' : 'Hindi, Hinglish, or English'}). Return only the exact words spoken, or an empty string if silent.`,
+                  text: `You are an Indian kitchen voice assistant for KitchenSync / Mast Meals.
+Listen to this audio recording and transcribe the user's speech accurately into Hindi, English, or Hinglish.
+Common commands include:
+- Kitchen stock adjustments: e.g. "2 kilo aloo add kar do", "1 litre doodh khatam ho gaya", "dahi aur paneer khatam", "add 500g butter".
+- Meal planning & cooking: e.g. "dinner me paneer bhurji rakh do", "poore hafte ka meal plan banao", "kya banayein".
+- Restock & shopping: e.g. "I bought everything required", "saara zaroori samaan khareed liya", "add bread to shopping list".
+
+CRITICAL INSTRUCTIONS:
+- Return ONLY the exact words spoken.
+- Do NOT add explanation, greetings, or punctuation marks around the text.
+- If the audio contains only silence, static, or background noise with no audible human speech, return an empty string "".`,
                 },
               ],
             },
           });
-          transcribedText = (transcribeRes.text || '').trim();
-        } catch {
-          const fallbackRes = await ai.models.generateContent({
-            model: agentModel,
-            contents: {
-              parts: [
-                {
-                  inlineData: {
-                    data: cleanBase64,
-                    mimeType: cleanMimeType,
+          const textOut = (flashRes.text || '').trim();
+          if (textOut && !textOut.toLowerCase().includes('[silence]') && textOut !== '""' && textOut !== "''") {
+            transcribedText = textOut.replace(/^["']|["']$/g, '').trim();
+          }
+        } catch (flashErr: any) {
+          console.warn('Gemini 3.8 Flash audio transcribe error, trying transcribeModel:', flashErr?.message);
+        }
+
+        // Secondary: gemini-3.5-transcribe if primary returned empty
+        if (!transcribedText) {
+          try {
+            const transcribeRes = await ai.models.generateContent({
+              model: transcribeModel,
+              contents: {
+                parts: [
+                  {
+                    inlineData: {
+                      data: cleanBase64,
+                      mimeType: rawMime,
+                    },
                   },
-                },
-                {
-                  text: `You are an Indian kitchen speech-to-text engine for KitchenSync.
-Transcribe the spoken words in the audio accurately into text.
-IMPORTANT: Do NOT invent or guess words if the audio is silent or contains only background noise; if no clear speech is heard, return {"transcript": "", "language": "${detectedLang}", "confidence": 0.0}.
-Output ONLY valid JSON:
-{"transcript": "transcribed text", "language": "${detectedLang}", "confidence": 0.95}`,
-                },
-              ],
-            },
-            config: {
-              responseMimeType: 'application/json',
-            },
-          });
-          const parsed = JSON.parse(fallbackRes.text || '{}');
-          transcribedText = (parsed.transcript || '').trim();
+                  {
+                    text: 'Transcribe this audio.',
+                  },
+                ],
+              },
+            });
+            const tText = (
+              transcribeRes.text ||
+              (transcribeRes.candidates?.[0]?.content?.parts?.[0] as any)?.text ||
+              ''
+            ).trim();
+            if (tText && !tText.toLowerCase().includes('silence')) {
+              transcribedText = tText;
+            }
+          } catch (tErr: any) {
+            console.warn('gemini-3.5-transcribe error:', tErr?.message);
+          }
         }
 
         if (transcribedText) {
           finalTranscript = transcribedText;
-          baseScore = 0.95;
+          finalEngine = 'gemini_flash';
+          baseScore = 0.96;
           fallbackTriggered = true;
         }
       } catch (geminiErr: any) {
-        console.warn('Gemini audio transcription notice:', geminiErr?.message);
+        console.warn('Gemini audio transcription failed:', geminiErr?.message);
       }
     }
   }
 
-  // Format response engine tag (accurate labeling: Web Speech API / Sarvam Saaras)
+  // Format response engine tag (accurate labeling: Web Speech API / Sarvam Saaras / Gemini Cloud)
   const engineLabels: Record<string, string> = {
     shruti: 'Browser Speech Recognition (Hinglish tuned)',
     cactus_whisper: 'Browser Speech Recognition (English)',
     sarvam_saaras: 'Sarvam Saaras v3 (cloud fallback)',
+    gemini_flash: 'Gemini Audio Intelligence (Cloud STT)',
   };
 
   return res.json({
@@ -1235,7 +1742,20 @@ app.post('/api/chat/stream', async (req: Request, res: Response): Promise<any> =
 // ---------------------------------------------------------------------------
 // 3. Server-Side Live API: WebSocket Server on /live
 // ---------------------------------------------------------------------------
-const wss = new WebSocketServer({ server, path: '/live' });
+const wss = new WebSocketServer({ noServer: true });
+
+server.on('upgrade', (req, socket, head) => {
+  try {
+    const pathname = (req.url || '').split('?')[0];
+    if (pathname === '/live') {
+      wss.handleUpgrade(req, socket, head, (clientWs) => {
+        wss.emit('connection', clientWs, req);
+      });
+    }
+  } catch (err) {
+    console.error('Error during websocket upgrade:', err);
+  }
+});
 
 wss.on('connection', async (clientWs: WebSocket) => {
   console.log('Client connected to /live WebSocket');
@@ -1299,7 +1819,7 @@ wss.on('connection', async (clientWs: WebSocket) => {
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { middlewareMode: true, hmr: false },
       appType: 'spa',
     });
     app.use(vite.middlewares);

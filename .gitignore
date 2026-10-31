@@ -51,4 +51,5 @@ data/graph/
 *.sqlite3
 backend/*.db
 backend/mastmeals.db
+.data/
 

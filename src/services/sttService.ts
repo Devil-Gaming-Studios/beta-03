@@ -33,7 +33,7 @@ export type STTEngineType = 'auto' | 'shruti' | 'cactus_whisper' | 'sarvam_saara
 export interface STTResult {
   transcript: string;
   engine: string;
-  engineId: 'shruti' | 'cactus_whisper' | 'sarvam_saaras';
+  engineId: 'shruti' | 'cactus_whisper' | 'sarvam_saaras' | 'gemini_flash';
   modelCredit: string;
   confidence: number; // 0.0 - 1.0
   language: 'hi' | 'en' | 'hinglish';
@@ -245,16 +245,18 @@ export async function transcribeWithRouting(
     }
   }
 
-  const engineNameMap = {
+  const engineNameMap: Record<string, string> = {
     shruti: 'Browser Speech Recognition (Hinglish/Hindi)',
     cactus_whisper: 'Browser Speech Recognition (English)',
     sarvam_saaras: 'Sarvam Saaras v3 (Cloud Fallback)',
+    gemini_flash: 'Gemini Audio Intelligence (Cloud STT)',
   };
 
-  const modelCreditMap = {
+  const modelCreditMap: Record<string, string> = {
     shruti: 'Web Speech Recognition with Indian Kitchen Vocabulary Grounding',
     cactus_whisper: 'Web Speech Recognition with English Culinary Vocabulary Grounding',
     sarvam_saaras: 'Sarvam AI Saaras v3 Cloud Speech Model',
+    gemini_flash: 'Google Gemini 3.8 Flash Multimodal Audio Model',
   };
 
   const finalCheck = calculateTranscriptConfidence(finalTranscript, finalEngine, finalConfidence);
@@ -328,8 +330,10 @@ export class STTController {
   private analyser: AnalyserNode | null = null;
   private animationFrameId: number | null = null;
   private silenceTimer: any = null;
+  private accumulatedSentences: string[] = [];
   private recordedText = '';
   private lastInterimText = '';
+  private maxVolumeDetected = 0;
   private micPermissionDenied = false;
   private iframePolicyBlocked = false;
 
@@ -384,56 +388,86 @@ export class STTController {
     }
 
     const { preference, onInterim, onFinal, onError, onStatusChange, onVolumeChange } = options;
+    if (typeof window !== 'undefined' && window.isSecureContext === false) {
+      onStatusChange?.('idle');
+      onError(
+        'Microphone access requires a secure HTTPS connection on this device. Open the app using its HTTPS address; a local network HTTP address will not allow microphone access.'
+      );
+      return;
+    }
+
     this.isListening = true;
+    this.accumulatedSentences = [];
     this.recordedText = '';
     this.lastInterimText = '';
+    this.maxVolumeDetected = 0;
     this.micPermissionDenied = false;
     this.iframePolicyBlocked = false;
     onStatusChange?.('listening');
 
     let streamObtained = false;
+    let recorderStarted = false;
+    let microphoneErrorMessage = '';
     const isEmbeddedIframe = typeof window !== 'undefined' && window.self !== window.top;
     const reqStartMs = Date.now();
 
-    // 1. Request real microphone access via MediaDevices
+    // 1. Request real microphone access via MediaDevices with optimal speech filters
     try {
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        this.mediaStream = await navigator.mediaDevices.getUserMedia({
-          audio: true,
-        });
+        try {
+          this.mediaStream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true,
+            },
+          });
+        } catch {
+          // Fallback to simple audio: true if detailed constraints reject on certain devices
+          this.mediaStream = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+          });
+        }
         streamObtained = true;
 
         // Setup Web Audio Analyser for real-time waveform visualization
         const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
         if (AudioContextClass) {
-          this.audioContext = new AudioContextClass();
-          if (this.audioContext.state === 'suspended') {
-            await this.audioContext.resume().catch(() => {});
-          }
-
-          const source = this.audioContext.createMediaStreamSource(this.mediaStream);
-          this.analyser = this.audioContext.createAnalyser();
-          this.analyser.fftSize = 256;
-          this.analyser.smoothingTimeConstant = 0.6;
-          source.connect(this.analyser);
-
-          const dataArray = new Uint8Array(this.analyser.frequencyBinCount);
-          const updateVolume = () => {
-            if (!this.isListening || !this.analyser) return;
-            this.analyser.getByteFrequencyData(dataArray);
-            let sum = 0;
-            for (let i = 0; i < dataArray.length; i++) {
-              sum += dataArray[i];
+          try {
+            this.audioContext = new AudioContextClass();
+            if (this.audioContext.state === 'suspended') {
+              await this.audioContext.resume().catch(() => {});
             }
-            const avg = sum / dataArray.length;
-            const normalized = Math.min(100, Math.round((avg / 128) * 100));
-            onVolumeChange?.(normalized);
-            this.animationFrameId = requestAnimationFrame(updateVolume);
-          };
-          updateVolume();
+
+            const source = this.audioContext.createMediaStreamSource(this.mediaStream);
+            this.analyser = this.audioContext.createAnalyser();
+            this.analyser.fftSize = 256;
+            this.analyser.smoothingTimeConstant = 0.5;
+            source.connect(this.analyser);
+
+            const dataArray = new Uint8Array(this.analyser.frequencyBinCount);
+            const updateVolume = () => {
+              if (!this.isListening || !this.analyser) return;
+              this.analyser.getByteFrequencyData(dataArray);
+              let sum = 0;
+              for (let i = 0; i < dataArray.length; i++) {
+                sum += dataArray[i];
+              }
+              const avg = sum / dataArray.length;
+              const normalized = Math.min(100, Math.round((avg / 128) * 100));
+              if (normalized > this.maxVolumeDetected) {
+                this.maxVolumeDetected = normalized;
+              }
+              onVolumeChange?.(normalized);
+              this.animationFrameId = requestAnimationFrame(updateVolume);
+            };
+            updateVolume();
+          } catch (audioCtxErr) {
+            console.warn('AudioContext visualizer setup note:', audioCtxErr);
+          }
         }
 
-        // Setup MediaRecorder
+        // Setup MediaRecorder for universal server fallback
         this.audioChunks = [];
         let mimeType = '';
         if (typeof MediaRecorder !== 'undefined') {
@@ -457,7 +491,8 @@ export class STTController {
               }
             };
 
-            this.mediaRecorder.start(200);
+            this.mediaRecorder.start(250);
+            recorderStarted = true;
           } catch (recErr) {
             console.warn('MediaRecorder init fallback:', recErr);
           }
@@ -466,15 +501,28 @@ export class STTController {
     } catch (micErr: any) {
       const elapsedMs = Date.now() - reqStartMs;
       const errMsg = String(micErr?.message || micErr || '');
+      const errorName = String(micErr?.name || '');
       console.warn('Microphone access error:', errMsg, `(${elapsedMs}ms)`);
-      this.micPermissionDenied = true;
-      // If rejected in < 150ms inside an iframe, the parent iframe Permissions-Policy blocked the prompt
+      this.micPermissionDenied = ['NotAllowedError', 'PermissionDeniedError', 'SecurityError'].includes(errorName);
       if (isEmbeddedIframe && (elapsedMs < 150 || /policy|not allowed by the user agent/i.test(errMsg))) {
         this.iframePolicyBlocked = true;
       }
+      if (this.iframePolicyBlocked) {
+        microphoneErrorMessage =
+          'The embedded preview blocked microphone access. Open the app directly in a new tab and allow microphone access.';
+      } else if (this.micPermissionDenied) {
+        microphoneErrorMessage =
+          'Microphone permission is blocked for this site. Allow microphone access in your browser or device settings, then try again.';
+      } else if (errorName === 'NotFoundError' || errorName === 'DevicesNotFoundError') {
+        microphoneErrorMessage = 'No microphone was found. Connect or enable a microphone, then try again.';
+      } else if (errorName === 'NotReadableError' || errorName === 'AbortError') {
+        microphoneErrorMessage = 'The microphone is busy or unavailable. Close other apps using it and try again.';
+      } else {
+        microphoneErrorMessage = 'The browser could not access a microphone. Check the device and browser microphone settings.';
+      }
     }
 
-    // 2. Start Web Speech Recognition if available (also acts as fallback if getUserMedia failed)
+    // 2. Start Web Speech Recognition if available (client-side real-time transcript)
     let recognitionStarted = false;
     if (this.recognition) {
       try {
@@ -487,17 +535,20 @@ export class STTController {
         }
 
         this.recognition.onresult = (event: any) => {
-          let finalTranscript = '';
           let interim = '';
-          for (let i = 0; i < event.results.length; ++i) {
+          for (let i = event.resultIndex || 0; i < event.results.length; ++i) {
             const item = event.results[i];
+            const text = item[0]?.transcript?.trim() || '';
             if (item.isFinal) {
-              finalTranscript += (finalTranscript ? ' ' : '') + item[0].transcript.trim();
+              if (text && !this.accumulatedSentences.includes(text)) {
+                this.accumulatedSentences.push(text);
+              }
+              interim = '';
             } else {
-              interim += (interim ? ' ' : '') + item[0].transcript.trim();
+              interim += (interim ? ' ' : '') + text;
             }
           }
-          this.recordedText = finalTranscript;
+          this.recordedText = this.accumulatedSentences.join(' ').trim();
           this.lastInterimText = interim;
 
           const combinedLive = [this.recordedText, this.lastInterimText]
@@ -513,7 +564,7 @@ export class STTController {
             if (this.isListening && combinedLive) {
               this.finishRecording(options);
             }
-          }, 3500);
+          }, 4000);
         };
 
         this.recognition.onerror = (err: any) => {
@@ -527,8 +578,8 @@ export class STTController {
             onStatusChange?.('idle');
             onError(
               this.iframePolicyBlocked
-                ? 'The AI Studio embedded preview frame blocked the browser microphone prompt. Open the app in a new tab (button below) to trigger the browser microphone permission popup, or upload an audio clip directly.'
-                : 'Microphone permission is blocked in your browser settings. Click the lock/tune icon in your browser address bar to allow Microphone access.'
+                ? 'The embedded preview frame blocked the browser microphone prompt. Open the app in a new tab to enable the microphone popup, or type your message below.'
+                : 'Microphone permission is blocked in your browser settings. Please allow Microphone access in your address bar.'
             );
           }
         };
@@ -548,13 +599,13 @@ export class STTController {
       }
     }
 
-    if (!streamObtained && !recognitionStarted) {
+    if (!recorderStarted && !recognitionStarted) {
       this.isListening = false;
+      await this.stop();
       onStatusChange?.('idle');
       onError(
-        this.iframePolicyBlocked
-          ? 'The AI Studio embedded preview frame blocked the browser microphone prompt. Open the app in a new tab to enable the browser mic prompt, or upload a voice audio clip.'
-          : 'Microphone access is blocked. Please allow microphone access in your browser address bar or upload an audio clip.'
+        microphoneErrorMessage ||
+          'This browser cannot record microphone audio for transcription. Try the latest version of Chrome or Safari, or upload an audio recording instead.'
       );
     }
   }
@@ -577,6 +628,9 @@ export class STTController {
         this.recognition.stop();
       } catch {}
     }
+
+    // Give a brief 250ms window for any final in-flight speech event or audio flush
+    await new Promise((r) => setTimeout(r, 250));
 
     let audioBase64 = '';
     if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
@@ -625,11 +679,16 @@ export class STTController {
       this.audioContext = null;
     }
 
-    let finalPrompt = [this.recordedText.trim(), this.lastInterimText.trim()]
+    let finalPrompt = [
+      this.accumulatedSentences.join(' ').trim(),
+      this.recordedText.trim(),
+      this.lastInterimText.trim(),
+    ]
       .filter(Boolean)
       .join(' ')
       .trim();
 
+    // If browser speech recognition produced nothing (e.g. mobile Chrome, Safari, WebView), invoke server Gemini STT
     if (!finalPrompt && audioBase64) {
       try {
         const serverResult = await fetch('/api/stt/transcribe', {
@@ -651,14 +710,14 @@ export class STTController {
           }
         }
       } catch (err) {
-        console.warn('Server transcription notice:', err);
+        console.warn('Server audio transcription error:', err);
       }
     }
 
     if (!finalPrompt) {
       options.onStatusChange?.('idle');
       options.onError?.(
-        'No speech detected. Please speak clearly into the microphone or upload an audio clip.'
+        'No speech detected. Please speak closer to your microphone, check mic volume, or tap any quick suggestion below.'
       );
       return;
     }
