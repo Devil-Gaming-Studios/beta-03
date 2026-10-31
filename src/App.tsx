@@ -19,6 +19,7 @@ import { AuthScreen } from './components/AuthScreen';
 import { CommunityScreen } from './components/CommunityScreen';
 import { DownloadAppModal } from './components/DownloadAppModal';
 import { store } from './services/store';
+import { syncClient } from './services/syncClient';
 import { MealSlot } from './types';
 
 export const App: React.FC = () => {
@@ -60,6 +61,14 @@ export const App: React.FC = () => {
         setIsAuthenticated(true);
       }
     }
+  }, []);
+
+  // Start cross-device sync and refresh the screens whenever another device's changes arrive.
+  React.useEffect(() => {
+    syncClient.start();
+    const onSynced = () => setPlanRefreshKey((k) => k + 1);
+    window.addEventListener('mastmeals:synced', onSynced);
+    return () => window.removeEventListener('mastmeals:synced', onSynced);
   }, []);
 
   const toggleLanguage = () => {

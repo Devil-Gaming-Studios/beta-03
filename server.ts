@@ -67,6 +67,7 @@ import { shopInboxService } from './server/shopInboxService';
 import { swiggyOAuthService } from './server/swiggyOAuth';
 import { swiggyTokenStore } from './server/swiggyTokenStore';
 import { swiggyMcpClient } from './server/swiggyMcpClient';
+import * as syncService from './server/syncService';
 
 let systemInstruction = `You are Omnirush, the assistant inside Mast Meals / KitchenSync, a household meal, recipe and kitchen-stock assistant for Indian households. You help with:
 1. Updating inventory stock (e.g. add/remove/set ingredients).
@@ -98,6 +99,40 @@ try {
 } catch {
   // Use fallback systemInstruction
 }
+
+// ---------------------------------------------------------------------------
+// Cross-device sync (account + document store). See server/syncService.ts
+// ---------------------------------------------------------------------------
+function syncAuth(req: Request, res: Response): string | null {
+  const h = req.headers.authorization || '';
+  const accountId = syncService.verifyToken(h.startsWith('Bearer ') ? h.slice(7) : undefined);
+  if (!accountId) { res.status(401).json({ error: 'invalid or expired sync token' }); return null; }
+  return accountId;
+}
+
+app.post('/api/sync/register', (req: Request, res: Response): any => {
+  const r = syncService.register(req.body?.email, req.body?.password);
+  return r.ok ? res.json(r) : res.status(r.status).json({ error: r.error });
+});
+
+app.post('/api/sync/login', (req: Request, res: Response): any => {
+  const r = syncService.login(req.body?.email, req.body?.password);
+  return r.ok ? res.json(r) : res.status(r.status).json({ error: r.error });
+});
+
+app.post('/api/sync/push', (req: Request, res: Response): any => {
+  const accountId = syncAuth(req, res);
+  if (!accountId) return;
+  const r = syncService.push(accountId, String(req.body?.client_id || ''), req.body?.changes);
+  return r.ok ? res.json(r) : res.status(r.status).json({ error: r.error });
+});
+
+app.get('/api/sync/pull', (req: Request, res: Response): any => {
+  const accountId = syncAuth(req, res);
+  if (!accountId) return;
+  const since = Math.max(0, Number(req.query.since) || 0);
+  return res.json(syncService.pull(accountId, since));
+});
 
 // ---------------------------------------------------------------------------
 // Graph RAG API Endpoints

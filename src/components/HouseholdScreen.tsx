@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { store } from '../services/store';
+import { SyncStatusBadge } from './SyncStatusBadge';
+import { syncClient } from '../services/syncClient';
 import {
   AgeGroup,
   CookEquipment,
@@ -104,6 +106,7 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi, onLog
   };
 
   const handleLogout = () => {
+    syncClient.unlink();
     store.logout();
     if (onLogout) {
       onLogout();
@@ -349,6 +352,8 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi, onLog
             </p>
           </div>
         </div>
+
+        <div className="shrink-0"><SyncStatusBadge isHindi={isHindi} /></div>
 
         {/* LOGOUT BUTTON IN PROFILE */}
         <button
