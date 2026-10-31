@@ -20,4 +20,15 @@ ok "A deletes an item"                      "$($D $A remove ZZMustard)"     'rem
 ok "delete reaches B"                       "$($D $B sync >/dev/null; $D $B show)" '"stock":\["ZZCumin"\]'
 ok "wrong password is rejected"             "$(curl -s -X POST $BASE/api/sync/login -H 'content-type: application/json' -d '{"email":"asha@example.com","password":"nope123"}')" 'wrong password'
 ok "no token -> 401"                        "$(curl -s -o /dev/null -w '%{http_code}' $BASE/api/sync/pull)" '401'
+# live push: B listens with polling effectively disabled, so only the live stream can deliver; A adds stock meanwhile
+SYNC_POLL_MS=600000 $D $B listen 14 >"$T/listen.out" 2>&1 & LP=$!
+sleep 4
+$D $A add ZZLive 100 >/dev/null
+wait $LP
+ok "change reaches B live (no poll)"        "$(tail -1 "$T/listen.out")" 'ZZLive'
+# a phone that already made its own local account (the "logged in before sync existed" case)
+C="$T/C"
+ok "C has its own local account"            "$($D $C register-local)"       '"local":true'
+ok "C links and adopts the account's data"  "$($D $C connect)"              'Asha Kitchen'
+ok "C sees the account's stock"             "$($D $C show)"                 'ZZLive'
 echo "ALL SYNC TESTS PASSED"

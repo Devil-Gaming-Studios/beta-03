@@ -127,6 +127,21 @@ app.post('/api/sync/push', (req: Request, res: Response): any => {
   return r.ok ? res.json(r) : res.status(r.status).json({ error: r.error });
 });
 
+app.get('/api/sync/stream', (req: Request, res: Response): any => {
+  const accountId = syncAuth(req, res);
+  if (!accountId) return;
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  res.write('retry: 3000\n\n');
+  const stop = syncService.watch(accountId, (payload) => res.write(`event: changed\ndata: ${payload}\n\n`));
+  const beat = setInterval(() => res.write(': ping\n\n'), 20000);
+  req.on('close', () => { clearInterval(beat); stop(); });
+});
+
 app.get('/api/sync/pull', (req: Request, res: Response): any => {
   const accountId = syncAuth(req, res);
   if (!accountId) return;

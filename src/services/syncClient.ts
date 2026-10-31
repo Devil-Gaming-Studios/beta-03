@@ -36,6 +36,7 @@ class SyncClient {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private listeners = new Set<() => void>();
   private started = false;
+  private streamAbort: AbortController | null = null;
 
   // ---- state for the UI ----
   getInfo() {
@@ -72,6 +73,7 @@ class SyncClient {
       set(K.token, body.token);
       set(K.account, email);
       this.start();
+      this.openStream();
       await this.syncNow();
       return { ok: true };
     } catch (e: any) {
@@ -81,6 +83,8 @@ class SyncClient {
 
   /** Forget the account on this device (local data stays). Call on logout. */
   unlink() {
+    this.streamAbort?.abort();
+    this.streamAbort = null;
     [K.token, K.account, K.version, K.snapshot].forEach(del);
     this.setStatus('off');
   }
@@ -90,11 +94,40 @@ class SyncClient {
     if (this.started || typeof window === 'undefined') return;
     this.started = true;
     store.setPersistListener(() => this.schedule(1500));
-    setInterval(() => this.syncNow(), 15000);
+    setInterval(() => this.syncNow(), Number((globalThis as any).__SYNC_POLL_MS) || 8000); // safety net; the live stream below normally delivers changes instantly
     window.addEventListener('online', () => this.syncNow());
     window.addEventListener('focus', () => this.syncNow());
     document.addEventListener('visibilitychange', () => { if (!document.hidden) this.syncNow(); });
-    if (this.isLinked()) this.syncNow();
+    if (this.isLinked()) { this.syncNow(); this.openStream(); }
+  }
+
+  /** Live channel: the server tells us the moment another device pushes, and we pull right away. */
+  private openStream() {
+    if (this.streamAbort || !get(K.token) || typeof fetch === 'undefined') return;
+    const ctrl = new AbortController();
+    this.streamAbort = ctrl;
+    (async () => {
+      while (!ctrl.signal.aborted) {
+        try {
+          const token = get(K.token);
+          if (!token) break;
+          const r = await fetch('/api/sync/stream', { headers: { Authorization: `Bearer ${token}` }, signal: ctrl.signal });
+          if (r.status === 401) break;
+          if (!r.ok || !r.body) throw new Error('stream failed');
+          const reader = r.body.getReader();
+          const dec = new TextDecoder();
+          for (;;) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            if (dec.decode(value, { stream: true }).includes('event: changed')) this.syncNow();
+          }
+        } catch {
+          // network drop: retry below
+        }
+        if (!ctrl.signal.aborted) await new Promise((res) => setTimeout(res, 3000));
+      }
+      if (this.streamAbort === ctrl) this.streamAbort = null;
+    })();
   }
 
   private schedule(ms: number) {
@@ -139,6 +172,14 @@ class SyncClient {
       store.applySyncDocs(changes);
       for (const d of docs) { if (d.deleted) delete snap[d.key]; else snap[d.key] = hashDoc(d.value); }
     });
+    // 1b. This device may have created its own local user before linking; use the account's user instead.
+    const email = (get(K.account) || '').toLowerCase();
+    const docs = store.getSyncDocs();
+    const accountUserId = Object.keys(snap)
+      .filter((k) => k.startsWith('users/'))
+      .map((k) => k.slice('users/'.length))
+      .find((id) => String(docs[`users/${id}`]?.email || '').toLowerCase() === email);
+    if (accountUserId && store.getSyncScope().userId !== accountUserId) store.adoptSyncedUser(accountUserId);
     // 2. Documents that only exist here: upload the ones that belong to the signed-in user,
     //    remember (but do not upload) the rest so another user's leftovers never leak.
     const scope = store.getSyncScope();

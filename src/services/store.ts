@@ -1081,6 +1081,33 @@ class StoreService {
     return { userId, householdIds: Array.from(new Set(ids)) };
   }
 
+  /** After linking to a sync account: switch to the account's own user/household if this device had made a different one. */
+  public adoptSyncedUser(userId: string): boolean {
+    const user = this.state.users[userId];
+    if (!user || this.state.currentUserId === userId) return false;
+    this.muteSync = true;
+    try {
+      this.isExplicitlyLoggedOut = false;
+      this.state.currentUserId = userId;
+      if (user.household_id && this.state.households[user.household_id]) this.state.currentHouseholdId = user.household_id;
+      try {
+        const mem = localStorage.getItem(`mastmeals_diet_memory_${userId}`);
+        if (mem) localStorage.setItem(DIET_MEMORY_KEY, mem);
+        localStorage.removeItem('mastmeals_auth_session_v1');
+      } catch {
+        // ignore
+      }
+      this.persist();
+    } finally {
+      this.muteSync = false;
+    }
+    return true;
+  }
+
+  public getCurrentEmail(): string {
+    return this.state.users[this.state.currentUserId]?.email || '';
+  }
+
   /** All syncable documents of this device (flat key -> JSON value). */
   public getSyncDocs(): Record<string, any> {
     const docs = flattenState(this.state);

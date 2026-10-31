@@ -160,7 +160,7 @@ export function push(accountId: string, clientId: string, changes: unknown):
     applied++;
   }
   db.versions[accountId] = version;
-  if (applied) save();
+  if (applied) { save(); notify(accountId, version, String(clientId || '')); }
   return { ok: true, version, applied };
 }
 
@@ -176,6 +176,21 @@ export function pull(accountId: string, since: number, limit = 300) {
     more: docs.length > page.length,
     docs: page.map((d) => ({ key: d.key, value: d.deleted ? null : d.value, deleted: d.deleted, version: d.version, by: d.by })),
   };
+}
+
+// Live "something changed" notifications, so other devices pull immediately instead of waiting for a poll.
+const watchers = new Map<string, Set<(payload: string) => void>>();
+
+export function watch(accountId: string, fn: (payload: string) => void): () => void {
+  let set = watchers.get(accountId);
+  if (!set) { set = new Set(); watchers.set(accountId, set); }
+  set.add(fn);
+  return () => { set!.delete(fn); if (!set!.size) watchers.delete(accountId); };
+}
+
+function notify(accountId: string, version: number, by: string) {
+  const payload = JSON.stringify({ version, by });
+  watchers.get(accountId)?.forEach((fn) => { try { fn(payload); } catch { /* closed */ } });
 }
 
 /** test helper */
