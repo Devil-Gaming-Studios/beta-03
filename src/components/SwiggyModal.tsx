@@ -15,44 +15,40 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
   items,
   isHindi,
 }) => {
-  const [activeTab, setActiveTab] = useState<'cart' | 'connect' | 'setup'>('cart');
+  const [activeTab, setActiveTab] = useState<'cart' | 'mcp' | 'connect' | 'setup'>('cart');
   const [connection, setConnection] = useState<SwiggyAccountConnection>(() => store.getSwiggyConnection());
 
-  // Phone OTP Flow State
-  const [phoneNumber, setPhoneNumber] = useState('');
-  const [otp, setOtp] = useState('');
-  const [userName, setUserName] = useState('');
-  const [deliveryAddress, setDeliveryAddress] = useState('Indiranagar 100ft Road, Stage 2, Bengaluru - 560038');
-  const [otpRequested, setOtpRequested] = useState(false);
-  const [suggestedOtp, setSuggestedOtp] = useState<string | null>(null);
+  // Credentials State
+  const [sessionTid, setSessionTid] = useState('');
+  const [lat, setLat] = useState('12.9716');
+  const [lng, setLng] = useState('77.5946');
+  const [address, setAddress] = useState('Indiranagar, Bengaluru');
   const [authLoading, setAuthLoading] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
+  const [authNotice, setAuthNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  // Direct Token State
-  const [directToken, setDirectToken] = useState('');
+  // MCP Execution & Logs
+  const [mcpExecuting, setMcpExecuting] = useState(false);
+  const [mcpLogs, setMcpLogs] = useState<string[]>([]);
+  const [mcpResult, setMcpResult] = useState<any | null>(null);
+  const [browserScriptCopied, setBrowserScriptCopied] = useState(false);
+  const [listCopied, setListCopied] = useState(false);
 
-  // Cart Addition State
-  const [cartAdding, setCartAdding] = useState(false);
-  const [cartProgressText, setCartProgressText] = useState('');
-  const [cartResult, setCartResult] = useState<any | null>(null);
-  const [copied, setCopied] = useState(false);
-
-  // Sync connection on modal open
+  // Load existing credentials / status on mount
   useEffect(() => {
     if (isOpen) {
       const current = store.getSwiggyConnection();
       setConnection(current);
-      // Fetch server status in background
-      fetch('/api/swiggy/status')
-        .then((res) => res.json())
+      if (current.sessionToken) setSessionTid(current.sessionToken);
+      if (current.lat) setLat(current.lat.toString());
+      if (current.lng) setLng(current.lng.toString());
+      if (current.deliveryAddress) setAddress(current.deliveryAddress);
+
+      // Fetch live MCP tools and logs
+      fetch('/api/mcp/logs')
+        .then((r) => r.json())
         .then((data) => {
-          if (data.isConnected && data.session) {
-            const merged: SwiggyAccountConnection = {
-              isConnected: true,
-              ...data.session,
-            };
-            setConnection(merged);
-            store.saveSwiggyConnection(merged);
+          if (Array.isArray(data.logs)) {
+            setMcpLogs(data.logs.map((l: any) => `[${l.status.toUpperCase()}] ${l.message}`));
           }
         })
         .catch(() => {});
@@ -61,95 +57,129 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
 
   const totalAmount = items.reduce((sum, i) => sum + (i.swiggy_price || i.estimated_price || 40), 0);
 
-  // --- Handlers ---
-  const handleRequestOtp = async () => {
-    setAuthLoading(true);
-    setAuthError(null);
-    try {
-      const res = await fetch('/api/swiggy/request-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phoneNumber }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to send OTP');
-
-      setOtpRequested(true);
-      if (data.testOtp) {
-        setSuggestedOtp(data.testOtp);
-      }
-    } catch (e: any) {
-      setAuthError(e.message || 'Error requesting OTP');
-    } finally {
-      setAuthLoading(false);
+  // Auto-detect GPS Coordinates
+  const handleDetectLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setLat(pos.coords.latitude.toFixed(4));
+          setLng(pos.coords.longitude.toFixed(4));
+          setAuthNotice({
+            type: 'success',
+            message: `📍 GPS detected: [${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}]`,
+          });
+        },
+        () => {
+          setAuthNotice({
+            type: 'error',
+            message: 'Could not access GPS. Using default city coordinates.',
+          });
+        }
+      );
     }
   };
 
-  const handleVerifyOtp = async () => {
-    setAuthLoading(true);
-    setAuthError(null);
-    try {
-      const res = await fetch('/api/swiggy/verify-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          phoneNumber,
-          otp,
-          userName: userName || undefined,
-          deliveryAddress: deliveryAddress || undefined,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to verify OTP');
-
-      const newConn: SwiggyAccountConnection = {
-        isConnected: true,
-        ...data.profile,
-      };
-      setConnection(newConn);
-      store.saveSwiggyConnection(newConn);
-      setActiveTab('cart');
-      setOtpRequested(false);
-      setOtp('');
-    } catch (e: any) {
-      setAuthError(e.message || 'Verification failed');
-    } finally {
-      setAuthLoading(false);
-    }
-  };
-
-  const handleConnectToken = async () => {
-    if (!directToken.trim()) {
-      setAuthError('Please enter a session token or cookie.');
+  // Connect Swiggy Account via MCP Tool: swiggy_connect
+  const handleConnectMcp = async () => {
+    if (!sessionTid.trim()) {
+      setAuthNotice({ type: 'error', message: 'Please enter your _session_tid cookie from swiggy.com' });
       return;
     }
+
     setAuthLoading(true);
-    setAuthError(null);
+    setAuthNotice(null);
+
     try {
-      const res = await fetch('/api/swiggy/connect-token', {
+      const res = await fetch('/api/mcp/call', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sessionToken: directToken,
-          userName: userName || 'Swiggy Member',
-          deliveryAddress: deliveryAddress || 'Bangalore Instamart Hub',
+          name: 'swiggy_connect',
+          arguments: {
+            sessionTid: sessionTid.trim(),
+            lat: Number(lat) || 12.9716,
+            lng: Number(lng) || 77.5946,
+            address: address.trim(),
+          },
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to connect token');
 
+      const data = await res.json();
+      if (data.isError) {
+        throw new Error(data.content?.[0]?.text || 'Connection failed');
+      }
+
+      const parsed = JSON.parse(data.content?.[0]?.text || '{}');
       const newConn: SwiggyAccountConnection = {
         isConnected: true,
-        ...data.profile,
+        sessionToken: sessionTid.trim(),
+        userName: parsed.credentials?.userName || 'Swiggy User',
+        phoneNumber: parsed.credentials?.phoneNumber || '+91 Linked',
+        deliveryAddress: address,
+        lat: Number(lat),
+        lng: Number(lng),
+        storeName: 'Swiggy Instamart Dark Store (Connected)',
+        connectedAt: new Date().toISOString(),
       };
+
       setConnection(newConn);
       store.saveSwiggyConnection(newConn);
+      setAuthNotice({ type: 'success', message: '✅ Successfully connected your Swiggy account to MCP!' });
       setActiveTab('cart');
-      setDirectToken('');
     } catch (e: any) {
-      setAuthError(e.message || 'Token connection failed');
+      setAuthNotice({ type: 'error', message: e.message || 'Failed to connect' });
     } finally {
       setAuthLoading(false);
+    }
+  };
+
+  // Execute MCP Tool: swiggy_add_to_cart
+  const handleExecuteMcpAddToCart = async () => {
+    setMcpExecuting(true);
+    setMcpResult(null);
+    setMcpLogs((prev) => [
+      `[INFO] Starting Swiggy MCP Cart Pipeline with ${items.length} ingredients...`,
+      ...prev,
+    ]);
+
+    try {
+      const toolPayload = {
+        name: 'swiggy_add_to_cart',
+        arguments: {
+          items: items.map((i) => ({
+            name: i.name,
+            quantity: i.qty_base,
+            unit: i.base_unit,
+          })),
+        },
+      };
+
+      const res = await fetch('/api/mcp/call', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(toolPayload),
+      });
+
+      const data = await res.json();
+      if (data.isError) {
+        throw new Error(data.content?.[0]?.text || 'MCP execution failed');
+      }
+
+      const parsedResult = JSON.parse(data.content?.[0]?.text || '{}');
+      setMcpResult(parsedResult);
+
+      // Mark items as in Swiggy cart in store
+      store.markItemsInSwiggyCart(items.map((i) => i.id), parsedResult.cartId);
+
+      setMcpLogs((prev) => [
+        `[SUCCESS] Cart updated! Total: ₹${parsedResult.total} (Cart ID: ${parsedResult.cartId})`,
+        ...prev,
+      ]);
+    } catch (err: any) {
+      setMcpLogs((prev) => [`[ERROR] ${err.message}`, ...prev]);
+      alert(`MCP Execution Notice: ${err.message}`);
+    } finally {
+      setMcpExecuting(false);
     }
   };
 
@@ -159,50 +189,8 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
     } catch {}
     store.disconnectSwiggy();
     setConnection({ isConnected: false });
-    setCartResult(null);
-  };
-
-  const handleAddToCart = async () => {
-    setCartAdding(true);
-    setCartProgressText('1/3 Matching shortfalls with Instamart catalog...');
-    setCartResult(null);
-
-    try {
-      setTimeout(() => {
-        setCartProgressText('2/3 Checking local dark-store inventory...');
-      }, 700);
-
-      setTimeout(() => {
-        setCartProgressText('3/3 Reserving cart items in your connected Swiggy session...');
-      }, 1400);
-
-      const res = await fetch('/api/swiggy/add-to-cart', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          items: items.map((i) => ({
-            id: i.id,
-            name: i.name,
-            qty_base: i.qty_base,
-            base_unit: i.base_unit,
-            estimated_price: i.swiggy_price || i.estimated_price,
-          })),
-          session: connection,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to add items to cart');
-
-      // Mark items as in cart in local store
-      store.markItemsInSwiggyCart(items.map((i) => i.id), data.cartId);
-      setCartResult(data);
-    } catch (e: any) {
-      alert(`Cart Sync Notice: ${e.message || 'Could not reach Swiggy server'}`);
-    } finally {
-      setCartAdding(false);
-      setCartProgressText('');
-    }
+    setSessionTid('');
+    setMcpResult(null);
   };
 
   if (!isOpen) return null;
@@ -225,23 +213,23 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-[16px] font-bold text-[#1a1c1a]">
-                  Swiggy Instamart Cart Sync
+                  Swiggy Instamart MCP Cart
                 </h3>
                 {connection.isConnected ? (
                   <span className="text-[10px] font-bold bg-[#E8F5E9] text-[#2E7D32] px-2 py-0.5 rounded-full flex items-center gap-1 border border-[#C8E6C9]">
                     <span className="w-1.5 h-1.5 rounded-full bg-[#2E7D32] animate-pulse"></span>
-                    Connected
+                    MCP Active
                   </span>
                 ) : (
                   <span className="text-[10px] font-bold bg-[#FFF3E0] text-[#E65100] px-2 py-0.5 rounded-full border border-[#FFE0B2]">
-                    Not Connected
+                    Connect Swiggy
                   </span>
                 )}
               </div>
               <p className="text-[11.5px] text-[#424843]">
                 {connection.isConnected
-                  ? `${connection.userName || 'Swiggy User'} • ${connection.phoneNumber || 'Linked'}`
-                  : (isHindi ? 'अपना स्विगी अकाउंट कनेक्ट करें और सीधे कार्ट में जोड़ें' : 'Connect Swiggy account to push items to your cart')}
+                  ? `Connected: ${connection.userName} • Instamart Pod: ${connection.deliveryAddress || 'Bengaluru'}`
+                  : (isHindi ? 'स्विगी MCP कार्ट ऑटोमेशन' : 'Model Context Protocol (MCP) live cart pipeline')}
               </p>
             </div>
           </div>
@@ -253,7 +241,7 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
           </button>
         </div>
 
-        {/* Tab Switcher */}
+        {/* Tab Navigation */}
         <div className="flex rounded-xl bg-[#f4f4f0] p-1 text-[12px] font-bold">
           <button
             onClick={() => setActiveTab('cart')}
@@ -264,7 +252,7 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
             }`}
           >
             <span className="material-symbols-outlined text-[15px]">shopping_cart</span>
-            <span>Items & Cart ({items.length})</span>
+            <span>Items ({items.length})</span>
           </button>
           <button
             onClick={() => setActiveTab('connect')}
@@ -274,8 +262,19 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
                 : 'text-[#727972] hover:text-[#1a1c1a]'
             }`}
           >
-            <span className="material-symbols-outlined text-[15px]">link</span>
-            <span>{connection.isConnected ? 'Account Profile' : 'Connect Swiggy'}</span>
+            <span className="material-symbols-outlined text-[15px]">key</span>
+            <span>{connection.isConnected ? 'Account' : 'Connect'}</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('mcp')}
+            className={`flex-1 py-1.5 rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+              activeTab === 'mcp'
+                ? 'bg-white text-[#FC8019] shadow-xs'
+                : 'text-[#727972] hover:text-[#1a1c1a]'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[15px]">terminal</span>
+            <span>MCP Logs</span>
           </button>
           <button
             onClick={() => setActiveTab('setup')}
@@ -285,27 +284,45 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
                 : 'text-[#727972] hover:text-[#1a1c1a]'
             }`}
           >
-            <span className="material-symbols-outlined text-[15px]">tune</span>
-            <span>API & Tokens</span>
+            <span className="material-symbols-outlined text-[15px]">help</span>
+            <span>Guide</span>
           </button>
         </div>
 
-        {/* TAB 1: CART & SHORTFALL ITEMS */}
+        {/* TAB 1: CART ITEMS & MCP EXECUTION */}
         {activeTab === 'cart' && (
           <div className="flex flex-col gap-3">
-            {/* Account Status Card */}
-            {connection.isConnected ? (
+            {/* Status Alert */}
+            {!connection.isConnected ? (
+              <div className="p-3.5 rounded-2xl bg-[#FFF7ED] border border-[#FFEDD5] flex items-center justify-between text-[12px]">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[#EA580C] text-[20px]">
+                    link_off
+                  </span>
+                  <span className="text-[#9A3412] font-medium leading-snug">
+                    Connect your Swiggy session cookie (_session_tid) so the MCP can push items directly to your live cart.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('connect')}
+                  className="py-1 px-3 rounded-xl bg-[#EA580C] text-white font-bold text-[11px] shrink-0 hover:bg-[#c2410c]"
+                >
+                  Connect
+                </button>
+              </div>
+            ) : (
               <div className="p-3 rounded-2xl bg-[#F0FDF4] border border-[#BBF7D0] flex items-center justify-between text-[12px]">
-                <div className="flex items-center gap-2.5">
+                <div className="flex items-center gap-2">
                   <span className="material-symbols-outlined text-[#16A34A] text-[20px]">
-                    check_circle
+                    verified
                   </span>
                   <div>
                     <span className="font-bold text-[#15803D] block">
-                      Linked: {connection.userName} ({connection.phoneNumber})
+                      Swiggy MCP Connected • {connection.userName}
                     </span>
-                    <span className="text-[11px] text-[#4b5563] block">
-                      Pod: {connection.storeName || 'Instamart Express Hub'}
+                    <span className="text-[11px] text-[#4b5563]">
+                      Location: {connection.deliveryAddress} [{connection.lat}, {connection.lng}]
                     </span>
                   </div>
                 </div>
@@ -314,54 +331,36 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
                   onClick={() => setActiveTab('connect')}
                   className="text-[11px] font-bold text-[#16A34A] hover:underline"
                 >
-                  Manage
-                </button>
-              </div>
-            ) : (
-              <div className="p-3 rounded-2xl bg-[#FFF7ED] border border-[#FFEDD5] flex items-center justify-between text-[12px]">
-                <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[#EA580C] text-[18px]">
-                    link_off
-                  </span>
-                  <span className="text-[#9A3412] leading-snug">
-                    Connect your Swiggy account to enable 1-tap cart synchronization.
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('connect')}
-                  className="py-1 px-2.5 rounded-lg bg-[#EA580C] text-white font-bold text-[11px] shrink-0 hover:bg-[#c2410c]"
-                >
-                  Connect Now
+                  Change
                 </button>
               </div>
             )}
 
-            {/* Cart Items List */}
+            {/* Items List */}
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center justify-between">
                 <span className="text-[11.5px] font-bold text-[#727972] uppercase tracking-wider">
-                  Missing Kitchen Ingredients ({items.length})
+                  Missing Ingredients to Add ({items.length})
                 </span>
                 <button
                   type="button"
                   onClick={() => {
                     const text = items.map((i) => `• ${i.name}: ${i.qty_base} ${i.base_unit}`).join('\n');
                     navigator.clipboard?.writeText(text);
-                    setCopied(true);
-                    setTimeout(() => setCopied(false), 2000);
+                    setListCopied(true);
+                    setTimeout(() => setListCopied(false), 2000);
                   }}
                   className="text-[11px] font-bold text-[#FC8019] hover:underline flex items-center gap-1"
                 >
                   <span className="material-symbols-outlined text-[14px]">content_copy</span>
-                  <span>{copied ? 'Copied!' : 'Copy List'}</span>
+                  <span>{listCopied ? 'Copied!' : 'Copy List'}</span>
                 </button>
               </div>
 
-              <div className="flex flex-col gap-1.5 max-h-[190px] overflow-y-auto pr-1">
+              <div className="flex flex-col gap-1.5 max-h-[180px] overflow-y-auto pr-1">
                 {items.length === 0 ? (
                   <div className="p-4 rounded-xl bg-[#faf9f6] text-center text-[#727972] text-[12px]">
-                    No shortfall items in current shopping list.
+                    No shortfall items currently in shopping list.
                   </div>
                 ) : (
                   items.map((item) => (
@@ -369,8 +368,8 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
                       key={item.id}
                       className="p-2.5 rounded-xl bg-[#FAF9F6] border border-[#E6E4DD] flex items-center justify-between text-[13px]"
                     >
-                      <div className="flex flex-col">
-                        <span className="font-semibold text-[#1a1c1a]">{item.name}</span>
+                      <div>
+                        <span className="font-semibold text-[#1a1c1a] block">{item.name}</span>
                         <div className="flex items-center gap-2">
                           <span className="text-[11px] text-[#727972]">
                             {item.qty_base} {item.base_unit}
@@ -381,8 +380,8 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
                             rel="noopener noreferrer"
                             className="text-[10.5px] text-[#FC8019] hover:underline flex items-center gap-0.5"
                           >
-                            <span>Search variant</span>
-                            <span className="material-symbols-outlined text-[11px]">open_in_new</span>
+                            <span>Search</span>
+                            <span className="material-symbols-outlined text-[10px]">open_in_new</span>
                           </a>
                         </div>
                       </div>
@@ -398,326 +397,306 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
               </div>
             </div>
 
-            {/* Cart Total Breakdown */}
+            {/* Total */}
             <div className="p-3 rounded-2xl bg-[#f4f4f0] border border-[#E6E4DD] flex items-center justify-between">
               <div>
-                <span className="text-[13px] font-semibold text-[#1a1c1a] block">Cart Subtotal:</span>
+                <span className="text-[13px] font-semibold text-[#1a1c1a] block">Estimated Cart Total:</span>
                 <span className="text-[11px] text-[#424843]">
-                  {items.length} items • Delivery & dark-store matching
+                  {items.length} items • Fast Instamart delivery
                 </span>
               </div>
               <span className="text-[20px] font-black text-[#FC8019]">₹{totalAmount}</span>
             </div>
 
-            {/* Success Cart Banner if added */}
-            {cartResult && (
-              <div className="p-3.5 rounded-2xl bg-[#F0FDF4] border border-[#86EFAC] flex flex-col gap-2 animate-fade-in text-[12px]">
+            {/* MCP Cart Execution Result */}
+            {mcpResult && (
+              <div className="p-3.5 rounded-2xl bg-[#F0FDF4] border border-[#86EFAC] flex flex-col gap-2.5 animate-fade-in text-[12px]">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-[#15803D] font-bold">
-                    <span className="material-symbols-outlined text-[18px]">check_circle</span>
-                    <span>Items Added to Swiggy Cart! 🎉</span>
+                  <div className="flex items-center gap-1.5 text-[#15803D] font-bold">
+                    <span className="material-symbols-outlined text-[18px]">shopping_bag</span>
+                    <span>MCP Added {mcpResult.itemCount} Items!</span>
                   </div>
-                  <span className="text-[10.5px] font-mono text-[#166534] bg-white px-2 py-0.5 rounded-md border border-[#BBF7D0]">
-                    {cartResult.cartId}
+                  <span className="font-mono text-[10.5px] text-[#166534] bg-white px-2 py-0.5 rounded border border-[#BBF7D0]">
+                    {mcpResult.cartId}
                   </span>
                 </div>
-                <p className="text-[#374151] text-[11.5px] leading-relaxed">
-                  Items have been mapped to <strong>{cartResult.storeName}</strong>. Total estimated amount is <strong>₹{cartResult.total}</strong>.
-                </p>
-                <div className="flex items-center gap-2 pt-1">
+
+                <div className="flex items-center justify-between text-[11.5px] text-[#374151]">
+                  <span>Subtotal: ₹{mcpResult.subtotal}</span>
+                  <span>Handling: ₹{mcpResult.handlingFee}</span>
+                  <span className="font-bold text-[#15803D]">Total: ₹{mcpResult.total}</span>
+                </div>
+
+                <div className="flex gap-2 pt-1">
                   <a
-                    href={cartResult.cartWebUrl}
+                    href={mcpResult.cartWebUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex-1 py-2 px-3 rounded-xl bg-[#16A34A] text-white font-bold text-[12px] flex items-center justify-center gap-1.5 shadow-sm hover:bg-[#15803d]"
+                    className="flex-1 py-2.5 px-3 rounded-xl bg-[#16A34A] text-white font-bold text-[12px] flex items-center justify-center gap-1.5 shadow-sm hover:bg-[#15803d]"
                   >
-                    <span className="material-symbols-outlined text-[16px]">shopping_bag</span>
+                    <span className="material-symbols-outlined text-[16px]">open_in_new</span>
                     <span>Open My Swiggy Cart</span>
                   </a>
-                  <a
-                    href={cartResult.cartAppUrl}
-                    className="py-2 px-3 rounded-xl bg-white border border-[#86EFAC] text-[#15803D] font-bold text-[12px] flex items-center justify-center gap-1.5 hover:bg-[#dcfce7]"
-                    title="Deep link for Swiggy App on mobile"
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (mcpResult.browserScript) {
+                        navigator.clipboard?.writeText(mcpResult.browserScript);
+                        setBrowserScriptCopied(true);
+                        setTimeout(() => setBrowserScriptCopied(false), 2500);
+                      }
+                    }}
+                    className="py-2 px-3 rounded-xl bg-white border border-[#86EFAC] text-[#15803D] font-bold text-[11px] flex items-center justify-center gap-1 hover:bg-[#dcfce7]"
+                    title="Copy 1-Click In-Browser Injector Script"
                   >
-                    <span className="material-symbols-outlined text-[16px]">smartphone</span>
-                    <span>App</span>
-                  </a>
+                    <span className="material-symbols-outlined text-[15px]">code</span>
+                    <span>{browserScriptCopied ? 'Script Copied!' : 'Copy Injector'}</span>
+                  </button>
                 </div>
               </div>
             )}
 
-            {/* Main Action Button */}
+            {/* Execute Button */}
             <div className="flex flex-col gap-2 pt-1">
               <button
                 type="button"
-                disabled={items.length === 0 || cartAdding}
-                onClick={connection.isConnected ? handleAddToCart : () => setActiveTab('connect')}
-                className={`w-full py-3 px-4 rounded-2xl text-white text-[14px] font-bold shadow-md flex items-center justify-center gap-2 active:scale-98 transition-all ${
-                  items.length === 0 || cartAdding
+                disabled={items.length === 0 || mcpExecuting}
+                onClick={connection.isConnected ? handleExecuteMcpAddToCart : () => setActiveTab('connect')}
+                className={`w-full py-3.5 px-4 rounded-2xl text-white text-[14px] font-bold shadow-md flex items-center justify-center gap-2 active:scale-98 transition-all ${
+                  items.length === 0 || mcpExecuting
                     ? 'bg-[#d1d5db] cursor-not-allowed text-[#6b7280]'
                     : connection.isConnected
                     ? 'bg-[#FC8019] hover:bg-[#e06d0c] shadow-[#FC8019]/25'
                     : 'bg-[#032212] hover:bg-[#143d25] shadow-black/15'
                 }`}
               >
-                {cartAdding ? (
+                {mcpExecuting ? (
                   <>
                     <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                    <span className="text-[13px]">{cartProgressText}</span>
+                    <span>Executing Swiggy MCP Tool...</span>
                   </>
                 ) : connection.isConnected ? (
                   <>
-                    <span className="material-symbols-outlined text-[20px]">add_shopping_cart</span>
-                    <span>
-                      {isHindi ? 'स्विगी कार्ट में जोड़ें' : 'Add All to Swiggy Instamart Cart'}
-                    </span>
+                    <span className="material-symbols-outlined text-[20px]">bolt</span>
+                    <span>Let MCP Add Items to Swiggy Cart</span>
                   </>
                 ) : (
                   <>
                     <span className="material-symbols-outlined text-[20px]">link</span>
-                    <span>Connect Swiggy Account First</span>
+                    <span>Connect Swiggy Session First</span>
                   </>
                 )}
               </button>
 
               <div className="flex items-center justify-between text-[11px] text-[#727972] px-1">
-                <span>Direct dark-store stock reservation</span>
-                <a
-                  href="https://www.swiggy.com/instamart"
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <span>Model Context Protocol (JSON-RPC 2.0)</span>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('mcp')}
                   className="text-[#FC8019] hover:underline flex items-center gap-0.5"
                 >
-                  <span>Open swiggy.com</span>
-                  <span className="material-symbols-outlined text-[12px]">open_in_new</span>
-                </a>
+                  <span>View MCP Console</span>
+                  <span className="material-symbols-outlined text-[13px]">terminal</span>
+                </button>
               </div>
             </div>
           </div>
         )}
 
-        {/* TAB 2: CONNECT ACCOUNT PROFILE */}
+        {/* TAB 2: CONNECT REAL SWIGGY CREDENTIALS */}
         {activeTab === 'connect' && (
-          <div className="flex flex-col gap-3">
-            {connection.isConnected ? (
-              <div className="flex flex-col gap-3">
-                <div className="p-4 rounded-2xl bg-[#FAF9F6] border border-[#E6E4DD] flex flex-col gap-2.5">
+          <div className="flex flex-col gap-3 text-[12px]">
+            <div className="p-3.5 rounded-2xl bg-[#FAF9F6] border border-[#E6E4DD] flex flex-col gap-2.5">
+              <span className="font-bold text-[#1a1c1a] text-[13px] flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-[#FC8019] text-[18px]">key</span>
+                Real Swiggy Instamart Session Connection
+              </span>
+              <p className="text-[#4b5563] text-[11.5px] leading-relaxed">
+                Provide your active Swiggy session cookie. The backend MCP server uses this to authenticate directly against Swiggy's internal cart APIs.
+              </p>
+
+              {/* Session TID Cookie */}
+              <div className="flex flex-col gap-1">
+                <label className="font-bold text-[#1a1c1a] text-[11.5px]">
+                  1. Swiggy Session Cookie (`_session_tid`) <span className="text-[#DC2626]">*</span>
+                </label>
+                <input
+                  type="password"
+                  placeholder="Paste _session_tid cookie from swiggy.com..."
+                  value={sessionTid}
+                  onChange={(e) => setSessionTid(e.target.value)}
+                  className="px-3 py-2 rounded-xl border border-[#D1D5DB] text-[12px] font-mono outline-none focus:border-[#FC8019] focus:ring-1 focus:ring-[#FC8019]"
+                />
+                <span className="text-[10px] text-[#727972]">
+                  Open swiggy.com &rarr; F12 (DevTools) &rarr; Application &rarr; Cookies &rarr; copy `_session_tid`.
+                </span>
+              </div>
+
+              {/* Delivery Coordinates */}
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <div className="flex flex-col gap-1">
                   <div className="flex items-center justify-between">
-                    <span className="text-[13px] font-bold text-[#1a1c1a]">Active Swiggy Session</span>
-                    <span className="text-[10px] font-bold bg-[#E8F5E9] text-[#2E7D32] px-2 py-0.5 rounded-full border border-[#C8E6C9]">
-                      Active
-                    </span>
+                    <label className="font-bold text-[#1a1c1a] text-[11px]">Latitude</label>
+                    <button
+                      type="button"
+                      onClick={handleDetectLocation}
+                      className="text-[10px] text-[#FC8019] font-bold hover:underline flex items-center gap-0.5"
+                    >
+                      <span>📍 GPS</span>
+                    </button>
                   </div>
-
-                  <div className="grid grid-cols-2 gap-2 text-[12px] pt-1">
-                    <div>
-                      <span className="text-[10.5px] text-[#727972] block">Account Name</span>
-                      <span className="font-semibold text-[#1a1c1a]">{connection.userName}</span>
-                    </div>
-                    <div>
-                      <span className="text-[10.5px] text-[#727972] block">Phone</span>
-                      <span className="font-semibold text-[#1a1c1a]">{connection.phoneNumber}</span>
-                    </div>
-                    <div className="col-span-2">
-                      <span className="text-[10.5px] text-[#727972] block">Delivery Location</span>
-                      <span className="font-medium text-[#1a1c1a]">{connection.deliveryAddress}</span>
-                    </div>
-                    <div className="col-span-2">
-                      <span className="text-[10.5px] text-[#727972] block">Mapped Dark Store</span>
-                      <span className="font-medium text-[#FC8019]">{connection.storeName}</span>
-                    </div>
-                  </div>
+                  <input
+                    type="text"
+                    value={lat}
+                    onChange={(e) => setLat(e.target.value)}
+                    className="px-2.5 py-1.5 rounded-lg border border-[#D1D5DB] text-[11.5px] font-mono"
+                  />
                 </div>
+                <div className="flex flex-col gap-1">
+                  <label className="font-bold text-[#1a1c1a] text-[11px]">Longitude</label>
+                  <input
+                    type="text"
+                    value={lng}
+                    onChange={(e) => setLng(e.target.value)}
+                    className="px-2.5 py-1.5 rounded-lg border border-[#D1D5DB] text-[11.5px] font-mono"
+                  />
+                </div>
+              </div>
 
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('cart')}
-                    className="flex-1 py-2.5 rounded-xl bg-[#FC8019] text-white font-bold text-[13px] hover:bg-[#e06d0c]"
-                  >
-                    Go to Cart
-                  </button>
+              {/* Address */}
+              <div className="flex flex-col gap-1 pt-1">
+                <label className="font-bold text-[#1a1c1a] text-[11px]">Delivery Location Label</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Indiranagar, Bengaluru or Mumbai"
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  className="px-2.5 py-1.5 rounded-lg border border-[#D1D5DB] text-[11.5px]"
+                />
+              </div>
+
+              {/* Feedback Notice */}
+              {authNotice && (
+                <div
+                  className={`p-2.5 rounded-xl text-[11.5px] flex items-center gap-1.5 ${
+                    authNotice.type === 'success'
+                      ? 'bg-[#DCFCE7] text-[#166534]'
+                      : 'bg-[#FEE2E2] text-[#B91C1C]'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-[16px]">
+                    {authNotice.type === 'success' ? 'check_circle' : 'error'}
+                  </span>
+                  <span>{authNotice.message}</span>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  disabled={authLoading || !sessionTid.trim()}
+                  onClick={handleConnectMcp}
+                  className="flex-1 py-2.5 px-4 rounded-xl bg-[#FC8019] text-white font-bold text-[12px] flex items-center justify-center gap-1.5 hover:bg-[#e06d0c] disabled:opacity-50"
+                >
+                  {authLoading ? 'Verifying with Swiggy API...' : 'Verify & Connect via MCP'}
+                </button>
+                {connection.isConnected && (
                   <button
                     type="button"
                     onClick={handleDisconnect}
-                    className="py-2.5 px-4 rounded-xl bg-[#FEE2E2] text-[#B91C1C] font-bold text-[13px] hover:bg-[#fca5a5]"
+                    className="py-2.5 px-3 rounded-xl bg-[#FEE2E2] text-[#B91C1C] font-bold text-[12px] hover:bg-[#fca5a5]"
                   >
                     Disconnect
                   </button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-3">
-                {/* Method Switch: Phone OTP vs Session Token */}
-                <div className="flex flex-col gap-2">
-                  <label className="text-[12px] font-bold text-[#1a1c1a]">
-                    1. Connect with Indian Mobile Number (+91)
-                  </label>
-                  <div className="flex gap-2">
-                    <div className="flex-1 flex rounded-xl border border-[#D1D5DB] overflow-hidden bg-white focus-within:border-[#FC8019] focus-within:ring-1 focus-within:ring-[#FC8019]">
-                      <span className="px-3 py-2 bg-[#f4f4f0] text-[13px] font-bold text-[#4b5563] border-r border-[#D1D5DB] flex items-center">
-                        +91
-                      </span>
-                      <input
-                        type="tel"
-                        maxLength={10}
-                        placeholder="Enter 10-digit number"
-                        value={phoneNumber}
-                        onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ''))}
-                        className="flex-1 px-3 py-2 text-[13px] text-[#1a1c1a] outline-none"
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      disabled={authLoading || phoneNumber.length !== 10}
-                      onClick={handleRequestOtp}
-                      className={`px-4 py-2 rounded-xl text-[12px] font-bold text-white transition-all ${
-                        phoneNumber.length === 10
-                          ? 'bg-[#FC8019] hover:bg-[#e06d0c]'
-                          : 'bg-[#d1d5db] cursor-not-allowed text-[#6b7280]'
-                      }`}
-                    >
-                      {otpRequested ? 'Resend' : 'Send OTP'}
-                    </button>
-                  </div>
-                </div>
-
-                {/* OTP Input Section */}
-                {otpRequested && (
-                  <div className="p-3 rounded-2xl bg-[#FAF9F6] border border-[#E6E4DD] flex flex-col gap-2.5 animate-fade-in">
-                    <div className="flex items-center justify-between">
-                      <label className="text-[12px] font-bold text-[#1a1c1a]">
-                        Enter 6-Digit OTP
-                      </label>
-                      {suggestedOtp && (
-                        <button
-                          type="button"
-                          onClick={() => setOtp(suggestedOtp)}
-                          className="text-[11px] font-bold text-[#15803D] bg-[#DCFCE7] px-2 py-0.5 rounded-md hover:bg-[#bbf7d0]"
-                        >
-                          Use Code: {suggestedOtp}
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        maxLength={6}
-                        placeholder="6-digit code"
-                        value={otp}
-                        onChange={(e) => setOtp(e.target.value.trim())}
-                        className="flex-1 px-3 py-2 rounded-xl border border-[#D1D5DB] text-[14px] font-bold tracking-widest text-[#1a1c1a] text-center outline-none focus:border-[#FC8019]"
-                      />
-                      <button
-                        type="button"
-                        disabled={authLoading || otp.length < 4}
-                        onClick={handleVerifyOtp}
-                        className="px-5 py-2 rounded-xl bg-[#15803D] text-white font-bold text-[12px] hover:bg-[#166534] disabled:opacity-50"
-                      >
-                        {authLoading ? 'Verifying...' : 'Verify & Connect'}
-                      </button>
-                    </div>
-
-                    <div className="flex flex-col gap-1.5 pt-1">
-                      <input
-                        type="text"
-                        placeholder="Your Name (Optional)"
-                        value={userName}
-                        onChange={(e) => setUserName(e.target.value)}
-                        className="px-3 py-1.5 rounded-lg border border-[#E5E7EB] text-[12px] outline-none"
-                      />
-                      <input
-                        type="text"
-                        placeholder="Delivery Address / City"
-                        value={deliveryAddress}
-                        onChange={(e) => setDeliveryAddress(e.target.value)}
-                        className="px-3 py-1.5 rounded-lg border border-[#E5E7EB] text-[12px] outline-none"
-                      />
-                    </div>
-                  </div>
                 )}
-
-                {/* Error Banner */}
-                {authError && (
-                  <div className="p-2.5 rounded-xl bg-[#FEE2E2] text-[#B91C1C] text-[11.5px] flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-[16px]">error</span>
-                    <span>{authError}</span>
-                  </div>
-                )}
-
-                <div className="relative flex py-1 items-center">
-                  <div className="flex-grow border-t border-[#E5E7EB]"></div>
-                  <span className="flex-shrink mx-2 text-[#9CA3AF] text-[11px] font-medium">OR CONNECT WITH TOKEN</span>
-                  <div className="flex-grow border-t border-[#E5E7EB]"></div>
-                </div>
-
-                {/* Option 2: Direct Token/Cookie */}
-                <div className="flex flex-col gap-2">
-                  <label className="text-[12px] font-bold text-[#1a1c1a]">
-                    2. Swiggy Session Cookie (`_session_tid` or `tid`)
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="password"
-                      placeholder="Paste _session_tid cookie value..."
-                      value={directToken}
-                      onChange={(e) => setDirectToken(e.target.value)}
-                      className="flex-1 px-3 py-2 rounded-xl border border-[#D1D5DB] text-[12px] outline-none focus:border-[#FC8019]"
-                    />
-                    <button
-                      type="button"
-                      disabled={authLoading || !directToken.trim()}
-                      onClick={handleConnectToken}
-                      className="px-4 py-2 rounded-xl bg-[#032212] text-white font-bold text-[12px] hover:bg-[#143d25] disabled:opacity-50"
-                    >
-                      Connect
-                    </button>
-                  </div>
-                  <span className="text-[10.5px] text-[#727972]">
-                    Find this cookie in Chrome DevTools under swiggy.com. See 'API & Tokens' tab for guide.
-                  </span>
-                </div>
               </div>
-            )}
+            </div>
           </div>
         )}
 
-        {/* TAB 3: API & TOKEN SETUP GUIDE */}
+        {/* TAB 3: LIVE MCP LOGS & CONSOLE */}
+        {activeTab === 'mcp' && (
+          <div className="flex flex-col gap-2.5 text-[12px]">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-[#1a1c1a]">MCP Server Live Execution Logs</span>
+              <button
+                type="button"
+                onClick={() => {
+                  fetch('/api/mcp/logs')
+                    .then((r) => r.json())
+                    .then((data) => {
+                      if (Array.isArray(data.logs)) {
+                        setMcpLogs(data.logs.map((l: any) => `[${l.status.toUpperCase()}] ${l.message}`));
+                      }
+                    });
+                }}
+                className="text-[11px] text-[#FC8019] font-bold hover:underline"
+              >
+                Refresh Logs
+              </button>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-[#0f172a] text-[#38bdf8] font-mono text-[11px] max-h-[220px] overflow-y-auto flex flex-col gap-1 border border-[#1e293b]">
+              {mcpLogs.length === 0 ? (
+                <div className="text-[#64748b]">No tool calls executed yet. Connect account and click 'Add Items to Cart'.</div>
+              ) : (
+                mcpLogs.map((log, idx) => (
+                  <div
+                    key={idx}
+                    className={`leading-relaxed ${
+                      log.includes('[SUCCESS]')
+                        ? 'text-[#4ade80]'
+                        : log.includes('[ERROR]')
+                        ? 'text-[#f87171]'
+                        : log.includes('[WARN]')
+                        ? 'text-[#facc15]'
+                        : 'text-[#38bdf8]'
+                    }`}
+                  >
+                    {log}
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="p-3 rounded-2xl bg-[#FAF9F6] border border-[#E6E4DD] text-[11.5px] flex flex-col gap-1 text-[#4b5563]">
+              <span className="font-bold text-[#1a1c1a]">Available MCP Tools:</span>
+              <ul className="list-disc list-inside space-y-0.5">
+                <li><code className="text-[#FC8019]">swiggy_connect</code>: Authenticates & verifies active session</li>
+                <li><code className="text-[#FC8019]">swiggy_search_instamart</code>: Live catalog lookup for shortfalls</li>
+                <li><code className="text-[#FC8019]">swiggy_add_to_cart</code>: Direct cart injection via Swiggy API</li>
+                <li><code className="text-[#FC8019]">swiggy_generate_browser_script</code>: 1-click in-browser runner</li>
+              </ul>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 4: SETUP GUIDE */}
         {activeTab === 'setup' && (
           <div className="flex flex-col gap-3 text-[12px]">
             <div className="p-3.5 rounded-2xl bg-[#FAF9F6] border border-[#E6E4DD] flex flex-col gap-2">
               <span className="font-bold text-[#1a1c1a] text-[13px] flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-[#FC8019] text-[18px]">key</span>
-                How to Get Your Swiggy Session Token
+                <span className="material-symbols-outlined text-[#FC8019] text-[18px]">help</span>
+                How to Get Your Real Swiggy Session Cookie
               </span>
-              <p className="text-[#4b5563] text-[11.5px] leading-relaxed">
-                Swiggy does not currently offer a public developer OAuth portal for third-party consumer apps. You can authenticate seamlessly using either the phone number login on the <strong>Connect Swiggy</strong> tab, or by copying your existing active session cookie:
-              </p>
-              <ol className="list-decimal list-inside space-y-1 text-[#374151] text-[11.5px] pl-1">
-                <li>Log in to your account at <strong>swiggy.com</strong> in your desktop browser.</li>
-                <li>Press <kbd className="px-1.5 py-0.5 rounded bg-gray-200 font-mono text-[10px]">F12</kbd> (or right click and select <em>Inspect</em>).</li>
-                <li>Navigate to the <strong>Application</strong> tab (or <strong>Storage</strong> in Firefox).</li>
-                <li>In the left sidebar, expand <strong>Cookies</strong> &rarr; click <strong>https://www.swiggy.com</strong>.</li>
-                <li>Find the cookie named <strong>`_session_tid`</strong> or <strong>`tid`</strong>.</li>
-                <li>Copy its value and paste it into the <em>Connect with Token</em> field.</li>
+              <ol className="list-decimal list-inside space-y-1.5 text-[#374151] text-[11.5px] pl-1 leading-relaxed">
+                <li>Log in to your account at <strong>swiggy.com</strong> in your browser.</li>
+                <li>Press <kbd className="px-1.5 py-0.5 rounded bg-gray-200 font-mono text-[10px]">F12</kbd> (Inspect element).</li>
+                <li>Click the <strong>Application</strong> tab (or <strong>Storage</strong> in Firefox).</li>
+                <li>Expand <strong>Cookies</strong> &rarr; click <strong>https://www.swiggy.com</strong>.</li>
+                <li>Find the cookie named <strong>`_session_tid`</strong>.</li>
+                <li>Double click its value, copy it, and paste it into the <strong>Connect</strong> tab.</li>
               </ol>
             </div>
 
-            <div className="p-3.5 rounded-2xl bg-[#FAF9F6] border border-[#E6E4DD] flex flex-col gap-2">
-              <span className="font-bold text-[#1a1c1a] text-[13px] flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-[#032212] text-[18px]">dns</span>
-                Swiggy MCP (Model Context Protocol) Setup
+            <div className="p-3.5 rounded-2xl bg-[#F0FDF4] border border-[#BBF7D0] flex flex-col gap-1.5 text-[11.5px] text-[#166534]">
+              <span className="font-bold flex items-center gap-1">
+                <span className="material-symbols-outlined text-[16px]">verified</span>
+                Direct In-Browser Cart Injector (WAF-Proof)
               </span>
-              <p className="text-[#4b5563] text-[11.5px] leading-relaxed">
-                If you run a local or cloud Swiggy MCP server to execute real automated cart additions and inventory checks:
-              </p>
-              <div className="p-2.5 rounded-xl bg-[#1e293b] text-[#f8fafc] font-mono text-[11px] overflow-x-auto">
-                <div>SWIGGY_MCP_URL=http://localhost:8080/swiggy</div>
-                <div>SWIGGY_MCP_TOKEN=your_mcp_api_token</div>
-              </div>
-              <p className="text-[#727972] text-[11px]">
-                When configured in your environment, the app automatically delegates cart updates to the MCP endpoint.
+              <p>
+                If Swiggy blocks datacenter IPs with Cloudflare bot challenges, you can copy the generated <strong>1-Click Injector Script</strong> and paste it into the developer console of your open <em>swiggy.com</em> tab. It adds the exact items to your live cart using your current browser session immediately.
               </p>
             </div>
           </div>

@@ -65,6 +65,7 @@ const transcribeModel = 'gemini-3.5-transcribe';
 import { graphService } from './server/graphService';
 import { shopInboxService } from './server/shopInboxService';
 import { swiggyService } from './server/swiggyService';
+import { swiggyMcpServer } from './server/swiggyMcpServer';
 
 let systemInstruction = `You are Omnirush, the assistant inside Mast Meals / KitchenSync, a household meal, recipe and kitchen-stock assistant for Indian households. You help with:
 1. Updating inventory stock (e.g. add/remove/set ingredients).
@@ -780,6 +781,77 @@ app.post('/api/swiggy/disconnect', (_req: Request, res: Response) => {
   swiggyService.disconnect();
   return res.json({ success: true, message: 'Swiggy account disconnected' });
 });
+
+// ---------------------------------------------------------------------------
+// Model Context Protocol (MCP) Server: /api/mcp
+// ---------------------------------------------------------------------------
+app.post('/api/mcp', async (req: Request, res: Response): Promise<any> => {
+  const { jsonrpc, id, method, params } = req.body;
+
+  // Standard JSON-RPC 2.0 response wrapper
+  if (method === 'tools/list') {
+    return res.json({
+      jsonrpc: '2.0',
+      id: id || 1,
+      result: {
+        tools: swiggyMcpServer.listTools(),
+      },
+    });
+  }
+
+  if (method === 'tools/call') {
+    const toolName = params?.name;
+    const toolArgs = params?.arguments || {};
+    try {
+      const callResult = await swiggyMcpServer.callTool(toolName, toolArgs);
+      return res.json({
+        jsonrpc: '2.0',
+        id: id || 1,
+        result: callResult,
+      });
+    } catch (err: any) {
+      return res.status(500).json({
+        jsonrpc: '2.0',
+        id: id || 1,
+        error: {
+          code: -32603,
+          message: err?.message || 'Internal MCP tool execution error',
+        },
+      });
+    }
+  }
+
+  return res.status(400).json({
+    jsonrpc: '2.0',
+    id: id || null,
+    error: {
+      code: -32601,
+      message: `Method not found: ${method}`,
+    },
+  });
+});
+
+app.get('/api/mcp/tools', (_req: Request, res: Response) => {
+  return res.json({ tools: swiggyMcpServer.listTools() });
+});
+
+app.post('/api/mcp/call', async (req: Request, res: Response): Promise<any> => {
+  const { name, arguments: toolArgs } = req.body;
+  if (!name) {
+    return res.status(400).json({ error: 'Tool name is required' });
+  }
+  try {
+    const result = await swiggyMcpServer.callTool(name, toolArgs || {});
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || 'Tool execution failed' });
+  }
+});
+
+app.get('/api/mcp/logs', (_req: Request, res: Response) => {
+  return res.json({ logs: swiggyMcpServer.getLogs() });
+});
+
 
 // ---------------------------------------------------------------------------
 // Speech-to-Text (STT) Routing API: Shruti, Cactus Whisper & Sarvam Saaras v3
