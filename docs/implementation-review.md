@@ -1,7 +1,7 @@
 # KitchenSync / Mast Meals: implementation review
 
 Reviewed against `KitchenSync.md` (the final plan, sections 1 to 9).
-Repo state reviewed: `main` at `da5a71f` (31 Oct 2026), after fast-forwarding past the older `053e01a` checkout.
+Repo state reviewed: `main` at `089a6e1` (re-checked 31 Oct 2026, 07:51 IST). The application code is unchanged since `da5a71f`; the only later commits are the graph pipeline and this review, merged as pull request #1. The first review fast-forwarded past the older `053e01a` checkout.
 
 **Legend:** ✅ implemented · 🟡 partial · 🎭 simulated (looks real in the UI, no real engine behind it) · ❌ not implemented · ⛔ blocked on an outside approval
 
@@ -188,7 +188,7 @@ The React app never calls the Python backend. Its only network calls are `/api/g
 
 Google Calendar (sync and reminders), Gmail order parsing, Swiggy MCP (tracking and real cart add), real Blinkit/Zepto price scraping, brand preference ranking, salt/oil health warnings, storage-tip and no-fridge quantity advice, invite-code join flow, fridge video scan, recipe-add flow with missing-ingredient flags, protein gap suggestions and manual protein logging, beginner step-by-step view with timers, mixed-household diner logic, sync API and last-write-wins, sync of edits with client ID, server-side auth for the React app, upload hardening, rate limits, and the data export / account deletion endpoints.
 
-## 7. Added in this session (not committed yet)
+## 7. Added in this session (merged into `main` via pull request #1)
 
 `backend/graph/` and `data/graph/` hold a separate, tested pipeline that converts `IndianFoodDatasetXLS.xlsx` into graph files and loads them into Kùzu:
 
@@ -197,7 +197,7 @@ Google Calendar (sync and reminders), Gmail order parsing, Swiggy MCP (tracking 
 - `kuzu_load.py` loads them in about 1 second; `graph_store.py` provides diet-filtered search, stock-based "what can I cook", scaling, similar recipes, missing-ingredient flags, and a re-check for model output.
 - Verified: after a fix found during testing (a recipe titled "Chicken Pies" had veg ingredients and passed the veg filter), no `veg_safe` recipe contains a non-veg, egg or possible-egg ingredient, and a veg search for "chicken" returns nothing.
 - Known gaps: 572 recipes (mostly Hindi-only ingredient lists) are marked `unknown` and excluded from the veg filter; 264 recipes where the dataset's diet label disagrees with the ingredients are flagged for review; "atta" has no mapped ingredient yet; nutrient (IFCT) and shelf-life (FoodKeeper) joins are not done; there are no embeddings.
-- This pipeline is **independent of the existing TypeScript graph**; wiring it into `server.ts` (for example through a small Python service) is still to do.
+- This pipeline is **independent of the existing TypeScript graph**; wiring it into `server.ts` (for example through a small Python service) is still to do. Generated output (`data/graph/`) is git-ignored and is rebuilt with the steps in `backend/graph/README.md`.
 
 ## 8. Suggested order of work for the demo
 
