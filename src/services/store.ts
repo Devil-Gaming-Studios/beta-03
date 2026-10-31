@@ -24,8 +24,11 @@ import {
   DietaryGoalTag,
   PastDietEntry,
   UserDietMemory,
+  SwiggyAccountConnection,
 } from '../types';
 import seedData from '../data/graph_rag_seed.json';
+
+const SWIGGY_CONN_KEY = 'mastmeals_swiggy_conn_v1';
 
 const DIET_MEMORY_KEY = 'mastmeals_diet_memory_v1';
 
@@ -3269,6 +3272,58 @@ class StoreService {
       op: 'upsert',
       time: new Date().toISOString(),
     });
+  }
+
+  // --- Swiggy Instamart Account Connection & Cart Sync ---
+  public getSwiggyConnection(): SwiggyAccountConnection {
+    try {
+      const saved = localStorage.getItem(SWIGGY_CONN_KEY);
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch {}
+    return {
+      isConnected: false,
+    };
+  }
+
+  public saveSwiggyConnection(conn: SwiggyAccountConnection): void {
+    try {
+      localStorage.setItem(SWIGGY_CONN_KEY, JSON.stringify(conn));
+      this.logAudit('swiggy_connection_saved', { isConnected: conn.isConnected, phone: conn.phoneNumber });
+    } catch (e) {
+      console.error('Failed to save Swiggy connection to storage:', e);
+    }
+  }
+
+  public disconnectSwiggy(): void {
+    try {
+      localStorage.removeItem(SWIGGY_CONN_KEY);
+      this.logAudit('swiggy_disconnected', {});
+    } catch (e) {
+      console.error('Failed to clear Swiggy connection from storage:', e);
+    }
+  }
+
+  public markItemsInSwiggyCart(itemIds: string[], cartId?: string): void {
+    const hhId = this.state.currentHouseholdId;
+    const shoppingLists = this.state.shoppingLists[hhId] || {};
+    let changed = false;
+
+    for (const weekKey of Object.keys(shoppingLists)) {
+      const list = shoppingLists[weekKey] || [];
+      for (const item of list) {
+        if (itemIds.includes(item.id) || itemIds.includes(item.name)) {
+          item.in_swiggy_cart = true;
+          changed = true;
+        }
+      }
+    }
+
+    if (changed) {
+      this.logAudit('swiggy_cart_items_marked', { itemIds, cartId });
+      this.persist();
+    }
   }
 
   public getAuditLog() {

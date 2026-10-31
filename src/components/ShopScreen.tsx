@@ -225,6 +225,12 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({ isHindi }) => {
                   </div>
 
                   <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                    {item.in_swiggy_cart && (
+                      <span className="px-2 py-0.5 rounded-full bg-[#FFF3E0] text-[#E65100] text-[10.5px] font-bold border border-[#FFE0B2] flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#E65100]"></span>
+                        In Swiggy Cart
+                      </span>
+                    )}
                     <span className="px-2 py-0.5 rounded-full bg-[#E8F0EC] text-[#1E4620] text-[10.5px] font-bold border border-[#D1E2D7]">
                       Cheapest: {item.best_store || 'Blinkit'}
                     </span>

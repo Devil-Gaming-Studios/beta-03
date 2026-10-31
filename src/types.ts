@@ -199,6 +199,33 @@ export interface ShoppingListItem {
   as_of?: string;
 }
 
+export interface SwiggyCartItemRecord {
+  itemId: string;
+  name: string;
+  quantity: number;
+  unit: string;
+  price: number;
+  storeName?: string;
+}
+
+export interface SwiggyAccountConnection {
+  isConnected: boolean;
+  phoneNumber?: string;
+  userName?: string;
+  connectedAt?: string;
+  deliveryAddress?: string;
+  pincode?: string;
+  lat?: number;
+  lng?: number;
+  authMethod?: 'phone_otp' | 'session_token' | 'mcp_server';
+  sessionToken?: string;
+  mcpServerUrl?: string;
+  cartId?: string;
+  lastCartSyncAt?: string;
+  itemsInCart?: SwiggyCartItemRecord[];
+  storeName?: string;
+}
+
 export interface GraphRecipe {
   id: string;
   srno: number;

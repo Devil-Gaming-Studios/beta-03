@@ -124,3 +124,24 @@ To receive grocery lists and pickup confirmations via Telegram Bot:
         https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook
    ```
 3. Incoming orders sent to the Telegram bot are validated, checked against the allowlist, parsed with Gemini, and placed into the pending shop inbox.
+
+---
+
+## Swiggy Instamart Account Connection & Cart Sync
+
+KitchenSync connects directly with Swiggy Instamart to automatically reserve missing meal ingredients and shortfall items in your cart.
+
+### 1. Linking Your Account in the Web / Native App
+1. Open the **Shop** screen and tap **Swiggy Cart**.
+2. Switch to the **Connect Swiggy** tab:
+   - **Method A (Phone OTP)**: Enter your 10-digit Indian phone number (`+91`), tap **Send OTP**, and verify with the 6-digit code (use instant test code `123456` or the generated code).
+   - **Method B (Session Cookie / Token)**: Paste your `_session_tid` or `tid` cookie from `swiggy.com` for direct API authentication.
+3. Once linked, tap **Add All to Swiggy Instamart Cart** to map shortfalls to Instamart SKUs, check dark-store inventory, and generate your direct cart checkout link.
+
+### 2. Optional: Swiggy MCP Server Configuration
+If you run an automated Model Context Protocol (MCP) server for Swiggy:
+```bash
+SWIGGY_MCP_URL="http://localhost:8080/swiggy"
+SWIGGY_MCP_TOKEN="your_mcp_api_token"
+```
+When configured, the backend automatically dispatches cart reservations through the MCP bridge.

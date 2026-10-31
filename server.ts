@@ -64,6 +64,7 @@ const transcribeModel = 'gemini-3.5-transcribe';
 
 import { graphService } from './server/graphService';
 import { shopInboxService } from './server/shopInboxService';
+import { swiggyService } from './server/swiggyService';
 
 let systemInstruction = `You are Omnirush, the assistant inside Mast Meals / KitchenSync, a household meal, recipe and kitchen-stock assistant for Indian households. You help with:
 1. Updating inventory stock (e.g. add/remove/set ingredients).
@@ -710,6 +711,74 @@ app.post('/api/telegram-webhook', async (req: Request, res: Response): Promise<a
     console.error('Telegram bot webhook processing error:', err);
     return res.status(200).json({ ok: true, error: err?.message });
   }
+});
+
+// ---------------------------------------------------------------------------
+// Swiggy Instamart Account Connection & Cart Sync API
+// ---------------------------------------------------------------------------
+app.get('/api/swiggy/status', (_req: Request, res: Response) => {
+  const session = swiggyService.getSession();
+  return res.json({
+    isConnected: Boolean(session),
+    session: session || null,
+  });
+});
+
+app.post('/api/swiggy/request-otp', (req: Request, res: Response): any => {
+  const { phoneNumber } = req.body;
+  if (!phoneNumber) {
+    return res.status(400).json({ error: 'Mobile number is required' });
+  }
+  try {
+    const result = swiggyService.requestOtp(String(phoneNumber));
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(400).json({ error: err?.message || 'Failed to request OTP' });
+  }
+});
+
+app.post('/api/swiggy/verify-otp', (req: Request, res: Response): any => {
+  const { phoneNumber, otp, userName, deliveryAddress } = req.body;
+  if (!phoneNumber || !otp) {
+    return res.status(400).json({ error: 'Phone number and OTP are required' });
+  }
+  try {
+    const profile = swiggyService.verifyOtp(String(phoneNumber), String(otp).trim(), userName, deliveryAddress);
+    return res.json({ success: true, profile });
+  } catch (err: any) {
+    return res.status(400).json({ error: err?.message || 'OTP verification failed' });
+  }
+});
+
+app.post('/api/swiggy/connect-token', (req: Request, res: Response): any => {
+  const { sessionToken, userName, deliveryAddress } = req.body;
+  if (!sessionToken) {
+    return res.status(400).json({ error: 'Swiggy session token or cookie is required' });
+  }
+  try {
+    const profile = swiggyService.connectDirectToken(String(sessionToken), userName, deliveryAddress);
+    return res.json({ success: true, profile });
+  } catch (err: any) {
+    return res.status(400).json({ error: err?.message || 'Failed to connect token' });
+  }
+});
+
+app.post('/api/swiggy/add-to-cart', async (req: Request, res: Response): Promise<any> => {
+  const { items, session } = req.body;
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'No items provided' });
+  }
+  try {
+    const result = await swiggyService.addToCart(items, session);
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || 'Failed to add items to Swiggy cart' });
+  }
+});
+
+app.post('/api/swiggy/disconnect', (_req: Request, res: Response) => {
+  swiggyService.disconnect();
+  return res.json({ success: true, message: 'Swiggy account disconnected' });
 });
 
 // ---------------------------------------------------------------------------

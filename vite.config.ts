@@ -3,8 +3,98 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
+const suppressHmrPlugin = {
+  name: 'suppress-vite-hmr-ws',
+  transformIndexHtml: {
+    order: 'pre' as const,
+    handler() {
+      return [
+        {
+          tag: 'script',
+          attrs: { id: 'vite-hmr-shim' },
+          children: `(function(){
+  try {
+    var NativeWS = window.WebSocket;
+    if (!NativeWS) return;
+    function ViteSafeWebSocket(url, protocols) {
+      if (protocols === 'vite-hmr' || (typeof url === 'string' && (url.indexOf('vite-hmr') !== -1 || url.indexOf('token=') !== -1 || url.indexOf('24678') !== -1))) {
+        var self = this;
+        this.binaryType = 'blob';
+        this.readyState = 1;
+        this.url = String(url || '');
+        this.protocol = 'vite-hmr';
+        this.bufferedAmount = 0;
+        this.extensions = '';
+        this._listeners = {};
+        this.addEventListener = function(event, cb) {
+          if (!self._listeners[event]) self._listeners[event] = [];
+          self._listeners[event].push(cb);
+          if (event === 'open') {
+            setTimeout(function() {
+              try { cb.call(self, { type: 'open', target: self }); } catch (e) {}
+            }, 0);
+          }
+        };
+        this.removeEventListener = function(event, cb) {
+          if (!self._listeners[event]) return;
+          self._listeners[event] = self._listeners[event].filter(function(fn) { return fn !== cb; });
+        };
+        this.dispatchEvent = function() { return true; };
+        this.send = function() {};
+        this.close = function(code, reason) {
+          self.readyState = 3;
+          var closeHandlers = self._listeners['close'] || [];
+          closeHandlers.forEach(function(fn) {
+            try { fn.call(self, { type: 'close', wasClean: true, code: code || 1000, reason: reason || '', target: self }); } catch (e) {}
+          });
+        };
+        return this;
+      }
+      return new NativeWS(url, protocols);
+    }
+    ViteSafeWebSocket.prototype = NativeWS.prototype;
+    ViteSafeWebSocket.CONNECTING = 0;
+    ViteSafeWebSocket.OPEN = 1;
+    ViteSafeWebSocket.CLOSING = 2;
+    ViteSafeWebSocket.CLOSED = 3;
+    window.WebSocket = ViteSafeWebSocket;
+
+    var nativeConsoleError = console.error;
+    console.error = function() {
+      var text = Array.prototype.slice.call(arguments).map(function(arg) {
+        return (arg && arg.message) || String(arg);
+      }).join(' ');
+      if (text.indexOf('WebSocket closed without opened') !== -1 || text.indexOf('failed to connect to websocket') !== -1 || text.indexOf('vite-hmr') !== -1) {
+        return;
+      }
+      return nativeConsoleError.apply(console, arguments);
+    };
+
+    window.addEventListener('error', function(e) {
+      if (e && e.message && (e.message.indexOf('WebSocket') !== -1 || e.message.indexOf('closed without opened') !== -1)) {
+        e.stopImmediatePropagation();
+        e.preventDefault();
+      }
+    }, true);
+    window.addEventListener('unhandledrejection', function(e) {
+      var reason = e && e.reason ? (e.reason.message || String(e.reason)) : '';
+      if (reason.indexOf('WebSocket') !== -1 || reason.indexOf('closed without opened') !== -1) {
+        e.stopImmediatePropagation();
+        e.preventDefault();
+      }
+    }, true);
+  } catch (err) {}
+})();`,
+          injectTo: 'head-prepend' as const,
+        },
+      ];
+    },
+  },
+};
+
 export default defineConfig({
   plugins: [
+    suppressHmrPlugin,
     react(),
     tailwindcss(),
     VitePWA({
