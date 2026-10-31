@@ -38,7 +38,7 @@ import org.json.JSONObject;
 public class MainActivity extends Activity {
 
     private static final String PREFS = "mastmeals";
-    private static final String KEY_URL = "base_url";
+    private static final String KEY_URL = "server_url_v2";
     private static final String KEY_CONTACT = "shop_contact_name";
     private static final String KEY_TOKEN = "auth_token";
     private static final int PERM_REQUEST_CODE = 101;
