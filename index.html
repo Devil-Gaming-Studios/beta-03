@@ -22,69 +22,30 @@
     <script>
       (function () {
         try {
-          var NativeWS = window.WebSocket;
-          if (NativeWS) {
-            function ViteSafeWebSocket(url, protocols) {
-              if (protocols === 'vite-hmr' || (typeof url === 'string' && (url.indexOf('vite-hmr') !== -1 || url.indexOf('token=') !== -1 || url.indexOf('24678') !== -1))) {
-                var self = this;
-                this.binaryType = 'blob';
-                this.readyState = 1;
-                this.url = String(url || '');
-                this.protocol = 'vite-hmr';
-                this.bufferedAmount = 0;
-                this.extensions = '';
-                this._listeners = {};
-                this.addEventListener = function (event, cb) {
-                  if (!self._listeners[event]) self._listeners[event] = [];
-                  self._listeners[event].push(cb);
-                  if (event === 'open') {
-                    setTimeout(function () {
-                      try { cb.call(self, { type: 'open', target: self }); } catch (e) {}
-                    }, 0);
-                  }
-                };
-                this.removeEventListener = function (event, cb) {
-                  if (!self._listeners[event]) return;
-                  self._listeners[event] = self._listeners[event].filter(function (fn) { return fn !== cb; });
-                };
-                this.dispatchEvent = function () { return true; };
-                this.send = function () {};
-                this.close = function (code, reason) {
-                  self.readyState = 3;
-                  var closeHandlers = self._listeners['close'] || [];
-                  closeHandlers.forEach(function (fn) {
-                    try { fn.call(self, { type: 'close', wasClean: true, code: code || 1000, reason: reason || '', target: self }); } catch (e) {}
-                  });
-                };
-                return this;
-              }
-              return new NativeWS(url, protocols);
-            }
-            ViteSafeWebSocket.prototype = NativeWS.prototype;
-            ViteSafeWebSocket.CONNECTING = 0;
-            ViteSafeWebSocket.OPEN = 1;
-            ViteSafeWebSocket.CLOSING = 2;
-            ViteSafeWebSocket.CLOSED = 3;
-            window.WebSocket = ViteSafeWebSocket;
-          }
-
           var nativeConsoleError = console.error;
           console.error = function () {
             var text = Array.prototype.slice.call(arguments).map(function (arg) {
               return (arg && arg.message) || String(arg);
             }).join(' ');
-            if (text.indexOf('WebSocket closed without opened') !== -1 || text.indexOf('failed to connect to websocket') !== -1 || text.indexOf('vite-hmr') !== -1) {
+            if (
+              text.indexOf('WebSocket closed without opened') !== -1 ||
+              text.indexOf('failed to connect to websocket') !== -1 ||
+              text.indexOf('vite:ws:disconnect') !== -1
+            ) {
+              // Ignore dev WebSocket / HMR closures per environment constraints
               return;
             }
             return nativeConsoleError.apply(console, arguments);
           };
 
           window.addEventListener('error', function (event) {
-            if (event && event.message && (event.message.indexOf('WebSocket') !== -1 || event.message.indexOf('closed without opened') !== -1)) {
+            var msg = (event && event.message) || '';
+            if (msg.indexOf('WebSocket') !== -1 || msg.indexOf('closed without opened') !== -1) {
               event.stopImmediatePropagation();
               event.preventDefault();
             }
           }, true);
+
           window.addEventListener('unhandledrejection', function (event) {
             var reason = event && event.reason ? (event.reason.message || String(event.reason)) : '';
             if (reason.indexOf('WebSocket') !== -1 || reason.indexOf('closed without opened') !== -1) {
