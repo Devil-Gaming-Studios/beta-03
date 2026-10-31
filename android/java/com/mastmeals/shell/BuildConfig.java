@@ -2,8 +2,7 @@ package com.mastmeals.shell;
 
 /**
  * Build configuration parameters for the Mast Meals Android shell.
- * Default SERVER_URL is set to http://localhost:3000 to work seamlessly
- * with adb reverse tcp:3000 tcp:3000 (providing a secure localhost context for getUserMedia).
+ * Default SERVER_URL is the HTTPS Cloudflare tunnel so the app auto-connects with no prompt.
  */
 public final class BuildConfig {
     public static final boolean DEBUG = true;
@@ -14,7 +13,7 @@ public final class BuildConfig {
 
     /**
      * Express server URL loaded by WebView.
-     * Default: http://localhost:3000 (run `adb reverse tcp:3000 tcp:3000`).
+     * Default: the Cloudflare tunnel (HTTPS, so mic/camera work). Change it here or in the in-app settings.
      */
-    public static final String SERVER_URL = "http://localhost:3000";
+    public static final String SERVER_URL = "https://deny-cluster-reflection-redhead.trycloudflare.com/";
 }
