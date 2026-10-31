@@ -1,3 +1,4 @@
+import { flattenState, applyDoc, SyncScope } from './syncSchema';
 import {
   User,
   Household,
@@ -1059,6 +1060,63 @@ class StoreService {
     } catch {
       // Ignore
     }
+    this.notifySync();
+  }
+
+  // --- Cross-device sync hooks (the sync loop lives in syncClient.ts) ---
+  private persistListener: (() => void) | null = null;
+  private muteSync = false;
+
+  public setPersistListener(fn: (() => void) | null) {
+    this.persistListener = fn;
+  }
+
+  private notifySync() {
+    if (!this.muteSync && this.persistListener) this.persistListener();
+  }
+
+  public getSyncScope(): SyncScope {
+    const userId = this.state.currentUserId;
+    const ids = [this.state.currentHouseholdId, this.state.users[userId]?.household_id].filter(Boolean) as string[];
+    return { userId, householdIds: Array.from(new Set(ids)) };
+  }
+
+  /** All syncable documents of this device (flat key -> JSON value). */
+  public getSyncDocs(): Record<string, any> {
+    const docs = flattenState(this.state);
+    try {
+      const raw = localStorage.getItem(DIET_MEMORY_KEY);
+      if (raw) docs[`dietMemory/${this.state.currentUserId}`] = JSON.parse(raw);
+    } catch {
+      // ignore
+    }
+    return docs;
+  }
+
+  /** Apply documents received from the server (value null = deleted). Does not trigger a push. */
+  public applySyncDocs(changes: { key: string; value: any }[]) {
+    this.muteSync = true;
+    try {
+      for (const { key, value } of changes) {
+        if (key.startsWith('dietMemory/')) {
+          const uid = key.slice('dietMemory/'.length);
+          try {
+            if (value === null) localStorage.removeItem(`mastmeals_diet_memory_${uid}`);
+            else {
+              localStorage.setItem(`mastmeals_diet_memory_${uid}`, JSON.stringify(value));
+              if (uid === this.state.currentUserId) localStorage.setItem(DIET_MEMORY_KEY, JSON.stringify(value));
+            }
+          } catch {
+            // ignore
+          }
+        } else {
+          applyDoc(this.state, key, value);
+        }
+      }
+      this.persist();
+    } finally {
+      this.muteSync = false;
+    }
   }
 
   public resetToDefaults() {
@@ -1170,6 +1228,12 @@ class StoreService {
 
     this.isExplicitlyLoggedOut = false;
     this.state.currentUserId = user.id;
+    try {
+      const mem = localStorage.getItem(`mastmeals_diet_memory_${user.id}`);
+      if (mem) localStorage.setItem(DIET_MEMORY_KEY, mem);
+    } catch {
+      // ignore
+    }
     if (user.household_id && this.state.households[user.household_id]) {
       this.state.currentHouseholdId = user.household_id;
     } else {
@@ -1629,6 +1693,7 @@ class StoreService {
     } catch {
       // ignore storage quota errors
     }
+    this.notifySync();
     return updated;
   }
 

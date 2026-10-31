@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { store } from '../services/store';
+import { syncClient } from '../services/syncClient';
 import {
   AgeGroup,
   CookEquipment,
@@ -123,14 +124,27 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   // Quick Demo Logins
   const registeredUsers = store.getAllRegisteredUsers();
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError(null);
     if (!loginIdentifier.trim()) {
       setLoginError(isHindi ? 'कृपया ईमेल, मोबाइल या यूज़रनेम दर्ज करें' : 'Please enter email, mobile or username');
       return;
     }
-    const res = store.login(loginIdentifier, loginPassword || undefined);
+    let res = store.login(loginIdentifier, loginPassword || undefined);
+    const syncEmail = syncClient.accountEmailFor(loginIdentifier);
+    if (!res.success && syncEmail && loginPassword) {
+      // New device: the account lives on the server. Sign in there, pull the data, then log in locally.
+      const linked = await syncClient.connect(syncEmail, loginPassword, false);
+      if (linked.ok) res = store.login(loginIdentifier, loginPassword);
+      else if (linked.error && !/no sync account/i.test(linked.error)) {
+        setLoginError(linked.error);
+        return;
+      }
+    } else if (res.success && res.user && loginPassword && !syncClient.isLinked()) {
+      // Existing local account: link (or create) its sync account in the background.
+      void syncClient.connect(res.user.email, loginPassword, true);
+    }
     if (res.success) {
       onLoginSuccess();
     } else {
@@ -251,6 +265,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
     const res = store.registerWithFullProfile(regData);
     if (res.success) {
+      void syncClient.connect(res.user.email, regData.password || 'password123', true);
       onLoginSuccess();
     } else {
       setRegError(isHindi ? 'पंजीकरण विफल रहा' : 'Registration failed');
