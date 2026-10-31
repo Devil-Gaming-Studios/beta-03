@@ -64,8 +64,9 @@ const transcribeModel = 'gemini-3.5-transcribe';
 
 import { graphService } from './server/graphService';
 import { shopInboxService } from './server/shopInboxService';
-import { swiggyService } from './server/swiggyService';
-import { swiggyMcpServer } from './server/swiggyMcpServer';
+import { swiggyOAuthService } from './server/swiggyOAuth';
+import { swiggyTokenStore } from './server/swiggyTokenStore';
+import { swiggyMcpClient } from './server/swiggyMcpClient';
 
 let systemInstruction = `You are Omnirush, the assistant inside Mast Meals / KitchenSync, a household meal, recipe and kitchen-stock assistant for Indian households. You help with:
 1. Updating inventory stock (e.g. add/remove/set ingredients).
@@ -715,141 +716,220 @@ app.post('/api/telegram-webhook', async (req: Request, res: Response): Promise<a
 });
 
 // ---------------------------------------------------------------------------
-// Swiggy Instamart Account Connection & Cart Sync API
+// Official Swiggy OAuth 2.1 + PKCE & MCP Integration API
 // ---------------------------------------------------------------------------
-app.get('/api/swiggy/status', (_req: Request, res: Response) => {
-  const session = swiggyService.getSession();
-  return res.json({
-    isConnected: Boolean(session),
-    session: session || null,
-  });
-});
-
-app.post('/api/swiggy/request-otp', (req: Request, res: Response): any => {
-  const { phoneNumber } = req.body;
-  if (!phoneNumber) {
-    return res.status(400).json({ error: 'Mobile number is required' });
+function getRequestUserId(req: Request): string {
+  const customId = req.headers['x-user-id'];
+  if (typeof customId === 'string' && customId.trim()) {
+    return customId.trim();
   }
+  return 'usr_alpha';
+}
+
+// 1. GET /api/swiggy/connect - Initiates PKCE OAuth authorization flow
+app.get('/api/swiggy/connect', async (req: Request, res: Response): Promise<any> => {
   try {
-    const result = swiggyService.requestOtp(String(phoneNumber));
-    return res.json(result);
-  } catch (err: any) {
-    return res.status(400).json({ error: err?.message || 'Failed to request OTP' });
-  }
-});
-
-app.post('/api/swiggy/verify-otp', (req: Request, res: Response): any => {
-  const { phoneNumber, otp, userName, deliveryAddress } = req.body;
-  if (!phoneNumber || !otp) {
-    return res.status(400).json({ error: 'Phone number and OTP are required' });
-  }
-  try {
-    const profile = swiggyService.verifyOtp(String(phoneNumber), String(otp).trim(), userName, deliveryAddress);
-    return res.json({ success: true, profile });
-  } catch (err: any) {
-    return res.status(400).json({ error: err?.message || 'OTP verification failed' });
-  }
-});
-
-app.post('/api/swiggy/connect-token', (req: Request, res: Response): any => {
-  const { sessionToken, userName, deliveryAddress } = req.body;
-  if (!sessionToken) {
-    return res.status(400).json({ error: 'Swiggy session token or cookie is required' });
-  }
-  try {
-    const profile = swiggyService.connectDirectToken(String(sessionToken), userName, deliveryAddress);
-    return res.json({ success: true, profile });
-  } catch (err: any) {
-    return res.status(400).json({ error: err?.message || 'Failed to connect token' });
-  }
-});
-
-app.post('/api/swiggy/add-to-cart', async (req: Request, res: Response): Promise<any> => {
-  const { items, session } = req.body;
-  if (!Array.isArray(items) || items.length === 0) {
-    return res.status(400).json({ error: 'No items provided' });
-  }
-  try {
-    const result = await swiggyService.addToCart(items, session);
-    return res.json(result);
-  } catch (err: any) {
-    return res.status(500).json({ error: err?.message || 'Failed to add items to Swiggy cart' });
-  }
-});
-
-app.post('/api/swiggy/disconnect', (_req: Request, res: Response) => {
-  swiggyService.disconnect();
-  return res.json({ success: true, message: 'Swiggy account disconnected' });
-});
-
-// ---------------------------------------------------------------------------
-// Model Context Protocol (MCP) Server: /api/mcp
-// ---------------------------------------------------------------------------
-app.post('/api/mcp', async (req: Request, res: Response): Promise<any> => {
-  const { jsonrpc, id, method, params } = req.body;
-
-  // Standard JSON-RPC 2.0 response wrapper
-  if (method === 'tools/list') {
+    const userId = getRequestUserId(req);
+    const host = req.get('host') || 'localhost:3000';
+    const protocol = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
+    const redirectUri = swiggyOAuthService.getRedirectUri(undefined, host, protocol);
+    const { authorizationUrl, state } = await swiggyOAuthService.getAuthorizationUrl(userId, redirectUri);
     return res.json({
-      jsonrpc: '2.0',
-      id: id || 1,
-      result: {
-        tools: swiggyMcpServer.listTools(),
-      },
+      success: true,
+      authorizationUrl,
+      state,
+      redirectUri,
+    });
+  } catch (err: any) {
+    console.error('Failed to initiate Swiggy OAuth connection:', err);
+    return res.status(500).json({ error: err?.message || 'Failed to start Swiggy connection flow' });
+  }
+});
+
+// 2. GET /api/swiggy/callback - Handles authorization code exchange
+app.get('/api/swiggy/callback', async (req: Request, res: Response): Promise<any> => {
+  const { code, state, error, error_description } = req.query;
+
+  if (error) {
+    const desc = error_description ? String(error_description) : String(error);
+    return res.send(`<!DOCTYPE html><html><head><title>Authentication Failed</title></head><body><script>
+      if (window.opener) {
+        window.opener.postMessage({ type: 'SWIGGY_AUTH_ERROR', error: ${JSON.stringify(desc)} }, '*');
+        setTimeout(function() { window.close(); }, 1500);
+      } else {
+        window.location.href = '/?swiggy_error=' + encodeURIComponent(${JSON.stringify(desc)});
+      }
+    </script><div style="font-family:sans-serif;padding:30px;text-align:center;">
+      <h3 style="color:#d9534f;">Swiggy Authentication Failed</h3>
+      <p>${desc}</p>
+      <p style="color:#666;">This window will close automatically...</p>
+    </div></body></html>`);
+  }
+
+  if (!code || !state) {
+    return res.status(400).send('Missing code or state parameter in OAuth callback');
+  }
+
+  try {
+    await swiggyOAuthService.handleCallback(String(code), String(state));
+    return res.send(`<!DOCTYPE html><html><head><title>Swiggy Connected</title></head><body style="font-family:sans-serif;text-align:center;padding:40px;background:#FAF9F6;">
+      <script>
+        try {
+          if (window.opener) {
+            window.opener.postMessage({ type: 'SWIGGY_AUTH_SUCCESS' }, '*');
+            setTimeout(function() { window.close(); }, 800);
+          } else {
+            window.location.href = '/?swiggy=connected';
+          }
+        } catch(e) {
+          window.location.href = '/?swiggy=connected';
+        }
+      </script>
+      <div style="max-width:400px;margin:0 auto;background:#fff;border-radius:16px;padding:24px;box-shadow:0 4px 12px rgba(0,0,0,0.08);">
+        <div style="font-size:32px;margin-bottom:12px;">🎉</div>
+        <h3 style="color:#FC8019;margin:0 0 8px;">Swiggy Account Connected!</h3>
+        <p style="color:#4B5563;font-size:14px;margin:0 0 16px;">Verifying OAuth credentials and discovering MCP tools...</p>
+        <p style="color:#9CA3AF;font-size:12px;">You can now close this window if it does not close automatically.</p>
+      </div>
+    </body></html>`);
+  } catch (err: any) {
+    console.error('Swiggy OAuth callback error:', err);
+    const msg = err?.message || 'Failed to complete OAuth token exchange';
+    return res.status(400).send(`<!DOCTYPE html><html><head><title>Connection Error</title></head><body><script>
+      if (window.opener) {
+        window.opener.postMessage({ type: 'SWIGGY_AUTH_ERROR', error: ${JSON.stringify(msg)} }, '*');
+        setTimeout(function() { window.close(); }, 2000);
+      } else {
+        window.location.href = '/?swiggy_error=' + encodeURIComponent(${JSON.stringify(msg)});
+      }
+    </script><div style="font-family:sans-serif;padding:30px;text-align:center;">
+      <h3 style="color:#d9534f;">OAuth Exchange Failed</h3>
+      <p>${msg}</p>
+    </div></body></html>`);
+  }
+});
+
+// 3. GET /api/swiggy/status - Verifies real connection, checks expiration, lists discovered tools
+app.get('/api/swiggy/status', async (req: Request, res: Response): Promise<any> => {
+  const userId = getRequestUserId(req);
+  const tokens = swiggyTokenStore.getTokens(userId);
+
+  if (!tokens || !tokens.accessToken) {
+    return res.json({
+      isConnected: false,
+      userProfile: null,
+      availableTools: [],
     });
   }
 
-  if (method === 'tools/call') {
-    const toolName = params?.name;
-    const toolArgs = params?.arguments || {};
-    try {
-      const callResult = await swiggyMcpServer.callTool(toolName, toolArgs);
-      return res.json({
-        jsonrpc: '2.0',
-        id: id || 1,
-        result: callResult,
-      });
-    } catch (err: any) {
-      return res.status(500).json({
-        jsonrpc: '2.0',
-        id: id || 1,
-        error: {
-          code: -32603,
-          message: err?.message || 'Internal MCP tool execution error',
-        },
-      });
-    }
+  // Validate or auto-refresh token
+  try {
+    await swiggyOAuthService.getValidAccessToken(userId);
+  } catch (err: any) {
+    return res.json({
+      isConnected: false,
+      expired: true,
+      error: 'Swiggy access token expired. Reconnect required.',
+      userProfile: null,
+      availableTools: [],
+    });
   }
 
-  return res.status(400).json({
-    jsonrpc: '2.0',
-    id: id || null,
-    error: {
-      code: -32601,
-      message: `Method not found: ${method}`,
-    },
+  // Query live MCP tool definitions
+  let availableTools: any[] = [];
+  try {
+    const endpoints = await swiggyMcpClient.listTools(userId);
+    availableTools = endpoints.flatMap((e) => e.tools);
+  } catch (mcpErr: any) {
+    console.warn('Swiggy MCP tools query notice:', mcpErr?.message);
+  }
+
+  return res.json({
+    isConnected: true,
+    expiresAt: tokens.expiresAt,
+    scope: tokens.scope,
+    userProfile: tokens.userProfile || { name: 'Swiggy User' },
+    availableTools,
   });
 });
 
-app.get('/api/mcp/tools', (_req: Request, res: Response) => {
-  return res.json({ tools: swiggyMcpServer.listTools() });
+// 4. POST /api/swiggy/disconnect - Disconnects account and revokes tokens
+app.post('/api/swiggy/disconnect', async (req: Request, res: Response): Promise<any> => {
+  const userId = getRequestUserId(req);
+  try {
+    await swiggyOAuthService.disconnect(userId);
+    return res.json({ success: true, message: 'Swiggy account successfully disconnected.' });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || 'Failed to disconnect Swiggy account' });
+  }
 });
 
-app.post('/api/mcp/call', async (req: Request, res: Response): Promise<any> => {
-  const { name, arguments: toolArgs } = req.body;
-  if (!name) {
-    return res.status(400).json({ error: 'Tool name is required' });
-  }
+// 5. GET /api/swiggy/tools - Discovered Swiggy MCP tool schemas
+app.get('/api/swiggy/tools', async (req: Request, res: Response): Promise<any> => {
+  const userId = getRequestUserId(req);
   try {
-    const result = await swiggyMcpServer.callTool(name, toolArgs || {});
+    const endpoints = await swiggyMcpClient.listTools(userId);
+    return res.json({ success: true, endpoints });
+  } catch (err: any) {
+    return res.status(401).json({ error: err?.message || 'Failed to retrieve Swiggy MCP tools' });
+  }
+});
+
+// 6. POST /api/swiggy/search - Live grocery product lookup via MCP
+app.post('/api/swiggy/search', async (req: Request, res: Response): Promise<any> => {
+  const userId = getRequestUserId(req);
+  const { query, lat, lng } = req.body;
+  if (!query || typeof query !== 'string') {
+    return res.status(400).json({ error: 'Search query is required' });
+  }
+
+  try {
+    const items = await swiggyMcpClient.searchProducts(
+      userId,
+      query,
+      lat ? Number(lat) : undefined,
+      lng ? Number(lng) : undefined
+    );
+    return res.json({ success: true, query, items });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || 'Failed to search Swiggy MCP catalog' });
+  }
+});
+
+// 7. POST /api/swiggy/cart/preview - Computes cart preview with verified fees without ordering
+app.post('/api/swiggy/cart/preview', async (req: Request, res: Response): Promise<any> => {
+  const userId = getRequestUserId(req);
+  const { items } = req.body;
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'items array is required' });
+  }
+
+  try {
+    const preview = await swiggyMcpClient.previewCart(userId, items);
+    return res.json({ success: true, preview });
+  } catch (err: any) {
+    return res.status(500).json({ error: err?.message || 'Failed to preview Swiggy cart' });
+  }
+});
+
+// 8. POST /api/swiggy/cart/confirm - Performs real MCP cart update with explicit user confirmation
+app.post('/api/swiggy/cart/confirm', async (req: Request, res: Response): Promise<any> => {
+  const userId = getRequestUserId(req);
+  const { confirmed, items } = req.body;
+
+  if (!confirmed) {
+    return res.status(400).json({ error: 'Explicit user confirmation is required to modify Swiggy cart' });
+  }
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'items array is required' });
+  }
+
+  try {
+    const result = await swiggyMcpClient.confirmCart(userId, items);
     return res.json(result);
   } catch (err: any) {
-    return res.status(500).json({ error: err?.message || 'Tool execution failed' });
+    return res.status(500).json({ error: err?.message || 'Swiggy MCP cart modification failed' });
   }
-});
-
-app.get('/api/mcp/logs', (_req: Request, res: Response) => {
-  return res.json({ logs: swiggyMcpServer.getLogs() });
 });
 
 

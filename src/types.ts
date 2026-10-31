@@ -199,31 +199,23 @@ export interface ShoppingListItem {
   as_of?: string;
 }
 
-export interface SwiggyCartItemRecord {
-  itemId: string;
+export interface SwiggyMcpTool {
   name: string;
-  quantity: number;
-  unit: string;
-  price: number;
-  storeName?: string;
+  description: string;
+  inputSchema?: any;
 }
 
 export interface SwiggyAccountConnection {
   isConnected: boolean;
-  phoneNumber?: string;
-  userName?: string;
-  connectedAt?: string;
-  deliveryAddress?: string;
-  pincode?: string;
-  lat?: number;
-  lng?: number;
-  authMethod?: 'phone_otp' | 'session_token' | 'mcp_server';
-  sessionToken?: string;
-  mcpServerUrl?: string;
-  cartId?: string;
-  lastCartSyncAt?: string;
-  itemsInCart?: SwiggyCartItemRecord[];
-  storeName?: string;
+  expiresAt?: number;
+  scope?: string;
+  userProfile?: {
+    name?: string;
+    phoneNumber?: string;
+    email?: string;
+  } | null;
+  availableTools?: SwiggyMcpTool[];
+  lastCheckedAt?: string;
 }
 
 export interface GraphRecipe {

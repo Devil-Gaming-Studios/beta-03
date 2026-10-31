@@ -127,21 +127,30 @@ To receive grocery lists and pickup confirmations via Telegram Bot:
 
 ---
 
-## Swiggy Instamart Account Connection & Cart Sync
+## Official Swiggy MCP Server & OAuth 2.1 Integration
 
-KitchenSync connects directly with Swiggy Instamart to automatically reserve missing meal ingredients and shortfall items in your cart.
+KitchenSync integrates directly with Swiggy's official Model Context Protocol (MCP) server and OAuth 2.1 + PKCE authentication (`https://mcp.swiggy.com/`).
 
-### 1. Linking Your Account in the Web / Native App
-1. Open the **Shop** screen and tap **Swiggy Cart**.
-2. Switch to the **Connect Swiggy** tab:
-   - **Method A (Phone OTP)**: Enter your 10-digit Indian phone number (`+91`), tap **Send OTP**, and verify with the 6-digit code (use instant test code `123456` or the generated code).
-   - **Method B (Session Cookie / Token)**: Paste your `_session_tid` or `tid` cookie from `swiggy.com` for direct API authentication.
-3. Once linked, tap **Add All to Swiggy Instamart Cart** to map shortfalls to Instamart SKUs, check dark-store inventory, and generate your direct cart checkout link.
+### 1. Official Authentication Flow (Phone + OTP on Swiggy Domain)
+1. Open the **Shop** screen and tap **Connect Swiggy** (or **Swiggy Cart**).
+2. KitchenSync initiates an OAuth 2.1 PKCE (`S256`) authorization handshake with cryptographically signed state.
+3. You are redirected to Swiggy's official secure authorization page (`https://mcp.swiggy.com/auth/authorize`).
+4. Enter your Swiggy-registered mobile number and receive a secure one-time password (OTP) directly from Swiggy.
+5. KitchenSync **never** collects, logs, or stores your OTP or password.
+6. Once approved, Swiggy returns an authorization code which KitchenSync exchanges server-side for access and refresh tokens.
+7. Tokens are encrypted at rest with AES-256-GCM using backend environment keys (`TOKEN_ENCRYPTION_KEYS`) and never exposed to the client browser.
 
-### 2. Optional: Swiggy MCP Server Configuration
-If you run an automated Model Context Protocol (MCP) server for Swiggy:
+### 2. Environment Variables (.env)
 ```bash
-SWIGGY_MCP_URL="http://localhost:8080/swiggy"
-SWIGGY_MCP_TOKEN="your_mcp_api_token"
+SWIGGY_MCP_URL="https://mcp.swiggy.com/food"
+SWIGGY_INSTAMART_MCP_URL="https://mcp.swiggy.com/im"
+SWIGGY_OAUTH_REDIRECT_URI="http://localhost:3000/api/swiggy/callback"
+SWIGGY_MCP_CLIENT_ID="swiggy-mcp"
+TOKEN_ENCRYPTION_ACTIVE_KEY_ID="primary"
+TOKEN_ENCRYPTION_KEYS='{"primary":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}'
 ```
-When configured, the backend automatically dispatches cart reservations through the MCP bridge.
+
+### 3. Swiggy MCP Tool Discovery & Cart Safety
+- **Dynamic Tool Discovery**: Discovers tools dynamically via Streamable HTTP JSON-RPC `tools/list` on `https://mcp.swiggy.com/im` and `https://mcp.swiggy.com/food`.
+- **Search & Price Benchmarking**: Fetches live product names, prices, and inventory without hardcoded catalogs.
+- **Explicit User Confirmation**: The application generates a cart preview for user inspection before any cart modification. KitchenSync will **never** automatically execute payment or finalize orders without explicit manual confirmation.

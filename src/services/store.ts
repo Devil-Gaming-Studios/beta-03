@@ -3290,7 +3290,7 @@ class StoreService {
   public saveSwiggyConnection(conn: SwiggyAccountConnection): void {
     try {
       localStorage.setItem(SWIGGY_CONN_KEY, JSON.stringify(conn));
-      this.logAudit('swiggy_connection_saved', { isConnected: conn.isConnected, phone: conn.phoneNumber });
+      this.logAudit('swiggy_connection_saved', { isConnected: conn.isConnected, user: conn.userProfile?.name });
     } catch (e) {
       console.error('Failed to save Swiggy connection to storage:', e);
     }
