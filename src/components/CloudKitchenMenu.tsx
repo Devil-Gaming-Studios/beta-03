@@ -67,7 +67,7 @@ export const CloudKitchenMenu: React.FC<CloudKitchenMenuProps> = ({ isHindi }) =
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-[24px] text-[#1A3826]">menu_book</span>
             <h1 className="text-[20px] font-bold text-[#1a1c1a]">
-              {isHindi ? 'क्लाउड किचन मेन्यू और रेसिपी लिंक्स' : 'Cloud Kitchen Menu & Recipe Links'}
+              {isHindi ? 'फूड बिज़नेस मेन्यू और रेसिपी लिंक्स' : 'Food Business Menu & Recipe Links'}
             </h1>
           </div>
           <p className="text-[12px] text-[#727972] mt-0.5">

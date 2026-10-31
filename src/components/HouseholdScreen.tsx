@@ -120,8 +120,8 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi, onLog
     refresh();
     showToast(
       isHindi
-        ? `किचन मोड बदलकर ${type === 'cloud_kitchen' ? 'क्लाउड किचन' : type === 'family' ? 'पारिवारिक घर' : 'हॉस्टल / शेयर्ड फ्लैट'} किया गया`
-        : `Kitchen mode changed to ${type === 'cloud_kitchen' ? 'Cloud Kitchen' : type === 'family' ? 'Family Home Kitchen' : 'Hostel / Shared Flat'}`
+        ? `किचन मोड बदलकर ${type === 'cloud_kitchen' ? 'फूड बिज़नेस' : type === 'family' ? 'पारिवारिक घर' : 'हॉस्टल / शेयर्ड फ्लैट'} किया गया`
+        : `Kitchen mode changed to ${type === 'cloud_kitchen' ? 'Food Business' : type === 'family' ? 'Family Home Kitchen' : 'Hostel / Shared Flat'}`
     );
   };
 
@@ -367,7 +367,7 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi, onLog
         </button>
       </div>
 
-      {/* Kitchen Mode Selector (Home / Hostel / Cloud Kitchen) */}
+      {/* Kitchen Mode Selector (Home / Hostel / Food Business) */}
       <div className="bg-white rounded-2xl p-4 border border-[#E6E4DD] shadow-xs flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
@@ -378,7 +378,7 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi, onLog
           </div>
           <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-[#EDF2EE] text-[#1A3826]">
             {me.household.household_type === 'cloud_kitchen'
-              ? 'Cloud Kitchen'
+              ? 'Food Business'
               : me.household.household_type === 'family'
               ? 'Family Home'
               : 'Hostel Flat'}
@@ -429,7 +429,7 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi, onLog
           >
             <div className="flex items-center gap-1.5 font-bold text-[12.5px]">
               <span className="material-symbols-outlined text-[16px]">restaurant</span>
-              <span>Cloud Kitchen 🍳</span>
+              <span>Food Business 🍳</span>
             </div>
             <div className="text-[10px] opacity-75">Orders, batches &amp; KDS</div>
           </button>
@@ -439,13 +439,13 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi, onLog
       {/* CLOUD KITCHEN SPECIFIC SETTINGS & PERFORMANCE REPORT */}
       {me.household.household_type === 'cloud_kitchen' && (
         <>
-          {/* Cloud Kitchen Staff Roles Card */}
+          {/* Food Business Staff Roles Card */}
           <div className="bg-white rounded-2xl p-4 border border-[#E6E4DD] shadow-xs flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
                 <span className="material-symbols-outlined text-[19px] text-[#1A3826]">badge</span>
                 <h2 className="text-[14px] font-bold text-[#1a1c1a]">
-                  {isHindi ? 'स्टाफ रोल और अनुमतियां' : 'Cloud Kitchen Staff Roles & Permissions'}
+                  {isHindi ? 'स्टाफ रोल और अनुमतियां' : 'Food Business Staff Roles & Permissions'}
                 </h2>
               </div>
               <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-[#1A3826] text-white">
@@ -555,7 +555,7 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi, onLog
               const url = URL.createObjectURL(blob);
               const a = document.createElement('a');
               a.href = url;
-              a.download = `CloudKitchen_DailyReport_${report.date}.csv`;
+              a.download = `FoodBusiness_DailyReport_${report.date}.csv`;
               document.body.appendChild(a);
               a.click();
               document.body.removeChild(a);

@@ -393,7 +393,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
               </h1>
               <p className="text-[12.5px] text-[#424843] mt-1">
                 {isHindi
-                  ? 'अपने घर, हॉस्टल या क्लाउड किचन के स्टॉक और मील प्लान तक पहुँचने के लिए लॉग इन करें।'
+                  ? 'अपने घर, हॉस्टल या फूड बिज़नेस के स्टॉक और मील प्लान तक पहुँचने के लिए लॉग इन करें।'
                   : 'Sign in to access your kitchen inventory, meal planner, and household recipes.'}
               </p>
             </div>
@@ -645,7 +645,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                   type="text"
                   value={regHouseholdName}
                   onChange={(e) => setRegHouseholdName(e.target.value)}
-                  placeholder="e.g. Sharma Family Home or Annapurna Cloud Kitchen"
+                  placeholder="e.g. Sharma Family Home or Annapurna Food Business"
                   className="w-full px-3 py-2 rounded-xl bg-[#FAF9F6] border border-[#E6E4DD] text-[13px] text-[#1a1c1a] focus:outline-none focus:border-[#1A3826]"
                 />
               </div>
@@ -698,7 +698,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                   >
                     <span className="material-symbols-outlined text-[20px] text-[#1A3826] mt-0.5">restaurant</span>
                     <div>
-                      <div className="text-[13px] font-bold">Cloud Kitchen Mode 🍳</div>
+                      <div className="text-[13px] font-bold">Food Business Mode 🍳</div>
                       <div className="text-[11px] opacity-75">Cook to order & announced batches, portion yield, stock reservations & KDS</div>
                     </div>
                   </button>

@@ -3118,6 +3118,16 @@ class StoreService {
             const incomingIsSeed = ['meal_1', 'meal_2', 'meal_3'].includes(updatedMeal.id);
             if (existingIsSeed && !incomingIsSeed) {
               canonicalPlan.meals[existingIdx] = updatedMeal;
+            } else if (
+              !existingIsSeed &&
+              !canonicalPlan.meals.some(
+                (cm) =>
+                  cm.meal_date === fixedDate &&
+                  cm.slot === updatedMeal.slot &&
+                  cm.household_recipe_id === updatedMeal.household_recipe_id
+              )
+            ) {
+              canonicalPlan.meals.push(updatedMeal);
             }
           }
         }
@@ -3136,7 +3146,7 @@ class StoreService {
           m.meal_date = addDays(m.meal_date, 1);
           migrated = true;
         }
-        const mapKey = `${m.meal_date}_${m.slot}`;
+        const mapKey = `${m.meal_date}_${m.slot}_${m.household_recipe_id}`;
         const prev = slotMap.get(mapKey);
         if (!prev) {
           slotMap.set(mapKey, m);
@@ -3150,8 +3160,16 @@ class StoreService {
           }
         }
       }
-      if (slotMap.size !== canonicalPlan.meals.length) {
-        canonicalPlan.meals = Array.from(slotMap.values());
+      // Drop placeholder seed meals when a real meal exists in the same slot
+      const deduped = Array.from(slotMap.values()).filter((m) => {
+        const isSeed = ['meal_1', 'meal_2', 'meal_3'].includes(m.id);
+        if (!isSeed) return true;
+        return !Array.from(slotMap.values()).some(
+          (o) => o.id !== m.id && o.meal_date === m.meal_date && o.slot === m.slot && !['meal_1', 'meal_2', 'meal_3'].includes(o.id)
+        );
+      });
+      if (deduped.length !== canonicalPlan.meals.length) {
+        canonicalPlan.meals = deduped;
         migrated = true;
       }
     }
@@ -3248,7 +3266,8 @@ class StoreService {
       diet_tags?: string[];
       protein_g?: number;
       kcal?: number;
-    }
+    },
+    opts?: { append?: boolean; replaceMealId?: string }
   ) {
     const weekStart = getMonday(mealDate);
     const plan = this.getPlan(weekStart);
@@ -3278,9 +3297,19 @@ class StoreService {
     const resolvedVariety =
       extraMeta?.variety_type || dietMem.weekly_variety_schedule[dayKey] || 'regular';
 
-    const existingIdx = plan.meals.findIndex(
-      (m) => m.meal_date === mealDate && m.slot === slot
-    );
+    let existingIdx: number;
+    if (opts?.replaceMealId) {
+      existingIdx = plan.meals.findIndex((m) => m.id === opts.replaceMealId);
+    } else if (opts?.append) {
+      // Multi-item meal: keep what is already in the slot; only skip an exact duplicate recipe
+      existingIdx = -1;
+      const dup = plan.meals.find(
+        (m) => m.meal_date === mealDate && m.slot === slot && m.household_recipe_id === recipeId
+      );
+      if (dup) return dup;
+    } else {
+      existingIdx = plan.meals.findIndex((m) => m.meal_date === mealDate && m.slot === slot);
+    }
 
     const newMeal: PlannedMeal = {
       id: existingIdx >= 0 ? plan.meals[existingIdx].id : 'meal_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
@@ -3997,8 +4026,30 @@ class StoreService {
       }
     }
 
+    // 0. "Bought everything missing": move the whole Shop Tab into stock in one confirmed step
+    if (payload.restock_all_missing) {
+      const restock = this.restockAllMissingItems();
+      applied.push({ restocked: restock.appliedItems || [] });
+    }
+
     // 1. Stock changes (apply for update_stock as well as any confirmed item list)
-    for (const item of payload.items || []) {
+    for (const item of payload.restock_all_missing ? [] : payload.items || []) {
+      // Shop Tab edits proposed from chat (add / remove / mark bought) go to the shopping list, not stock
+      if (item.target_section === 'Shop Tab') {
+        const shopOp = ['add', 'remove', 'set', 'bought'].includes(String(item.note))
+          ? (item.note as any)
+          : item.op === 'remove'
+          ? 'remove'
+          : 'add';
+        const shopRes = this.updateShoppingListFromChat(
+          item.name || item.ingredient_id,
+          shopOp,
+          item.qty_base,
+          item.unit_base
+        );
+        applied.push({ shop_list: shopRes });
+        continue;
+      }
       const res = this.adjustStock(
         item.ingredient_id,
         item.op || 'add',
@@ -4135,7 +4186,7 @@ class StoreService {
   }
 
   // =========================================================================
-  // Cloud Kitchen Management Methods
+  // Food Business Management Methods
   // =========================================================================
 
   public getCloudKitchenRole(householdId = this.state.currentHouseholdId): CloudKitchenRole {
@@ -4896,7 +4947,7 @@ class StoreService {
 
   public exportReportCsv(report: CloudKitchenReport): string {
     const lines = [
-      'MAST MEALS CLOUD KITCHEN DAILY PERFORMANCE REPORT',
+      'MAST MEALS FOOD BUSINESS DAILY PERFORMANCE REPORT',
       `Date,${report.date}`,
       `Total Orders,${report.total_orders}`,
       `Completed Orders,${report.completed_orders}`,
