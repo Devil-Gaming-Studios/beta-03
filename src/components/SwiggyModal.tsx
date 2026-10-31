@@ -94,7 +94,8 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
     setAuthConnecting(true);
     setAuthError(null);
     try {
-      const res = await fetch('/api/swiggy/connect');
+      const callbackUri = encodeURIComponent(`${window.location.origin}/api/swiggy/callback`);
+      const res = await fetch(`/api/swiggy/connect?redirect_uri=${callbackUri}`);
       const data = await res.json();
       if (!res.ok || !data.authorizationUrl) {
         throw new Error(data.error || 'Failed to start Swiggy OAuth flow');
@@ -632,15 +633,27 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
                   <div className="space-y-2 text-[#374151] text-[11.5px] pl-1">
                     <div className="flex items-start gap-2">
                       <span className="w-5 h-5 rounded-full bg-[#FC8019]/10 text-[#FC8019] font-bold flex items-center justify-center shrink-0 text-[11px]">1</span>
-                      <span>Tap <strong>Connect Swiggy</strong> to open Swiggy's official authentication page.</span>
+                      <span><strong>Open KitchenSync:</strong> Go to the Shop tab and click <em>Connect Swiggy</em>.</span>
                     </div>
                     <div className="flex items-start gap-2">
                       <span className="w-5 h-5 rounded-full bg-[#FC8019]/10 text-[#FC8019] font-bold flex items-center justify-center shrink-0 text-[11px]">2</span>
-                      <span>Enter your Swiggy registered phone number. Swiggy sends an OTP directly to your mobile.</span>
+                      <span><strong>Enter your phone number:</strong> Redirected to Swiggy's official authentication page.</span>
                     </div>
                     <div className="flex items-start gap-2">
                       <span className="w-5 h-5 rounded-full bg-[#FC8019]/10 text-[#FC8019] font-bold flex items-center justify-center shrink-0 text-[11px]">3</span>
-                      <span>Enter the OTP on Swiggy's secure page and authorize KitchenSync.</span>
+                      <span><strong>Verify OTP:</strong> Enter the OTP sent by Swiggy on its authentication page.</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="w-5 h-5 rounded-full bg-[#FC8019]/10 text-[#FC8019] font-bold flex items-center justify-center shrink-0 text-[11px]">4</span>
+                      <span><strong>Authorize KitchenSync:</strong> Approve requested access on Swiggy.</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="w-5 h-5 rounded-full bg-[#FC8019]/10 text-[#FC8019] font-bold flex items-center justify-center shrink-0 text-[11px]">5</span>
+                      <span><strong>Return to KitchenSync:</strong> Swiggy redirects you back automatically.</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="w-5 h-5 rounded-full bg-[#16A34A]/10 text-[#16A34A] font-bold flex items-center justify-center shrink-0 text-[11px]">6</span>
+                      <span><strong>Start shopping:</strong> Swiggy Connected! Browse real Instamart items and sync carts.</span>
                     </div>
                   </div>
 

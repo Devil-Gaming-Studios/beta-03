@@ -112,7 +112,16 @@ export class SwiggyOAuthService {
   }
 
   public getRedirectUri(customUri?: string, hostHeader?: string, protocol = 'http'): string {
-    if (customUri) return customUri;
+    if (customUri) {
+      try {
+        const u = new URL(customUri);
+        if (u.pathname.endsWith('/api/swiggy/callback')) {
+          return customUri;
+        }
+      } catch {
+        // fallback to default
+      }
+    }
     const envUri = (process.env.SWIGGY_OAUTH_REDIRECT_URI || '').trim();
     if (envUri) return envUri;
 

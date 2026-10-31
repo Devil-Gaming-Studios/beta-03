@@ -16,13 +16,27 @@ import { store } from './services/store';
 import { DietPreference, MealSlot } from './types';
 
 export const App: React.FC = () => {
-  const [currentTab, setCurrentTab] = useState<NavTab>('home');
+  const [currentTab, setCurrentTab] = useState<NavTab>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('swiggy') === 'connected' || params.has('swiggy_error')) {
+        return 'shop';
+      }
+    }
+    return 'home';
+  });
   const [isHindi, setIsHindi] = useState(false);
   const [isVoiceOpen, setIsVoiceOpen] = useState(false);
   const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
   const [scanModalMode, setScanModalMode] = useState<'receipt' | 'fridge' | null>(null);
   const [planRefreshKey, setPlanRefreshKey] = useState(0);
-  const [onboarded, setOnboarded] = useState<boolean>(() => store.isOnboardingComplete());
+  const [onboarded, setOnboarded] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('swiggy') === 'connected') return true;
+    }
+    return store.isOnboardingComplete();
+  });
   const [viewRecipe, setViewRecipe] = useState<{
     id: string;
     servings: number;
@@ -30,6 +44,17 @@ export const App: React.FC = () => {
     initialSlot?: MealSlot;
     autoOpenPlanForm?: boolean;
   } | null>(null);
+
+  // Automatically switch to shop tab if Swiggy redirected back with ?swiggy=connected
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('swiggy') === 'connected' || params.has('swiggy_error')) {
+        setCurrentTab('shop');
+        setOnboarded(true);
+      }
+    }
+  }, []);
 
   const toggleLanguage = () => {
     setIsHindi((prev) => !prev);

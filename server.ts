@@ -732,7 +732,10 @@ app.get('/api/swiggy/connect', async (req: Request, res: Response): Promise<any>
     const userId = getRequestUserId(req);
     const host = req.get('host') || 'localhost:3000';
     const protocol = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
-    const redirectUri = swiggyOAuthService.getRedirectUri(undefined, host, protocol);
+    const clientRedirectUri = typeof req.query.redirect_uri === 'string' && req.query.redirect_uri.trim()
+      ? req.query.redirect_uri.trim()
+      : undefined;
+    const redirectUri = swiggyOAuthService.getRedirectUri(clientRedirectUri, host, protocol);
     const { authorizationUrl, state } = await swiggyOAuthService.getAuthorizationUrl(userId, redirectUri);
     return res.json({
       success: true,
