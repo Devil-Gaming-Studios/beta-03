@@ -1,5 +1,5 @@
 export type AgeGroup = 'kid' | 'adult' | 'elderly';
-export type DietCaution = 'diabetes' | 'upset_stomach' | 'heart';
+export type DietCaution = 'diabetes' | 'upset_stomach' | 'heart' | 'bp' | 'cholesterol' | 'digestion';
 export type MealSlot = 'breakfast' | 'lunch' | 'dinner';
 export type MealStatus = 'planned' | 'done' | 'skipped';
 export type BaseUnit = 'g' | 'ml' | 'pcs';
@@ -9,7 +9,17 @@ export type ProposalIntent = 'edit_plan' | 'update_stock' | 'add_recipe' | 'set_
 export type StockOp = 'add' | 'remove' | 'set';
 export type HouseholdType = 'family' | 'bachelor_flat' | 'hostel_room';
 export type DietPreference = 'veg' | 'nonveg';
-export type CookEquipment = 'stove' | 'pressure_cooker' | 'mixer' | 'microwave' | 'kettle' | 'rice_cooker' | 'tawa' | 'oven';
+export type CookEquipment =
+  | 'stove'
+  | 'induction'
+  | 'pressure_cooker'
+  | 'kadhai_pan'
+  | 'mixer'
+  | 'microwave'
+  | 'kettle'
+  | 'rice_cooker'
+  | 'tawa'
+  | 'oven';
 
 export interface User {
   id: string;
@@ -128,7 +138,40 @@ export interface PlannedMeal {
   diner_member_ids?: string[];
   missing: MissingIngredient[];
   nutrition: IngredientNutrients;
+  variety_type?: 'regular' | 'new';
+  cuisine?: string;
+  ai_reason?: string;
+  diet_tags?: string[];
   updated_at?: string;
+}
+
+export type DayOfWeekKey = 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri' | 'Sat' | 'Sun';
+export type DayVarietyMode = 'regular' | 'new';
+export type WeeklyVarietySchedule = Record<DayOfWeekKey, DayVarietyMode>;
+export type DietaryGoalTag = 'protein_rich' | 'diabetes' | 'heart' | 'low_oil' | 'high_fiber';
+
+export interface PastDietEntry {
+  recipe_id: string;
+  title: string;
+  cuisine: string;
+  course: string;
+  ingredients: string[];
+  times_eaten: number;
+  weeks_active: number;
+  last_eaten_date: string;
+  is_regular_favorite: boolean;
+}
+
+export interface UserDietMemory {
+  user_id: string;
+  diet_goals: DietaryGoalTag[];
+  preferred_regions: string[];
+  weekly_variety_schedule: WeeklyVarietySchedule;
+  past_regular_dishes: PastDietEntry[];
+  common_ingredients: string[];
+  common_regions: string[];
+  weeks_tracked: number;
+  updated_at: string;
 }
 
 export interface MealPlan {
@@ -262,6 +305,7 @@ export interface OmnirushResponse {
   warnings?: string[];
   needs_clarification?: string | null;
   injection_suspected?: boolean;
+  auto_applied?: boolean;
   timing?: {
     model: string;
     elapsed_ms: number;

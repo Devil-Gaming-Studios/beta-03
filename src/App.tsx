@@ -10,13 +10,21 @@ import { HouseholdScreen } from './components/HouseholdScreen';
 import { OmnirushVoiceModal } from './components/OmnirushVoiceModal';
 import { RecipeModal } from './components/RecipeModal';
 import { ScanModal } from './components/ScanModal';
+import { MealSlot } from './types';
 
 export const App: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<NavTab>('home');
   const [isHindi, setIsHindi] = useState(false);
   const [isVoiceOpen, setIsVoiceOpen] = useState(false);
   const [scanModalMode, setScanModalMode] = useState<'receipt' | 'fridge' | null>(null);
-  const [viewRecipe, setViewRecipe] = useState<{ id: string; servings: number } | null>(null);
+  const [planRefreshKey, setPlanRefreshKey] = useState(0);
+  const [viewRecipe, setViewRecipe] = useState<{
+    id: string;
+    servings: number;
+    initialDate?: string;
+    initialSlot?: MealSlot;
+    autoOpenPlanForm?: boolean;
+  } | null>(null);
 
   const toggleLanguage = () => {
     setIsHindi((prev) => !prev);
@@ -36,34 +44,57 @@ export const App: React.FC = () => {
       <main className="flex-1 w-full pt-20 pb-24">
         {currentTab === 'home' && (
           <HomeScreen
+            key={planRefreshKey}
             isHindi={isHindi}
             onNavigate={(tab) => setCurrentTab(tab)}
             onOpenVoice={() => setIsVoiceOpen(true)}
             onOpenScan={(mode) => setScanModalMode(mode)}
+            onViewRecipe={(id, servings, planDate, planSlot) =>
+              setViewRecipe({
+                id,
+                servings,
+                initialDate: planDate,
+                initialSlot: planSlot,
+                autoOpenPlanForm: false,
+              })
+            }
           />
         )}
 
         {currentTab === 'planner' && (
           <PlannerScreen
+            key={planRefreshKey}
             isHindi={isHindi}
             onOpenVoice={() => setIsVoiceOpen(true)}
-            onViewRecipe={(id, servings) => setViewRecipe({ id, servings })}
+            onViewRecipe={(id, servings, planDate, planSlot) =>
+              setViewRecipe({
+                id,
+                servings,
+                initialDate: planDate,
+                initialSlot: planSlot,
+                autoOpenPlanForm: false,
+              })
+            }
             onOpenRecipesTab={() => setCurrentTab('recipes')}
           />
         )}
 
         {currentTab === 'recipes' && (
           <RecipesScreen
+            key={planRefreshKey}
             isHindi={isHindi}
-            onViewRecipe={(id, servings) => setViewRecipe({ id, servings })}
+            onViewRecipe={(id, servings) =>
+              setViewRecipe({ id, servings, autoOpenPlanForm: false })
+            }
             onAddToPlan={(id) => {
-              setViewRecipe({ id, servings: 2 });
+              setViewRecipe({ id, servings: 2, autoOpenPlanForm: true });
             }}
           />
         )}
 
         {currentTab === 'stock' && (
           <StockScreen
+            key={planRefreshKey}
             isHindi={isHindi}
             onOpenVoice={() => setIsVoiceOpen(true)}
           />
@@ -71,12 +102,14 @@ export const App: React.FC = () => {
 
         {currentTab === 'shop' && (
           <ShopScreen
+            key={planRefreshKey}
             isHindi={isHindi}
           />
         )}
 
         {currentTab === 'household' && (
           <HouseholdScreen
+            key={planRefreshKey}
             isHindi={isHindi}
           />
         )}
@@ -93,7 +126,11 @@ export const App: React.FC = () => {
       {/* Voice / Omnirush AI Assistant Modal */}
       <OmnirushVoiceModal
         isOpen={isVoiceOpen}
-        onClose={() => setIsVoiceOpen(false)}
+        onClose={() => {
+          setIsVoiceOpen(false);
+          setPlanRefreshKey((k) => k + 1);
+        }}
+        onDataChanged={() => setPlanRefreshKey((k) => k + 1)}
         isHindi={isHindi}
       />
 
@@ -113,7 +150,11 @@ export const App: React.FC = () => {
       <RecipeModal
         recipeId={viewRecipe?.id || null}
         initialServings={viewRecipe?.servings || 2}
+        initialDate={viewRecipe?.initialDate}
+        initialSlot={viewRecipe?.initialSlot}
+        autoOpenPlanForm={viewRecipe?.autoOpenPlanForm}
         onClose={() => setViewRecipe(null)}
+        onPlanUpdated={() => setPlanRefreshKey((k) => k + 1)}
       />
     </div>
   );

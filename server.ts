@@ -153,6 +153,274 @@ app.post('/api/graph/rebuild', (req: Request, res: Response) => {
 });
 
 // ---------------------------------------------------------------------------
+// AI Weekly Meal Planner Endpoint: Gemini LLM + Graph RAG + Past Diet Memory
+// ---------------------------------------------------------------------------
+app.post('/api/plan/auto-generate', async (req: Request, res: Response): Promise<any> => {
+  const {
+    weekStart,
+    days, // Array of { date: 'YYYY-MM-DD', dayKey: 'Mon'..'Sun', varietyMode: 'regular' | 'new' }
+    stock,
+    userProfile,
+    dietMemory,
+  } = req.body;
+
+  if (!Array.isArray(days) || days.length === 0) {
+    return res.status(400).json({ error: 'days array is required for weekly meal planning' });
+  }
+
+  const dietPref: 'veg' | 'nonveg' = userProfile?.diet_pref === 'nonveg' ? 'nonveg' : 'veg';
+  const isBeginner = Boolean(userProfile?.is_beginner_cook);
+  const dietGoals: string[] = Array.isArray(dietMemory?.diet_goals)
+    ? dietMemory.diet_goals
+    : Array.isArray(userProfile?.diet_goals)
+    ? userProfile.diet_goals
+    : ['protein_rich'];
+  const preferredRegions: string[] = Array.isArray(dietMemory?.preferred_regions)
+    ? dietMemory.preferred_regions
+    : ['North Indian', 'South Indian', 'Maharashtrian'];
+  const pastDishes = Array.isArray(dietMemory?.past_regular_dishes) ? dietMemory.past_regular_dishes : [];
+  const commonIngredients: string[] = Array.isArray(dietMemory?.common_ingredients)
+    ? dietMemory.common_ingredients
+    : [];
+  const commonRegions: string[] = Array.isArray(dietMemory?.common_regions)
+    ? dietMemory.common_regions
+    : preferredRegions;
+
+  const stockList = Array.isArray(stock) ? stock : [];
+  const stockNames = stockList.map((s: any) => s.name || s.ingredient_id || String(s));
+
+  // 1. Retrieve Graph RAG Candidates split into Regular vs. New Discovery pools
+  const { regularCandidates, newDiscoveryCandidates } = graphService.getWeeklyPlanCandidates({
+    stock: stockNames,
+    diet_pref: dietPref,
+    is_beginner: isBeginner,
+    diet_goals: dietGoals,
+    preferred_regions: preferredRegions,
+    past_regular_dishes: pastDishes,
+    common_ingredients: commonIngredients,
+    common_regions: commonRegions,
+  });
+
+  // Ensure user's explicit past regular dishes from localStorage are at the top of regularCandidates
+  const mergedRegularCandidates = [
+    ...pastDishes.map((p: any) => ({
+      id: p.recipe_id || `rec_${String(p.title || 'regular').toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
+      name: p.title,
+      cuisine: p.cuisine || 'North Indian',
+      course: p.course || 'Main Course',
+      protein_g: 15,
+      kcal: 340,
+      keyIngredients: p.ingredients || [],
+      dietTags: dietGoals.includes('diabetes')
+        ? ['Habitual Favorite', 'Diabetes-Friendly']
+        : ['Habitual Favorite', 'High Protein'],
+      isPastFavorite: true,
+    })),
+    ...regularCandidates,
+  ].slice(0, 22);
+
+  const pastDishNamesLower = new Set(
+    pastDishes.map((p: any) => String(p.title || '').toLowerCase().trim()).filter(Boolean)
+  );
+
+  // Filter discovery candidates again to guarantee zero overlap with past habitual dishes
+  const strictDiscoveryCandidates = newDiscoveryCandidates.filter(
+    (c) => !pastDishNamesLower.has(String(c.name || '').toLowerCase().trim())
+  );
+
+  const prompt = `You are the KitchenSync AI Nutritionist & Weekly Meal Planner for an Indian household.
+Plan a complete 7-day meal schedule (breakfast, lunch, dinner for each of the 7 days = 21 meals total).
+
+USER DIETARY & HEALTH PROFILE:
+- Strict Dietary Preference: ${dietPref === 'veg' ? '100% Vegetarian (NEVER suggest eggs, meat, fish, or chicken)' : 'Non-Veg Allowed'}
+- Cooking Skill: ${isBeginner ? 'Beginner (prefer <= 30 min, low-effort recipes)' : 'Intermediate/Experienced'}
+- Active Health & Diet Goals: ${dietGoals.length > 0 ? dietGoals.join(', ') : 'Balanced Indian Home Diet'}
+  * If "protein_rich" is active: prioritize high-protein pulses, paneer, soya, chana, moong, curd, sprouts, besan, or high-protein Graph RAG dishes.
+  * If "diabetes" is active: strictly choose low-GI, diabetic-friendly dishes (avoid kheer, halwa, deep-fried sweets, or white-sugar heavy items; favor whole grains, methi, palak, moong, karela, jowar/bajra, dal, paneer).
+  * If "heart" or "low_oil" is active: favor steamed, roasted, or light tadka dishes.
+- Preferred Regional Cuisines: ${preferredRegions.join(', ')}
+- Household Cautions: ${JSON.stringify(userProfile?.cautions || [])}
+
+CURRENT KITCHEN INVENTORY (STOCK):
+${JSON.stringify(
+  stockList.map((s: any) => ({
+    name: s.name,
+    qty: `${s.qty_base} ${s.unit_base}`,
+    location: s.location,
+  }))
+)}
+
+USER'S PAST HABITUAL DIET (FROM LOCALSTORAGE MULTI-WEEK HISTORY):
+- Commonly Eaten Dishes: ${JSON.stringify(pastDishes.map((d: any) => ({ id: d.recipe_id, title: d.title, cuisine: d.cuisine, times_eaten: d.times_eaten })))}
+- Common Staple Ingredients: ${JSON.stringify(commonIngredients)}
+- Common Regions: ${JSON.stringify(commonRegions)}
+
+7-DAY VARIETY SCHEDULE (REGULAR vs. NEW DISCOVERY DAYS):
+${JSON.stringify(days)}
+
+GRAPH RAG CANDIDATES FOR "regular" DAYS (Habitual diet + stock match):
+${JSON.stringify(mergedRegularCandidates.slice(0, 16))}
+
+GRAPH RAG CANDIDATES FOR "new" DAYS (Novel dishes NOT in user's regular history, matched via Graph RAG by region, ingredients, and health profile):
+${JSON.stringify(strictDiscoveryCandidates.slice(0, 20))}
+
+STRICT PLANNING RULES:
+1. Return exactly 21 meals (breakfast, lunch, dinner for each of the 7 dates in "days").
+2. For any day where varietyMode === "regular":
+   - Set variety_type = "regular".
+   - Pick dishes from the user's Past Habitual Diet or GRAPH RAG CANDIDATES FOR "regular" DAYS that align with what the user normally eats and their current stock.
+   - In ai_reason, explain how it matches their regular habitual diet, stock ingredients, and health goal (${dietGoals.join('/')}).
+3. For any day where varietyMode === "new":
+   - Set variety_type = "new".
+   - MUST pick novel dishes from GRAPH RAG CANDIDATES FOR "new" DAYS that the user does NOT normally eat (NEVER pick any dish from Commonly Eaten Dishes on a "new" day!).
+   - Ensure the new dish still strictly respects ${dietPref} and health goals (${dietGoals.join(', ')}) and shares ingredients/regional affinity from Graph RAG.
+   - In ai_reason, highlight why this is a great NEW discovery dish for their ${dietGoals.join('/')} profile and which stock/regional graph connection it uses.
+4. Use the exact "id" from the Graph RAG candidate as "recipe_id" whenever picking from the candidate lists, and keep "title" clear and authentic.`;
+
+  const responseSchema = {
+    type: Type.OBJECT,
+    properties: {
+      summary: {
+        type: Type.STRING,
+        description: 'Brief 1-2 sentence summary of how the week was planned across Regular and New Discovery days, inventory, and health goals.',
+      },
+      meals: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            meal_date: { type: Type.STRING, description: 'YYYY-MM-DD matching one of the 7 days' },
+            day_key: { type: Type.STRING, description: 'Mon, Tue, Wed, Thu, Fri, Sat, or Sun' },
+            slot: { type: Type.STRING, description: 'breakfast, lunch, or dinner' },
+            recipe_id: { type: Type.STRING, description: 'Recipe ID from Graph RAG candidates or past regular dishes' },
+            title: { type: Type.STRING, description: 'Full dish title' },
+            cuisine: { type: Type.STRING, description: 'Regional cuisine (e.g. North Indian, South Indian, Maharashtrian, Gujarati)' },
+            variety_type: { type: Type.STRING, description: 'Must be "regular" or "new" matching that day\'s varietyMode' },
+            servings: { type: Type.NUMBER, description: 'Default 2' },
+            protein_g: { type: Type.NUMBER, description: 'Estimated protein in grams per serving' },
+            kcal: { type: Type.NUMBER, description: 'Estimated calories per serving' },
+            diet_tags: {
+              type: Type.ARRAY,
+              items: { type: Type.STRING },
+              description: 'Short tags like "High Protein", "Diabetes-Friendly", "Stock Match", "Past Favorite", "New Discovery"',
+            },
+            ai_reason: {
+              type: Type.STRING,
+              description: 'Concise 1-sentence reason explaining stock usage, health goal fit, and Regular vs. New Discovery selection.',
+            },
+          },
+          required: ['meal_date', 'slot', 'recipe_id', 'title', 'cuisine', 'variety_type', 'protein_g', 'kcal', 'ai_reason'],
+        },
+      },
+    },
+    required: ['summary', 'meals'],
+  };
+
+  try {
+    const ai = getAiClient();
+    let response;
+    let usedModel = agentModel;
+    try {
+      response = await ai.models.generateContent({
+        model: agentModel,
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema,
+          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+        },
+      });
+    } catch (primaryErr: any) {
+      console.warn(`Primary planner model (${agentModel}) error, trying ${fallbackTextModel}:`, primaryErr?.message);
+      usedModel = fallbackTextModel;
+      response = await ai.models.generateContent({
+        model: fallbackTextModel,
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema,
+          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+        },
+      });
+    }
+
+    const rawText = (response.text || '{}').trim();
+    const cleaned = rawText.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
+    const parsed = JSON.parse(cleaned);
+
+    if (Array.isArray(parsed.meals) && parsed.meals.length > 0) {
+      return res.json({
+        weekStart,
+        summary: parsed.summary || '7-day AI meal plan generated using Gemini + Graph RAG.',
+        meals: parsed.meals,
+        engine: usedModel,
+        graphStats: {
+          regularCandidatesCount: mergedRegularCandidates.length,
+          discoveryCandidatesCount: strictDiscoveryCandidates.length,
+        },
+      });
+    }
+    throw new Error('Empty meals array from LLM');
+  } catch (err: any) {
+    console.warn('Gemini auto-plan fallback to deterministic Graph RAG planner:', err?.message);
+    // Deterministic Graph RAG fallback that strictly honors regular vs new days and diet goals
+    const slots: ('breakfast' | 'lunch' | 'dinner')[] = ['breakfast', 'lunch', 'dinner'];
+    const fallbackMeals: any[] = [];
+    let regIdx = 0;
+    let newIdx = 0;
+
+    const regPool = mergedRegularCandidates.length > 0 ? mergedRegularCandidates : strictDiscoveryCandidates;
+    const discPool = strictDiscoveryCandidates.length > 0 ? strictDiscoveryCandidates : mergedRegularCandidates;
+
+    for (const dayObj of days) {
+      const isNewDay = dayObj.varietyMode === 'new';
+      for (const slot of slots) {
+        const chosen = isNewDay
+          ? discPool[newIdx++ % Math.max(discPool.length, 1)]
+          : regPool[regIdx++ % Math.max(regPool.length, 1)];
+
+        const goalLabel = dietGoals.includes('diabetes')
+          ? 'Diabetes-Friendly Low-GI'
+          : dietGoals.includes('protein_rich')
+          ? 'High-Protein'
+          : 'Balanced';
+
+        fallbackMeals.push({
+          meal_date: dayObj.date,
+          day_key: dayObj.dayKey,
+          slot,
+          recipe_id: chosen?.id || 'rec_dal_01',
+          title: chosen?.name || 'Dal Tadka & Roti',
+          cuisine: chosen?.cuisine || 'North Indian',
+          variety_type: isNewDay ? 'new' : 'regular',
+          servings: 2,
+          protein_g: chosen?.protein_g || 14,
+          kcal: chosen?.kcal || 320,
+          diet_tags: isNewDay
+            ? ['New Graph RAG Discovery', goalLabel]
+            : ['Regular Habitual Diet', goalLabel],
+          ai_reason: isNewDay
+            ? `New Graph RAG discovery from ${chosen?.cuisine || 'Indian'} cuisine matching your ${goalLabel} goal and kitchen stock.`
+            : `Planned from your habitual regular diet history and available kitchen stock (${goalLabel}).`,
+        });
+      }
+    }
+
+    return res.json({
+      weekStart,
+      summary: `Planned 21 meals across Regular and New Discovery days tailored to your ${dietGoals.join(' & ') || 'household'} profile and Graph RAG recipe matches.`,
+      meals: fallbackMeals,
+      engine: 'graph-rag-planner',
+      graphStats: {
+        regularCandidatesCount: mergedRegularCandidates.length,
+        discoveryCandidatesCount: strictDiscoveryCandidates.length,
+      },
+    });
+  }
+});
+
+
+// ---------------------------------------------------------------------------
 // Vision Scanning Endpoint: Real Receipt OCR & Fridge/Pantry Scan with Gemini
 // ---------------------------------------------------------------------------
 app.post('/api/vision/scan', async (req: Request, res: Response): Promise<any> => {

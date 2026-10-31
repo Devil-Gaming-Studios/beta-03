@@ -7,7 +7,7 @@ import {
   ProposalRecipeModification,
   MealSlot,
 } from '../types';
-import { store, CANONICAL_INGREDIENTS, getMonday } from './store';
+import { store, CANONICAL_INGREDIENTS, getMonday, formatLocalDate, getTodayStr } from './store';
 import seedData from '../data/graph_rag_seed.json';
 
 const INJECTION_PATTERNS = [
@@ -111,13 +111,14 @@ function finalizeResponse(
     parsed.warnings = [...(parsed.warnings || []), ...warnings];
   }
 
-  // If there's an actionable proposal, register a pending action in store
+  // If there's an actionable proposal and it wasn't already auto-applied, register a pending action in store
   let proposalId: string | null = null;
   if (
-    parsed.items?.length ||
-    parsed.plan_changes?.length ||
-    parsed.recipe ||
-    parsed.recipe_modification
+    !parsed.auto_applied &&
+    (parsed.items?.length ||
+      parsed.plan_changes?.length ||
+      parsed.recipe ||
+      parsed.recipe_modification)
   ) {
     const payload: ProposalPayload = {
       intent: parsed.intent || 'update_stock',
@@ -149,6 +150,90 @@ function parseLocally(
   me: any
 ): OmnirushResponse {
   const lower = text.toLowerCase();
+
+  // -------------------------------------------------------------------------
+  // 0. INTENT: BOUGHT / RESTOCKED EVERYTHING REQUIRED OR ALL MISSING / SHOP TAB ITEMS
+  // (e.g. "i have bought everything that was missing so please update it", "I bought everything that is required", "saara saman le aaye")
+  // -------------------------------------------------------------------------
+  const hasBoughtVerb =
+    lower.includes('bought') ||
+    lower.includes('purchased') ||
+    lower.includes('restock') ||
+    lower.includes('got') ||
+    lower.includes('brought') ||
+    lower.includes('added') ||
+    lower.includes('have all') ||
+    lower.includes('le aaye') ||
+    lower.includes('le liya') ||
+    lower.includes('kharid') ||
+    lower.includes('khareed') ||
+    lower.includes('aa gaya') ||
+    lower.includes('filled') ||
+    lower.includes('stocked');
+
+  const refersToAllOrMissing =
+    lower.includes('everything') ||
+    lower.includes('all') ||
+    lower.includes('required') ||
+    lower.includes('missing') ||
+    lower.includes('needed') ||
+    lower.includes('shortfall') ||
+    lower.includes('shopping list') ||
+    lower.includes('shop tab') ||
+    lower.includes('shop list') ||
+    lower.includes('the store') ||
+    lower.includes('groceries') ||
+    lower.includes('saara') ||
+    lower.includes('sara') ||
+    lower.includes('sab kuch') ||
+    lower.includes('sab saman');
+
+  if (
+    (hasBoughtVerb && refersToAllOrMissing) ||
+    lower.includes('bought everything') ||
+    lower.includes('everything that was missing') ||
+    lower.includes('everything that is required') ||
+    lower.includes('all missing') ||
+    lower.includes('restock missing') ||
+    lower.includes('empty the store') ||
+    lower.includes('clear shopping list')
+  ) {
+    const restockRes = store.restockAllMissingItems();
+    const applied = restockRes.appliedItems || [];
+
+    if (applied.length === 0) {
+      return {
+        mode: 'chat',
+        message:
+          '✅ All required ingredients are already in your Kitchen Inventory and your Shop Tab is completely empty (0 missing items)!',
+        intent: 'update_stock',
+        classification_badge: 'Shop Emptied & Stock Complete',
+        update_type_label: 'Full Shop Tab → Inventory Transfer',
+        target_section: 'Kitchen Stock & Shop Tab (Synced)',
+        items: [],
+        auto_applied: true,
+        warnings: [],
+        unmatched: [],
+      };
+    }
+
+    const itemSummaryList = applied
+      .map((it: any) => `${it.name} (+${it.qty_base}${it.unit_base} → ${it.after}${it.unit_base})`)
+      .join(', ');
+
+    return {
+      mode: 'chat',
+      message: `✅ Moved all ${applied.length} item(s) from your Shop Tab / Missing List directly into your Kitchen Inventory: ${itemSummaryList}.\n🛒 Your Shop Tab is now completely emptied (0 items remaining) and all planned meals are marked "In Stock"!`,
+      intent: 'update_stock',
+      classification_badge: 'Shop Emptied & Inventory Updated',
+      update_type_label: 'Full Offline Purchase Sync (Shop → Inventory)',
+      target_section: 'Kitchen Stock (Added) + Shop Tab (Emptied)',
+      items: applied,
+      auto_applied: true,
+      warnings: [],
+      unmatched: [],
+    };
+  }
 
   // -------------------------------------------------------------------------
   // 1. INTENT: MODIFY OFFLINE SAVED RECIPES (e.g. increase sugar in Kheer to 150g)
@@ -369,7 +454,8 @@ function parseLocally(
     } else if (lower.includes('sunday') || lower.includes('ravivar')) {
       targetDate.setDate(today.getDate() + ((7 - today.getDay() + 7) % 7));
     }
-    const dateStr = targetDate.toISOString().slice(0, 10);
+    const dateStr = formatLocalDate(targetDate);
+    const todayLocalStr = getTodayStr();
 
     // Identify recipe
     const allRecipes = [
@@ -392,27 +478,32 @@ function parseLocally(
       return lower.includes(t);
     }) || allRecipes[0];
 
+    const servingsCount = me.members?.length || 2;
     const planChange: ProposalPlanChange = {
       meal_date: dateStr,
       slot,
       household_recipe_id: matchedRecipe.id,
-      servings: me.members?.length || 2,
+      servings: servingsCount,
       recipe_title: matchedRecipe.title,
     };
 
-    const targetSection = `Meal Planner → ${slot.toUpperCase()} (${dateStr === today.toISOString().slice(0, 10) ? 'Today' : dateStr})`;
+    // Directly update the unified meal plan database table so Home & Calendar stay in sync immediately
+    store.setMealSlot(dateStr, slot, matchedRecipe.id, servingsCount);
+
+    const targetSection = `Meal Planner → ${slot.toUpperCase()} (${dateStr === todayLocalStr ? 'Today' : dateStr})`;
 
     return {
       mode: 'plan',
-      message: `Menu update proposal: ${dateStr === today.toISOString().slice(0, 10) ? 'Aaj' : dateStr} ke ${slot.toUpperCase()} me "${matchedRecipe.title}" (${planChange.servings} servings) schedule karne ke liye proposal generate kiya gaya hai.`,
+      message: `Updated Meal Plan: Scheduled "${matchedRecipe.title}" (${servingsCount} servings) for ${dateStr === todayLocalStr ? 'Today' : dateStr} (${slot.toUpperCase()}). Synced across Home & Calendar!`,
       intent: 'edit_plan',
-      classification_badge: 'Meal Slot Plan',
-      update_type_label: 'Meal Slot Replacement',
+      classification_badge: 'Meal Slot Updated',
+      update_type_label: 'Meal Slot Scheduled (Live Synced)',
       target_section: targetSection,
       plan_changes: [planChange],
       items: [],
       warnings: [],
       unmatched: [],
+      auto_applied: true,
     };
   }
 
@@ -420,8 +511,7 @@ function parseLocally(
   // 4. INTENT: GENERAL MEAL SUGGESTION (e.g. "suggest dinner", "what to cook")
   // -------------------------------------------------------------------------
   if (mode === 'plan' || lower.includes('suggest') || lower.includes('kya banayein') || lower.includes('menu')) {
-    const today = new Date();
-    const dStr = today.toISOString().slice(0, 10);
+    const dStr = getTodayStr();
 
     const availableRecipes = recipes.length > 0 ? recipes : (seedData as any).recipes?.slice(0, 10) || [];
     const bFast = availableRecipes.find((r: any) => r.slots?.includes('breakfast')) || availableRecipes[0];
@@ -467,14 +557,162 @@ function parseLocally(
   }
 
   // -------------------------------------------------------------------------
-  // 5. INTENT: CART / GROCERY CHECK
+  // 5. INTENT: DIRECT SHOP TAB / SHOPPING LIST EDITS OR CART CHECK FROM CHAT
+  // (e.g. "remove karela from shop tab", "add 2 kg sugar to shopping list", "change tomato in shop to 500g")
   // -------------------------------------------------------------------------
-  if (mode === 'cart' || lower.includes('cart') || lower.includes('buy') || lower.includes('kharid')) {
-    const check = store.planCheck();
-    if (check.missing.length === 0) {
+  const mentionsShopTab =
+    lower.includes('shop tab') ||
+    lower.includes('shopping list') ||
+    lower.includes('shop list') ||
+    lower.includes('grocery list') ||
+    lower.includes('in shop') ||
+    lower.includes('from shop') ||
+    lower.includes('to shop');
+
+  const hasEditVerb =
+    lower.includes('add') ||
+    lower.includes('remove') ||
+    lower.includes('delete') ||
+    lower.includes('change') ||
+    lower.includes('set') ||
+    lower.includes('update') ||
+    lower.includes('hata') ||
+    lower.includes('bought') ||
+    lower.includes('jod');
+
+  if (mentionsShopTab && hasEditVerb) {
+    let shopOp: 'add' | 'remove' | 'set' | 'bought' = 'add';
+    if (
+      lower.includes('remove') ||
+      lower.includes('delete') ||
+      lower.includes('hata') ||
+      lower.includes('clear')
+    ) {
+      shopOp = 'remove';
+    } else if (lower.includes('bought') || lower.includes('purchased') || lower.includes('kharid')) {
+      shopOp = 'bought';
+    } else if (lower.includes('change') || lower.includes('set') || lower.includes('update')) {
+      shopOp = 'set';
+    }
+
+    // 1. Check if the user is referring to an existing item in the Shop tab
+    const currentShopList = store.getShoppingList();
+    let matchedShopItem = currentShopList.find((sh) => {
+      const tokens = `${sh.name} ${sh.ingredient_id.replace(/^ing_/, '')}`
+        .toLowerCase()
+        .split(/[^a-z0-9]+/)
+        .filter((t) => t.length >= 3);
+      return (
+        tokens.some((tok) => lower.includes(tok)) ||
+        store.doesItemMatch(lower, lower, sh.ingredient_id, sh.name)
+      );
+    });
+
+    let targetName = matchedShopItem?.name || '';
+    let parsedQty = matchedShopItem?.qty_base || 500;
+    let parsedUnit = matchedShopItem?.base_unit || 'g';
+
+    if (matchedShopItem) {
+      const tokens = `${matchedShopItem.name} ${matchedShopItem.ingredient_id.replace(/^ing_/, '')}`
+        .toLowerCase()
+        .split(/[^a-z0-9]+/)
+        .filter((t) => t.length >= 3);
+      const tok = tokens.find((t) => lower.includes(t)) || matchedShopItem.name.toLowerCase();
+      if (hasExplicitNumber(lower)) {
+        parsedQty = extractQuantityFor(lower, tok, matchedShopItem.base_unit);
+      }
+    } else {
+      // Extract new item name & quantity from command like "add 2 kg sugar to shopping list"
+      const cleaned = lower
+        .replace(/\b(please|can you|omnirush|add|remove|delete|change|set|update|bought|to|from|in|the|my|shop|shopping|grocery|list|tab|for|me)\b/gi, ' ')
+        .trim();
+      const numMatch = cleaned.match(/(\d+(?:\.\d+)?)\s*(kg|kilo|g|gm|grams|ml|l|litre|liter|pcs|pc)?\s*([a-z\s]+)/i);
+      if (numMatch) {
+        const rawQty = parseFloat(numMatch[1]) || 1;
+        const rawUnit = (numMatch[2] || '').toLowerCase();
+        if (rawUnit === 'kg' || rawUnit === 'kilo') {
+          parsedQty = rawQty * 1000;
+          parsedUnit = 'g';
+        } else if (rawUnit === 'l' || rawUnit === 'litre' || rawUnit === 'liter') {
+          parsedQty = rawQty * 1000;
+          parsedUnit = 'ml';
+        } else if (rawUnit === 'ml') {
+          parsedQty = rawQty;
+          parsedUnit = 'ml';
+        } else if (rawUnit === 'pcs' || rawUnit === 'pc') {
+          parsedQty = rawQty;
+          parsedUnit = 'pcs';
+        } else {
+          parsedQty = rawQty <= 10 ? rawQty * 100 : rawQty;
+          parsedUnit = 'g';
+        }
+        targetName = (numMatch[3] || '').trim();
+      } else {
+        targetName = cleaned.replace(/[^a-z\s]/gi, '').trim();
+      }
+    }
+
+    if (targetName) {
+      const shopRes = store.updateShoppingListFromChat(targetName, shopOp, parsedQty, parsedUnit);
+      const statusMsg =
+        shopRes.action === 'removed'
+          ? `✅ Removed "${shopRes.itemName}" from your Shop Tab! (${shopRes.shoppingList.length} item(s) remaining in Shop Tab)`
+          : shopRes.action === 'removed_and_stocked'
+          ? `✅ Added ${shopRes.qty}${shopRes.unit} of "${shopRes.itemName}" to Kitchen Stock and removed it from the Shop Tab!`
+          : shopRes.action === 'updated'
+          ? `✅ Updated "${shopRes.itemName}" in your Shop Tab to ${shopRes.qty} ${shopRes.unit}!`
+          : shopRes.action === 'added'
+          ? `✅ Added "${shopRes.itemName}" (${shopRes.qty} ${shopRes.unit}) to your Shop Tab!`
+          : `Could not find "${targetName}" in the Shop Tab.`;
+
       return {
         mode: 'cart',
-        message: 'Aapke plan ke mutabik saare ingredients stock me maujood hain! Abhi koi item missing nahi hai.',
+        message: statusMsg,
+        intent: 'add_to_cart',
+        classification_badge: 'Shop Tab Updated',
+        update_type_label: 'Direct Shopping List Update',
+        target_section: 'Shop Tab → Smart Shopping List',
+        items:
+          shopRes.action === 'not_found'
+            ? []
+            : [
+                {
+                  ingredient_id: `ing_${shopRes.itemName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
+                  name: shopRes.itemName,
+                  qty_base: shopRes.qty,
+                  unit_base: (shopRes.unit as any) || 'g',
+                  op: shopOp === 'remove' ? 'remove' : 'add',
+                  before: matchedShopItem?.qty_base || 0,
+                  after: shopRes.qty,
+                  is_existing: Boolean(matchedShopItem),
+                  target_section: 'Shop Tab',
+                },
+              ],
+        auto_applied: true,
+        warnings: [],
+        unmatched: [],
+      };
+    }
+  }
+
+  const isPastTensePurchase =
+    lower.includes('bought') ||
+    lower.includes('purchased') ||
+    lower.includes('got') ||
+    lower.includes('brought') ||
+    lower.includes('kharid liya') ||
+    lower.includes('le aaye');
+
+  if (
+    !isPastTensePurchase &&
+    !hasEditVerb &&
+    (mode === 'cart' || lower.includes('cart') || lower.includes('what to buy') || lower.includes('shopping list'))
+  ) {
+    const shopItems = store.getShoppingList();
+    if (shopItems.length === 0) {
+      return {
+        mode: 'cart',
+        message: 'Aapke plan ke mutabik saare ingredients stock me maujood hain! Shop tab me abhi koi item pending nahi hai.',
         intent: 'add_to_cart',
         items: [],
         plan_changes: [],
@@ -483,28 +721,29 @@ function parseLocally(
       };
     }
 
-    const cartItems: ProposalItemChange[] = check.missing.map((m: any) => ({
+    const cartItems: ProposalItemChange[] = shopItems.map((m) => ({
       ingredient_id: m.ingredient_id,
       name: m.name,
-      qty_base: m.short_base,
-      unit_base: m.unit_base as any,
+      qty_base: m.qty_base,
+      unit_base: (m.base_unit || 'g') as any,
       op: 'add',
-      note: 'Missing for planned meals',
+      note: 'Listed in Shop Tab',
     }));
 
     return {
       mode: 'cart',
-      message: `Planned meals ke liye ${cartItems.length} missing items identify hue hain. Cart me add karne ke liye proposal taiyar hai.`,
+      message: `Shop Tab me abhi ${cartItems.length} item(s) listed hain: ${cartItems.map((c) => `${c.name} (${c.qty_base}${c.unit_base})`).join(', ')}. Aap bol sakte hain "I bought everything required" ya kisi bhi item ko add/remove kar sakte hain.`,
       intent: 'add_to_cart',
       items: cartItems,
       plan_changes: [],
-      warnings: ['Swiggy / Blinkit cart quick handoff enabled.'],
+      warnings: [],
       unmatched: [],
     };
   }
 
   // -------------------------------------------------------------------------
-  // 6. INTENT: INVENTORY STOCK UPDATES (Checks Current Stock First!)
+  // 6. INTENT: INVENTORY STOCK UPDATES + SHOP TAB AUTO-CHECK & REMOVAL
+  // Checks: (A) Shop Tab Listings, (B) Missing Plan Items, (C) Current Stock, (D) Canonical & Synonyms!
   // -------------------------------------------------------------------------
   const items: ProposalItemChange[] = [];
   const unmatched: { raw_name: string; reason: string }[] = [];
@@ -525,19 +764,115 @@ function parseLocally(
     defaultOp = 'set';
   }
 
-  // Fetch current household stock to match against existing items!
-  const currentHouseholdStock = store.getStock('all');
-  const matchedItemIds = new Set<string>();
+  const matchedItemKeys = new Set<string>();
+  const markMatched = (id: string, name: string) => {
+    matchedItemKeys.add((id || '').toLowerCase());
+    matchedItemKeys.add((name || '').toLowerCase());
+  };
+  const isAlreadyMatched = (id: string, name: string) => {
+    for (const prev of items) {
+      if (store.doesItemMatch(id, name, prev.ingredient_id, prev.name || '')) {
+        return true;
+      }
+    }
+    return matchedItemKeys.has((id || '').toLowerCase()) || matchedItemKeys.has((name || '').toLowerCase());
+  };
 
-  // A. First: Match against current items already in the household inventory
+  // A. First: Check all listings in the SHOP TAB (store.getShoppingList())!
+  const currentShopTabList = store.getShoppingList();
+  for (const sh of currentShopTabList) {
+    if (isAlreadyMatched(sh.ingredient_id, sh.name)) continue;
+
+    const tokens = `${sh.name} ${sh.ingredient_id.replace(/^ing_/, '')}`
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((t) => t.length >= 3 && !['ing', 'fresh', 'raw', 'chopped', 'seeds', 'leaves', 'powder'].includes(t));
+
+    const matchedToken = tokens.find((t) => lower.includes(t));
+    if (matchedToken) {
+      markMatched(sh.ingredient_id, sh.name);
+      const haveNow = store.getAvailableStockQty(sh.ingredient_id, sh.name);
+      // If user specified a quantity (e.g. "add 500g karela"), use it; otherwise default to the full Shop Tab needed qty so the listing is satisfied & removed!
+      const qty = hasExplicitNumber(lower)
+        ? extractQuantityFor(lower, matchedToken, sh.base_unit || 'g')
+        : sh.qty_base;
+
+      const isChilled = ['doodh', 'milk', 'dahi', 'curd', 'paneer', 'tamatar', 'tomato', 'butter', 'palak', 'mirch'].some(
+        (c) => sh.ingredient_id.toLowerCase().includes(c) || sh.name.toLowerCase().includes(c)
+      );
+      const location: 'pantry' | 'fridge' = isChilled ? 'fridge' : 'pantry';
+
+      items.push({
+        ingredient_id: sh.ingredient_id,
+        name: sh.name,
+        qty_base: qty,
+        unit_base: (sh.base_unit || 'g') as any,
+        op: defaultOp,
+        before: haveNow,
+        after: defaultOp === 'remove' ? Math.max(0, haveNow - qty) : defaultOp === 'set' ? qty : haveNow + qty,
+        stock_id: null,
+        is_existing: haveNow > 0,
+        location,
+        target_scope: 'shared',
+        target_section: `Kitchen Stock & Shop Tab → ${location === 'fridge' ? 'Fridge' : 'Pantry'}`,
+        classification: 'Shop Tab Item Restocked',
+      });
+    }
+  }
+
+  // B. Second: Check any MISSING items in the Weekly Meal Plan (store.planCheck().missing)
+  const currentMissing = store.planCheck().missing || [];
+  for (const miss of currentMissing) {
+    if (isAlreadyMatched(miss.ingredient_id, miss.name)) continue;
+    const tokens = `${miss.name} ${miss.ingredient_id.replace(/^ing_/, '')}`
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((t) => t.length >= 3 && !['ing', 'fresh', 'raw', 'chopped', 'seeds', 'leaves', 'powder'].includes(t));
+
+    const matchedTerm = tokens.find((t) => lower.includes(t));
+    if (matchedTerm) {
+      markMatched(miss.ingredient_id, miss.name);
+      const qty = hasExplicitNumber(lower)
+        ? extractQuantityFor(lower, matchedTerm, miss.unit_base || 'g')
+        : Math.max(miss.short_base || 0, miss.qty_base || 100);
+      const isChilled = ['doodh', 'milk', 'dahi', 'curd', 'paneer', 'tamatar', 'tomato', 'butter', 'palak', 'mirch'].some(
+        (c) => miss.ingredient_id.toLowerCase().includes(c) || miss.name.toLowerCase().includes(c)
+      );
+      const location: 'pantry' | 'fridge' = isChilled ? 'fridge' : 'pantry';
+      items.push({
+        ingredient_id: miss.ingredient_id,
+        name: miss.name,
+        qty_base: qty,
+        unit_base: (miss.unit_base || 'g') as any,
+        op: defaultOp,
+        before: miss.have_base || 0,
+        after: (miss.have_base || 0) + qty,
+        stock_id: null,
+        is_existing: (miss.have_base || 0) > 0,
+        location,
+        target_scope: 'shared',
+        target_section: `Kitchen Stock → ${location === 'fridge' ? 'Fridge' : 'Pantry'} (Shared)`,
+        classification: 'Missing Meal Plan Ingredient Restock',
+      });
+    }
+  }
+
+  // C. Third: Match against current items already in the household inventory
+  const currentHouseholdStock = store.getStock('all');
   for (const st of currentHouseholdStock) {
+    if (isAlreadyMatched(st.ingredient_id, st.name)) continue;
+
     const searchTerms = [
       st.name.toLowerCase(),
+      st.ingredient_id.replace(/^ing_/, '').replace(/_/g, ' ').toLowerCase(),
       st.ingredient_id.replace(/^ing_/, '').toLowerCase(),
       st.name_hi || '',
+      ...st.name
+        .toLowerCase()
+        .split(/[^a-z0-9]+/)
+        .filter((t) => t.length >= 3 && !['fresh', 'raw', 'chopped'].includes(t)),
     ];
 
-    // Add keyword stems for common Indian items
     if (st.ingredient_id.includes('aloo') || st.name.toLowerCase().includes('aloo')) {
       searchTerms.push('aloo', 'potatoes', 'potato', 'pahari aloo', 'आलू');
     } else if (st.ingredient_id.includes('atta') || st.name.toLowerCase().includes('atta')) {
@@ -558,10 +893,9 @@ function parseLocally(
       searchTerms.push('oil', 'tel', 'sunflower oil', 'तेल');
     }
 
-    const matchedWord = searchTerms.find((term) => term && lower.includes(term));
+    const matchedWord = searchTerms.find((term) => term && term.length >= 3 && lower.includes(term));
     if (matchedWord) {
-      matchedItemIds.add(st.id);
-      matchedItemIds.add(st.ingredient_id);
+      markMatched(st.ingredient_id, st.name);
 
       const qty = extractQuantityFor(lower, matchedWord, st.unit_base);
       const before = st.qty_base;
@@ -594,13 +928,14 @@ function parseLocally(
     }
   }
 
-  // B. Second: Check canonical list for items NOT currently in inventory (New Stock Additions)
+  // D. Fourth: Check canonical list for items NOT currently in inventory
   for (const ing of CANONICAL_INGREDIENTS) {
-    if (matchedItemIds.has(ing.id)) continue;
+    if (isAlreadyMatched(ing.id, ing.name_en)) continue;
 
     const names = [ing.name_en.toLowerCase(), ing.name_hi, ...ing.aliases.map((a) => a.toLowerCase())];
     const match = names.find((n) => lower.includes(n));
     if (match) {
+      markMatched(ing.id, ing.name_en);
       const qty = extractQuantityFor(lower, match, ing.base_unit);
       const isChilled = ['doodh', 'milk', 'dahi', 'curd', 'paneer', 'tamatar', 'tomato', 'butter'].some(
         (c) => ing.id.includes(c) || ing.name_en.toLowerCase().includes(c)
@@ -627,35 +962,120 @@ function parseLocally(
     }
   }
 
-  if (items.length > 0) {
-    const hasExisting = items.some((it) => it.is_existing);
-    const existingItems = items.filter((it) => it.is_existing);
-    const newItems = items.filter((it) => !it.is_existing);
+  // E. Fifth: Generic fallback for ANY ingredient when user says "add/bought <qty> <unit> <item>"
+  if (items.length === 0 && (hasEditVerb || isPastTensePurchase)) {
+    const genericMatch = lower.match(
+      /(?:add|added|bought|purchased|got|brought|restock|remove|deduct|set)\s+(?:(\d+(?:\.\d+)?)\s*(kg|kilo|g|gm|grams|ml|l|litre|liter|pcs|pc)?\s+)?([a-z\s]{3,25})/i
+    );
+    if (genericMatch) {
+      const rawNum = genericMatch[1] ? parseFloat(genericMatch[1]) : undefined;
+      const rawUnit = (genericMatch[2] || '').toLowerCase();
+      const rawName = (genericMatch[3] || '')
+        .replace(/\b(to|in|from|stock|inventory|fridge|pantry|kitchen|please|now)\b/gi, '')
+        .trim();
 
-    let message = '';
-    if (existingItems.length > 0 && newItems.length === 0) {
-      const summaries = existingItems.map(
-        (it) => `"${it.name}" in ${it.target_section} (Current: ${it.before}${it.unit_base} → ${it.op === 'remove' ? '-' : '+'}${it.qty_base}${it.unit_base} = ${it.after}${it.unit_base})`
+      if (rawName.length >= 3) {
+        const matchedShop = store.findMatchingShopItem(rawName);
+        const matchedStock = store.findMatchingStockItem(rawName);
+        let unit: 'g' | 'ml' | 'pcs' = (matchedShop?.base_unit as any) || matchedStock?.unit_base || 'g';
+        let qty = rawNum !== undefined ? rawNum : matchedShop?.qty_base || 500;
+        if (rawUnit === 'kg' || rawUnit === 'kilo') {
+          qty = (rawNum || 1) * 1000;
+          unit = 'g';
+        } else if (rawUnit === 'l' || rawUnit === 'litre' || rawUnit === 'liter') {
+          qty = (rawNum || 1) * 1000;
+          unit = 'ml';
+        } else if (rawUnit === 'ml') {
+          unit = 'ml';
+        } else if (rawUnit === 'pcs' || rawUnit === 'pc') {
+          unit = 'pcs';
+        } else if (rawNum !== undefined && rawNum <= 10 && unit === 'g' && !rawUnit) {
+          qty = rawNum * 120;
+        }
+
+        const displayTitle =
+          matchedShop?.name ||
+          matchedStock?.name ||
+          rawName.replace(/\b\w/g, (c) => c.toUpperCase());
+        const ingId =
+          matchedShop?.ingredient_id ||
+          matchedStock?.ingredient_id ||
+          `ing_${rawName.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+        const before = matchedStock?.qty_base || 0;
+
+        items.push({
+          ingredient_id: ingId,
+          name: displayTitle,
+          qty_base: qty,
+          unit_base: unit,
+          op: defaultOp,
+          before,
+          after: defaultOp === 'remove' ? Math.max(0, before - qty) : defaultOp === 'set' ? qty : before + qty,
+          stock_id: matchedStock?.id || null,
+          is_existing: Boolean(matchedStock),
+          location: 'pantry',
+          target_scope: 'shared',
+          target_section: 'Kitchen Stock & Shop Tab',
+          classification: matchedShop ? 'Shop Tab Item Restocked' : 'Inventory Update',
+        });
+      }
+    }
+  }
+
+  // Apply stock changes immediately & check/remove satisfied Shop Tab listings!
+  if (items.length > 0) {
+    const allRemovedFromShop: string[] = [];
+    const allUpdatedInShop: string[] = [];
+
+    for (const it of items) {
+      const res = store.adjustStock(
+        it.ingredient_id,
+        it.op || 'add',
+        it.qty_base,
+        it.target_scope || 'shared',
+        'chat_command',
+        {
+          stockId: it.stock_id || undefined,
+          name: it.name,
+          location: it.location,
+          unit: it.unit_base,
+          targetScope: it.target_scope,
+        }
       );
-      message = `Inventory Match: Current stock item(s) found: ${summaries.join(', ')}. Niche card par confirm karein.`;
-    } else if (existingItems.length > 0 && newItems.length > 0) {
-      message = `Inventory Ledger: ${existingItems.length} existing item(s) matched and ${newItems.length} new item(s) to add to pantry/fridge. Niche card par confirm karein.`;
-    } else {
-      message = `New Stock Addition: ${newItems.map((it) => `"${it.name}" (+${it.qty_base}${it.unit_base}) to ${it.target_section}`).join(', ')}. Niche card par confirm karein.`;
+      it.before = res.before;
+      it.after = res.after;
+      if (res.removedFromShop?.length) {
+        allRemovedFromShop.push(...res.removedFromShop);
+      }
+      if (res.updatedInShop?.length) {
+        for (const u of res.updatedInShop) {
+          allUpdatedInShop.push(`${u.name} (${u.qty_base}${u.base_unit} left)`);
+        }
+      }
     }
 
-    const primaryTargetSection = items[0]?.target_section || 'Kitchen Stock → Pantry';
-    const classificationBadge = hasExisting ? 'Existing Stock Update' : 'New Stock Addition';
-    const updateTypeLabel = hasExisting ? 'Inventory Stock Adjustment (Existing Item)' : 'New Inventory Item Addition';
+    const stockSummaries = items.map(
+      (it) =>
+        `"${it.name}" (${it.before}${it.unit_base} → ${it.op === 'remove' ? '-' : '+'}${it.qty_base}${it.unit_base} = ${it.after}${it.unit_base})`
+    );
+
+    const uniqueRemoved = Array.from(new Set(allRemovedFromShop));
+    let shopNote = '';
+    if (uniqueRemoved.length > 0) {
+      shopNote = `\n🛒 Shop Tab Updated: Removed ${uniqueRemoved.map((n) => `"${n}"`).join(', ')} from the Shop Tab because enough stock was added!`;
+    } else if (allUpdatedInShop.length > 0) {
+      shopNote = `\n🛒 Shop Tab Updated: Reduced shortfall for ${allUpdatedInShop.join(', ')}.`;
+    }
 
     return {
       mode: 'chat',
-      message,
+      message: `✅ Updated Kitchen Stock: ${stockSummaries.join(', ')}.${shopNote}`,
       intent: 'update_stock',
-      classification_badge: classificationBadge,
-      update_type_label: updateTypeLabel,
-      target_section: primaryTargetSection,
+      classification_badge: uniqueRemoved.length > 0 ? 'Stock Added & Shop Cleared' : 'Stock Updated',
+      update_type_label: 'Inventory & Shop Tab Sync',
+      target_section: 'Kitchen Stock & Shop Tab',
       items,
+      auto_applied: true,
       warnings,
       unmatched,
     };
@@ -666,7 +1086,7 @@ function parseLocally(
   // -------------------------------------------------------------------------
   return {
     mode: 'chat',
-    message: `Omnirush Kitchen Assistant ready hai! Aap mujhse:\n• Inventory update karwa sakte hain (e.g. "do kilo aloo aur ek litre dahi add kar do")\n• Aaj ka dinner/lunch change karwa sakte hain (e.g. "change dinner today to Paneer Bhurji")\n• Poore hafte ka menu schedule karwa sakte hain (e.g. "plan full schedule for this week")\n• Offline saved recipes me changes karwa sakte hain (e.g. "increase sugar in Kheer to 150g")`,
+    message: `Omnirush Kitchen Assistant ready hai! Aap mujhse:\n• Inventory & Shop Tab update karwa sakte hain (e.g. "add 4 karela", "I bought everything required", "remove karela from shop tab")\n• Aaj ka dinner/lunch change karwa sakte hain (e.g. "change dinner today to Paneer Bhurji")\n• Poore hafte ka menu schedule karwa sakte hain (e.g. "plan full schedule for this week")\n• Offline saved recipes me changes karwa sakte hain (e.g. "increase sugar in Kheer to 150g")`,
     intent: null,
     items: [],
     warnings: [],
@@ -674,11 +1094,17 @@ function parseLocally(
   };
 }
 
+function hasExplicitNumber(text: string): boolean {
+  if (/\d/.test(text)) return true;
+  const words = text.toLowerCase().split(/[^a-z]+/);
+  return words.some((w) => NUMBER_WORDS[w] !== undefined);
+}
+
 function extractQuantityFor(text: string, ingredientWord: string, defaultUnit: string): number {
   const patterns = [
-    new RegExp(`(\\d+(?:\\.\\d+)?)\\s*(kilo|kg|g|gm|grams|litre|liter|l|ml)?\\s*(?:of\\s+)?${ingredientWord}`, 'i'),
-    new RegExp(`(ek|one|do|two|teen|three|char|chaar|four|paanch|five|chhe|six|saat|seven|aath|eight|nau|nine|das|ten|aadha|half|derh|dhai)\\s*(kilo|kg|g|gm|grams|litre|liter|l|ml)?\\s*(?:of\\s+)?${ingredientWord}`, 'i'),
-    new RegExp(`${ingredientWord}\\s*(\\d+(?:\\.\\d+)?)\\s*(kilo|kg|g|gm|grams|litre|liter|l|ml)?`, 'i'),
+    new RegExp(`(\\d+(?:\\.\\d+)?)\\s*(kilo|kg|g|gm|grams|litre|liter|l|ml|pcs|pc)?\\s*(?:of\\s+)?${ingredientWord}`, 'i'),
+    new RegExp(`(ek|one|do|two|teen|three|char|chaar|four|paanch|five|chhe|six|saat|seven|aath|eight|nau|nine|das|ten|aadha|half|derh|dhai)\\s*(kilo|kg|g|gm|grams|litre|liter|l|ml|pcs|pc)?\\s*(?:of\\s+)?${ingredientWord}`, 'i'),
+    new RegExp(`${ingredientWord}\\s*(\\d+(?:\\.\\d+)?)\\s*(kilo|kg|g|gm|grams|litre|liter|l|ml|pcs|pc)?`, 'i'),
   ];
 
   for (const regex of patterns) {
@@ -722,6 +1148,7 @@ async function callServerOmnirush(
 ): Promise<OmnirushResponse | null> {
   const startCall = Date.now();
   try {
+    const check = store.planCheck();
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -735,6 +1162,7 @@ async function callServerOmnirush(
           qty_base: s.qty_base,
           unit_base: s.unit_base,
         })),
+        missing_items: check.missing,
         recipes: recipes.map((r) => ({
           household_recipe_id: r.id,
           title: r.title,
@@ -748,14 +1176,28 @@ async function callServerOmnirush(
 
     if (!res.ok) return null;
     const data = await res.json();
+    const resolvedItems = data.proposal?.items || data.items || [];
+    const resolvedPlanChanges = data.proposal?.plan_changes || data.plan_changes || [];
+    const resolvedRecipeMod = data.proposal?.recipe_modification || data.recipe_modification || null;
+    const resolvedIntent =
+      data.proposal?.intent ||
+      data.intent ||
+      (resolvedItems.length > 0
+        ? 'update_stock'
+        : resolvedPlanChanges.length > 0
+        ? 'edit_plan'
+        : resolvedRecipeMod
+        ? 'modify_recipe'
+        : null);
+
     return {
       mode: data.mode || mode,
       message: data.message || 'Updated requested items.',
-      intent: data.intent || null,
-      items: data.proposal?.items || data.items || [],
-      plan_changes: data.proposal?.plan_changes || data.plan_changes || [],
+      intent: resolvedIntent,
+      items: resolvedItems,
+      plan_changes: resolvedPlanChanges,
       recipe: data.proposal?.recipe || data.recipe || null,
-      recipe_modification: data.proposal?.recipe_modification || data.recipe_modification || null,
+      recipe_modification: resolvedRecipeMod,
       warnings: data.warnings || [],
       unmatched: data.unmatched || [],
       timing: {

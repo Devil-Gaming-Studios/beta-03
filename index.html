@@ -24,8 +24,20 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
+      if ('caches' in window) {
+        caches.keys().then((keys) => {
+          keys.forEach((key) => {
+            if (key !== 'mast-meals-network-first-v6') {
+              caches.delete(key);
+            }
+          });
+        });
+      }
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
+          navigator.serviceWorker.getRegistrations().then((regs) => {
+            regs.forEach((reg) => reg.update());
+          });
           navigator.serviceWorker.register('/sw.js').catch((err) => {
             console.log('SW registration error:', err);
           });

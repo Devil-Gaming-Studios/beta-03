@@ -24,6 +24,7 @@ interface OmnirushVoiceModalProps {
   onClose: () => void;
   isHindi: boolean;
   autoStart?: boolean;
+  onDataChanged?: () => void;
 }
 
 export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
@@ -31,6 +32,7 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
   onClose,
   isHindi: initialHindi,
   autoStart = false,
+  onDataChanged,
 }) => {
   const [input, setInput] = useState('');
   const [selectedEngine, setSelectedEngine] = useState<STTEngineType>('auto');
@@ -46,7 +48,7 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
     {
       id: 'msg_welcome',
       sender: 'assistant',
-      text: 'Namaste! Main Omnirush hoon. Main aapki kitchen inventory update kar sakta hoon, aaj ka menu ya poore hafte ka schedule plan kar sakta hoon, aur offline recipes me changes kar sakta hoon (jaise Kheer me chini badhana).',
+      text: 'Namaste! Main Omnirush hoon. Main aapki kitchen inventory update kar sakta hoon, saare missing items restock kar sakta hoon ("I bought everything required"), aur poore hafte ka schedule plan kar sakta hoon.',
       time: 'Just now',
     },
   ]);
@@ -202,10 +204,19 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
         sender: 'assistant',
         text: res.message,
         reply: res,
+        confirmed: Boolean(res.auto_applied),
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
       setMessages((prev) => [...prev, assistantMsg]);
       setSttMeta(null);
+
+      if (res.auto_applied) {
+        setConfirmStatus(
+          `✅ Kitchen Stock Updated & Missing Items Cleared (${res.items?.length || 0} items restocked)!`
+        );
+        if (onDataChanged) onDataChanged();
+        setTimeout(() => setConfirmStatus(null), 4000);
+      }
     } catch (err: any) {
       setError(err.message || 'Error communicating with Omnirush');
     } finally {
@@ -236,6 +247,7 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
           m.id === msgId ? { ...m, confirmed: true } : m
         )
       );
+      if (onDataChanged) onDataChanged();
 
       setTimeout(() => {
         setConfirmStatus(null);
@@ -257,12 +269,12 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
   };
 
   const actionPrompts = [
+    { label: '🛒 Bought everything required', prompt: 'I bought everything that is required', engine: 'cactus_whisper' as STTEngineType },
     { label: '🍯 Increase sugar in Kheer to 150g', prompt: 'increase sugar in Kheer to 150g', engine: 'shruti' as STTEngineType },
     { label: '🍲 Change dinner today to Paneer Bhurji', prompt: 'change dinner today to Paneer Bhurji', engine: 'cactus_whisper' as STTEngineType },
     { label: '📅 Plan full schedule for this week', prompt: 'plan full schedule for this week', engine: 'cactus_whisper' as STTEngineType },
     { label: '🥔 + 2 kg aloo & 1L dahi', prompt: 'do kilo aloo aur ek litre dahi add kar do', engine: 'shruti' as STTEngineType },
     { label: '🌾 Atta khatam ho gaya 500g', prompt: 'atta khatam ho gaya 500g', engine: 'shruti' as STTEngineType },
-    { label: '🌶️ Add green chillies to Poha', prompt: 'add green chillies to Poha recipe', engine: 'shruti' as STTEngineType },
   ];
 
   if (!isOpen) return null;
@@ -535,11 +547,32 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
                   </div>
                 )}
 
-                {/* Confirmed Indicator */}
+                {/* Confirmed Indicator & Auto-Applied Items Summary */}
                 {m.confirmed && (
-                  <div className="mt-2 text-[11px] font-bold text-[#137333] flex items-center gap-1 bg-[#E8F0EC] px-2.5 py-1 rounded-lg">
-                    <span className="material-symbols-outlined text-[15px]">check_circle</span>
-                    <span>Applied to offline database!</span>
+                  <div className="mt-2 flex flex-col gap-1.5">
+                    {m.reply?.auto_applied && m.reply.items && m.reply.items.length > 0 && (
+                      <div className="p-2.5 bg-white rounded-xl border border-[#D1E2D7] flex flex-col gap-1 text-[11.5px]">
+                        <span className="text-[10.5px] font-bold text-[#1A3826] uppercase tracking-wider">
+                          Restocked Items ({m.reply.items.length}):
+                        </span>
+                        {m.reply.items.map((it, idx) => (
+                          <div key={idx} className="flex items-center justify-between text-[#1a1c1a]">
+                            <span className="font-semibold">{it.name}</span>
+                            <span className="text-[#137333] font-bold">
+                              +{it.qty_base} {it.unit_base} → {it.after} {it.unit_base}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="text-[11px] font-bold text-[#137333] flex items-center gap-1 bg-[#E8F0EC] px-2.5 py-1 rounded-lg">
+                      <span className="material-symbols-outlined text-[15px]">check_circle</span>
+                      <span>
+                        {m.reply?.auto_applied
+                          ? 'Auto-Applied to Kitchen Stock & Cleared Missing Items!'
+                          : 'Applied to offline database!'}
+                      </span>
+                    </div>
                   </div>
                 )}
               </div>

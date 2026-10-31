@@ -82,6 +82,9 @@ export const ChatTab: React.FC<ChatTabProps> = ({ onRefresh }) => {
       const response = await askOmnirush(promptText, mode);
       setReply(response);
       setSttMeta(null);
+      if (response.auto_applied) {
+        onRefresh();
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to communicate with Omnirush');
     } finally {

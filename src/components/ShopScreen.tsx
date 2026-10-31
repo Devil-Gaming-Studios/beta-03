@@ -19,26 +19,49 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({ isHindi }) => {
   }, []);
 
   const refreshList = () => {
-    const list = store.getShoppingList();
-    if (list.length === 0) {
-      // Auto-generate if empty
-      const generated = store.generateShoppingList();
-      setItems(generated);
-    } else {
-      setItems(list);
-    }
+    const current = store.getShoppingList();
+    setItems([...current]);
   };
 
   const handleGenerate = () => {
     setLoading(true);
     try {
       const generated = store.generateShoppingList();
-      setItems(generated);
-      setNotice(`Generated ${generated.length} shortfall item(s) from weekly meal plan!`);
+      setItems([...generated]);
+      setNotice(
+        generated.length === 0
+          ? 'All planned meal ingredients are in stock! Zero missing items.'
+          : `Computed ${generated.length} shortfall item(s) from weekly meal plan!`
+      );
       setTimeout(() => setNotice(null), 3500);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleBoughtAllRequired = () => {
+    const res = store.restockAllMissingItems();
+    setItems([...res.shoppingList]);
+    setNotice(
+      `Restocked ${res.appliedItems.length} item(s) into Kitchen Stock! Missing items cleared.`
+    );
+    setTimeout(() => setNotice(null), 4000);
+  };
+
+  const handleMarkItemBought = (item: ShoppingListItem) => {
+    const res = store.updateShoppingListFromChat(item.name, 'bought', item.qty_base, item.base_unit);
+    setItems([...res.shoppingList]);
+    setNotice(
+      `Added ${item.qty_base} ${item.base_unit} ${item.name} to Kitchen Stock and removed from Shop tab!`
+    );
+    setTimeout(() => setNotice(null), 3500);
+  };
+
+  const handleRemoveShopItem = (item: ShoppingListItem) => {
+    const res = store.updateShoppingListFromChat(item.name, 'remove');
+    setItems([...res.shoppingList]);
+    setNotice(`Removed "${item.name}" from Shopping List.`);
+    setTimeout(() => setNotice(null), 3000);
   };
 
   const filteredItems = items.filter((item) => {
@@ -69,7 +92,7 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({ isHindi }) => {
 
       {/* Header */}
       <section className="pt-2 flex flex-col gap-2.5">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
           <div>
             <h1 className="text-[24px] font-bold text-[#1a1c1a] tracking-tight leading-tight">
               {isHindi ? 'खरीदारी सूची' : 'Shopping List & Deals'}
@@ -79,16 +102,29 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({ isHindi }) => {
             </p>
           </div>
 
-          <button
-            className="px-3.5 py-2 rounded-full bg-[#1A3826] text-white text-[12px] font-semibold flex items-center gap-1.5 shadow-xs active:scale-95 transition-all hover:bg-[#132a1d]"
-            onClick={handleGenerate}
-            disabled={loading}
-          >
-            <span className={`material-symbols-outlined text-[18px] ${loading ? 'animate-spin' : ''}`}>
-              refresh
-            </span>
-            <span>{isHindi ? 'अपडेट करें' : 'Compute Plan'}</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {items.length > 0 && (
+              <button
+                className="px-3 py-2 rounded-full bg-[#EDF2EE] border border-[#137333]/30 text-[#137333] text-[12px] font-bold flex items-center gap-1 shadow-xs active:scale-95 transition-all hover:bg-[#d8e6db]"
+                onClick={handleBoughtAllRequired}
+                type="button"
+              >
+                <span className="material-symbols-outlined text-[17px]">task_alt</span>
+                <span>{isHindi ? 'सारा खरीद लिया' : 'Bought All Required'}</span>
+              </button>
+            )}
+            <button
+              className="px-3.5 py-2 rounded-full bg-[#1A3826] text-white text-[12px] font-semibold flex items-center gap-1.5 shadow-xs active:scale-95 transition-all hover:bg-[#132a1d]"
+              onClick={handleGenerate}
+              disabled={loading}
+              type="button"
+            >
+              <span className={`material-symbols-outlined text-[18px] ${loading ? 'animate-spin' : ''}`}>
+                refresh
+              </span>
+              <span>{isHindi ? 'अपडेट करें' : 'Compute Plan'}</span>
+            </button>
+          </div>
         </div>
 
         {/* 2-Scope Tabs: Shared vs Personal */}
@@ -179,7 +215,7 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({ isHindi }) => {
                 key={item.id}
                 className="bg-white rounded-2xl p-3.5 border border-[#E6E4DD] shadow-xs flex flex-col gap-2"
               >
-                <div className="flex items-start justify-between">
+                <div className="flex items-start justify-between gap-2">
                   <div>
                     <span className="text-[14px] font-bold text-[#1a1c1a] block">{item.name}</span>
                     <span className="text-[11.5px] text-[#424843]">
@@ -187,9 +223,28 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({ isHindi }) => {
                     </span>
                   </div>
 
-                  <span className="px-2 py-0.5 rounded-full bg-[#E8F0EC] text-[#1E4620] text-[11px] font-bold border border-[#D1E2D7]">
-                    Cheapest: {item.best_store || 'Blinkit'}
-                  </span>
+                  <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                    <span className="px-2 py-0.5 rounded-full bg-[#E8F0EC] text-[#1E4620] text-[10.5px] font-bold border border-[#D1E2D7]">
+                      Cheapest: {item.best_store || 'Blinkit'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleMarkItemBought(item)}
+                      className="px-2.5 py-1 rounded-lg bg-[#1A3826] text-white text-[11px] font-bold flex items-center gap-1 hover:bg-[#132a1d] active:scale-95 transition-all"
+                      title="Mark as bought (adds to Kitchen Stock and removes from Shop)"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">check</span>
+                      <span>Bought</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveShopItem(item)}
+                      className="p-1 rounded-lg bg-[#f4f4f0] text-[#727972] hover:text-[#9E2A2B] hover:bg-[#fdf2f2] transition-all"
+                      title="Remove from Shop list"
+                    >
+                      <span className="material-symbols-outlined text-[15px]">delete</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* 3-Store Pricing Comparison Grid */}

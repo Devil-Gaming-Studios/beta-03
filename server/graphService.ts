@@ -270,6 +270,222 @@ export class GraphRAGService {
       : Object.values(this.graph.ingredients);
   }
 
+  /**
+   * Graph RAG retrieval for 7-Day AI Auto-Planner:
+   * Splits recipe graph into:
+   * 1. regularCandidates: Matches user's past diet history, habitual regions, and staple ingredients + stock
+   * 2. newDiscoveryCandidates: Disjoint from user's past habitual dishes, exploring new regional dishes or
+   *    ingredient combinations while strictly matching diet_pref (veg/nonveg) and health goals (protein_rich, diabetes)
+   */
+  public getWeeklyPlanCandidates(params: {
+    stock: string[];
+    diet_pref: 'veg' | 'nonveg';
+    is_beginner?: boolean;
+    diet_goals?: string[];
+    preferred_regions?: string[];
+    past_regular_dishes?: { recipe_id?: string; title: string; cuisine?: string; ingredients?: string[] }[];
+    common_ingredients?: string[];
+    common_regions?: string[];
+  }) {
+    if (!this.graph) {
+      return { regularCandidates: [], newDiscoveryCandidates: [] };
+    }
+
+    const stockSet = new Set(
+      (params.stock || []).map((s) =>
+        s.toLowerCase().trim().replace(/^ing_/, '').replace(/[^a-z0-9]/g, '_')
+      )
+    );
+    const goals = new Set((params.diet_goals || []).map((g) => g.toLowerCase()));
+    const wantProtein = goals.has('protein_rich') || goals.has('high_protein');
+    const wantDiabetes = goals.has('diabetes') || goals.has('diabetic');
+    const wantLowOil = goals.has('low_oil') || goals.has('heart');
+
+    const pastIds = new Set(
+      (params.past_regular_dishes || [])
+        .map((d) => (d.recipe_id || '').toLowerCase().trim())
+        .filter(Boolean)
+    );
+    const pastTitleTokens = (params.past_regular_dishes || [])
+      .map((d) => (d.title || '').toLowerCase().trim())
+      .filter(Boolean);
+
+    const commonRegions = new Set(
+      (params.common_regions || []).concat(params.preferred_regions || []).map((r) => r.toLowerCase().trim())
+    );
+    const commonIngs = new Set(
+      (params.common_ingredients || []).map((i) =>
+        i.toLowerCase().trim().replace(/^ing_/, '').replace(/[^a-z0-9]/g, '_')
+      )
+    );
+
+    // 1. Strict Dietary Lock Filter
+    let pool = this.graph.recipes;
+    if (params.diet_pref === 'veg') {
+      pool = pool.filter((r) => !r.isNonVeg);
+    }
+
+    const isPastHabitual = (recipe: GraphRecipe): boolean => {
+      if (pastIds.has(recipe.id.toLowerCase())) return true;
+      const rName = recipe.name.toLowerCase();
+      const rTrans = (recipe.translatedName || '').toLowerCase();
+      for (const pastTitle of pastTitleTokens) {
+        if (!pastTitle) continue;
+        // Check exact or core dish name match (e.g., "kanda poha", "dal tadka", "paneer bhurji")
+        const cleanPast = pastTitle.split('(')[0].trim();
+        if (cleanPast.length >= 4 && (rName.includes(cleanPast) || rTrans.includes(cleanPast) || cleanPast.includes(rName))) {
+          return true;
+        }
+      }
+      return false;
+    };
+
+    const scoreDietaryFit = (recipe: GraphRecipe): { score: number; tags: string[] } => {
+      let score = 0;
+      const tags: string[] = [];
+      const dietLower = (recipe.diet || '').toLowerCase();
+      const protein = recipe.nutrientsEstimated?.protein_g || 0;
+      const carbs = recipe.nutrientsEstimated?.carbs_g || 40;
+      const fat = recipe.nutrientsEstimated?.fat_g || 10;
+
+      if (wantProtein) {
+        if (protein >= 14 || dietLower.includes('high protein')) {
+          score += 35;
+          tags.push(`High Protein (${protein}g)`);
+        } else if (protein >= 10) {
+          score += 15;
+        }
+      }
+
+      if (wantDiabetes) {
+        const isDiabeticTag =
+          dietLower.includes('diabetic') ||
+          dietLower.includes('sugar free') ||
+          (carbs <= 38 && protein >= 9);
+        const hasHeavySugar = recipe.ingredients.some((i) =>
+          ['sugar', 'jaggery', 'chini', 'gud', 'condensed_milk'].some((s) => i.canonicalId.includes(s) || i.name.toLowerCase().includes(s))
+        );
+        if (isDiabeticTag && !hasHeavySugar) {
+          score += 40;
+          tags.push('Diabetes-Friendly (Low GI)');
+        } else if (hasHeavySugar) {
+          score -= 50;
+        }
+      }
+
+      if (wantLowOil && fat <= 9) {
+        score += 20;
+        tags.push('Heart-Healthy / Low Oil');
+      }
+
+      if (params.is_beginner && recipe.difficulty === 'beginner') {
+        score += 15;
+        tags.push('Beginner Easy');
+      }
+
+      return { score, tags };
+    };
+
+    const scoreStockAndGraph = (recipe: GraphRecipe) => {
+      let stockMatched = 0;
+      let commonIngMatched = 0;
+      const matchedStockNames: string[] = [];
+      for (const ing of recipe.ingredients) {
+        const slug = ing.canonicalId.replace(/^ing_/, '');
+        const nameLower = ing.name.toLowerCase();
+        if (
+          stockSet.has(slug) ||
+          stockSet.has(ing.canonicalId) ||
+          Array.from(stockSet).some((s) => s.length > 2 && (slug.includes(s) || nameLower.includes(s)))
+        ) {
+          stockMatched++;
+          matchedStockNames.push(ing.name);
+        }
+        if (
+          commonIngs.has(slug) ||
+          Array.from(commonIngs).some((ci) => ci.length > 2 && (slug.includes(ci) || nameLower.includes(ci)))
+        ) {
+          commonIngMatched++;
+        }
+      }
+      const totalIngs = Math.max(recipe.ingredients.length, 1);
+      const stockRatio = stockMatched / totalIngs;
+      const cuisineLower = (recipe.cuisine || '').toLowerCase();
+      const regionMatch = Array.from(commonRegions).some(
+        (reg) => reg && reg !== 'all' && cuisineLower.includes(reg)
+      );
+
+      return {
+        stockMatched,
+        totalIngs,
+        stockRatio,
+        commonIngMatched,
+        regionMatch,
+        matchedStockNames: matchedStockNames.slice(0, 4),
+      };
+    };
+
+    const regularScored: any[] = [];
+    const discoveryScored: any[] = [];
+
+    // Sample up to 600 recipes from pool for fast Graph RAG scoring
+    const maxScan = Math.min(pool.length, 600);
+    for (let idx = 0; idx < maxScan; idx++) {
+      const r = pool[idx];
+      const habitual = isPastHabitual(r);
+      const dietFit = scoreDietaryFit(r);
+      const graphFit = scoreStockAndGraph(r);
+
+      const candidateSummary = {
+        id: r.id,
+        name: r.name,
+        cuisine: r.cuisine || 'Indian',
+        course: r.course || 'Main Course',
+        diet: r.diet || (r.isNonVeg ? 'Non-Vegetarian' : 'Vegetarian'),
+        totalTime: r.totalTime || 25,
+        protein_g: r.nutrientsEstimated?.protein_g || 12,
+        kcal: r.nutrientsEstimated?.kcal || 320,
+        carbs_g: r.nutrientsEstimated?.carbs_g || 40,
+        stockMatched: graphFit.stockMatched,
+        totalIngs: graphFit.totalIngs,
+        matchedIngredients: graphFit.matchedStockNames,
+        dietTags: dietFit.tags,
+        keyIngredients: r.ingredients.slice(0, 5).map((i) => i.name),
+      };
+
+      if (habitual || (graphFit.commonIngMatched >= 2 && graphFit.regionMatch)) {
+        const regScore =
+          (habitual ? 60 : 0) +
+          (graphFit.regionMatch ? 25 : 0) +
+          graphFit.commonIngMatched * 8 +
+          graphFit.stockRatio * 35 +
+          dietFit.score;
+        regularScored.push({ ...candidateSummary, score: regScore, isPastFavorite: habitual });
+      }
+
+      // For 'new' discovery pool: strictly exclude past habitual dishes
+      if (!habitual) {
+        // Prefer dishes that still match dietary goals & use some stock ingredients,
+        // and either match preferred regions or introduce regional variety
+        const noveltyRegionBonus = graphFit.regionMatch ? 18 : 12;
+        const discScore =
+          dietFit.score * 1.3 +
+          graphFit.stockRatio * 40 +
+          noveltyRegionBonus +
+          (graphFit.commonIngMatched === 0 ? 15 : 5); // bonus for novel ingredient combinations
+        discoveryScored.push({ ...candidateSummary, score: discScore });
+      }
+    }
+
+    regularScored.sort((a, b) => b.score - a.score);
+    discoveryScored.sort((a, b) => b.score - a.score);
+
+    return {
+      regularCandidates: regularScored.slice(0, 18),
+      newDiscoveryCandidates: discoveryScored.slice(0, 24),
+    };
+  }
+
   public rebuild(customCsvPath?: string) {
     const csvPath = customCsvPath || path.resolve(__dirname, '..', 'public', 'assets', 'aistudio', 'IndianFoodDatasetCSV_273f8d45.csv');
     if (!fs.existsSync(csvPath)) throw new Error(`CSV file not found at ${csvPath}`);
