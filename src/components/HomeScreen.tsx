@@ -64,11 +64,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onViewRecipe,
   onOpenDownload,
 }) => {
-  const [showExpiryAlert, setShowExpiryAlert] = useState(true);
-  const [expiryAdded, setExpiryAdded] = useState(false);
   const [didiNote, setDidiNote] = useState('Kam namak aur bina pyaaz wali daal');
   const [isEditingNote, setIsEditingNote] = useState(false);
-    const [quickAddNotice, setQuickAddNotice] = useState<string | null>(null);
+  const [quickAddNotice, setQuickAddNotice] = useState<string | null>(null);
   const [manualProteinInput, setManualProteinInput] = useState('');
   const [, setRefreshTick] = useState(0);
 
@@ -113,16 +111,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const me = store.getMe();
   const recipesCount = store.getRecipes().length;
   const planCheck = store.planCheck(weekMonday);
-  const expiringStock =
-    typeof (store as any).getExpiringStock === 'function'
-      ? store.getExpiringStock(3)
-      : store
-          .getStock('all')
-          .filter(
-            (i) =>
-              i.qty_base > 0 &&
-              ((i.shelf_life_days !== undefined && i.shelf_life_days <= 3) || Boolean(i.expiry))
-          );
 
   const slots: MealSlot[] = ['breakfast', 'lunch', 'dinner'];
   const todayMealsBySlot: Record<MealSlot, PlannedMeal | undefined> = {
@@ -159,17 +147,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     setTimeout(() => setQuickAddNotice(null), 3500);
   };
 
-  const handleAddPalak = () => {
-    store.setMealSlot(activeDateStr, 'dinner', 'Dal Palak (Spinach Lentils)', 2);
-    setExpiryAdded(true);
-    refresh();
-    setQuickAddNotice('Added Dal Palak to dinner menu! Expiry optimized.');
-    setTimeout(() => {
-      setQuickAddNotice(null);
-      setShowExpiryAlert(false);
-    }, 3000);
-  };
-
   const handleMealClick = (meal: PlannedMeal) => {
     if (onViewRecipe) {
       onViewRecipe(meal.household_recipe_id, meal.servings, meal.meal_date, meal.slot);
@@ -178,7 +155,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
   // Compute real daily protein goal from today's planned & cooked meals
   const todayMealsList = slots.map((s) => todayMealsBySlot[s]).filter(Boolean) as PlannedMeal[];
-    const mealProteinG = todayMealsList
+  const mealProteinG = todayMealsList
     .filter((m) => m.status === 'done')
     .reduce((acc, m) => acc + (m.nutrition?.protein_g || 14), 0);
   const primaryMemberId = me.members[0]?.id || 'mem_1';
@@ -218,7 +195,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const proteinAddons = PROTEIN_ADDONS.filter((a) => !a.nonVegOnly || showNonVegAddons);
 
   return (
-    <div className="flex flex-col w-full px-4 pb-8 max-w-xl mx-auto gap-y-4">
+    <div className="flex flex-col w-full px-4 pb-8 max-w-xl mx-auto gap-y-6">
       {/* Quick notice toast */}
       {quickAddNotice && (
         <div className="sticky top-20 z-40 bg-[#1A3826] text-white text-[13px] font-medium px-4 py-2.5 rounded-xl shadow-lg flex items-center justify-between gap-2 border border-[#81a28a]/40 animate-fade-in">
@@ -233,10 +210,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       )}
 
       {/* Household & Offline Status Ribbon */}
-      <section className="flex flex-col gap-2 pt-2">
+      <section className="flex flex-col gap-3 pt-2">
         <div className="flex items-center justify-between gap-2 overflow-x-auto no-scrollbar py-0.5">
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#eeeeea] text-[#1a1c1a] border border-[#E6E4DD] shrink-0">
-            <span className="material-symbols-outlined text-[#3b684a] text-[18px]">location_on</span>
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#eeeeea] text-[#1a1c1a] border border-[#E6E4DD] shrink-0">
+            <span
+              className="w-2 h-2 rounded-full bg-[#1A3826] animate-pulse shrink-0"
+              title="Live DB Synced"
+            ></span>
             <span className="text-[13px] font-semibold truncate max-w-[200px]">
               {me.household.name}
             </span>
@@ -244,14 +224,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               ({me.members.map((m) => m.name).join(' & ')})
             </span>
           </div>
-          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-[#E8F0EC] text-[#1E4620] border border-[#D1E2D7] shrink-0">
-            <span className="w-2 h-2 rounded-full bg-[#1A3826] animate-pulse"></span>
-            <span className="text-[12px] font-semibold">Live DB Synced</span>
-          </div>
         </div>
 
         {/* Offline Readiness Notification Chip */}
-        <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-[#f4f4f0] border border-[#E6E4DD] text-[#1a1c1a] gap-2">
+        <div className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-[#f4f4f0] border border-[#E6E4DD] text-[#1a1c1a] gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <span
               className="material-symbols-outlined text-[#3b684a] text-[20px] shrink-0"
@@ -259,187 +235,42 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             >
               cloud_done
             </span>
-            <div className="flex flex-col min-w-0">
-              <span className="text-[12px] font-semibold text-[#032212] truncate">
-                Offline ready • {recipesCount} recipes cached
-              </span>
-              <span className="text-[11px] text-[#424843] truncate">
-                {isHindi ? 'बिना इंटरनेट के भी चलेगा' : 'Functions completely offline'}
-              </span>
-            </div>
+            <span className="text-[12.5px] font-semibold text-[#032212] truncate">
+              Offline ready • {recipesCount} recipes cached
+            </span>
           </div>
-          <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
-            {isNativeAndroidApp() ? (
-              <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#E8F0EC] text-[#1E4620] text-[11px] font-semibold border border-[#D1E2D7]">
-                <span className="material-symbols-outlined text-[14px]">smartphone</span>
-                <span>Native Active</span>
-              </div>
-            ) : (
-              <>
-                {onOpenDownload && (
-                  <button
-                    onClick={onOpenDownload}
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-[#1A3826] text-white hover:bg-[#132a1d] text-[11px] font-semibold shadow-xs transition-transform active:scale-95 cursor-pointer"
-                    title={isHindi ? 'वेब ऐप डाउनलोड / इंस्टॉल करें' : 'Download / Install Web App (PWA)'}
-                  >
-                    <span className="material-symbols-outlined text-[15px]">download</span>
-                    <span>{isHindi ? 'वेब ऐप' : 'Web App'}</span>
-                  </button>
-                )}
-                <a
-                  href="/mastmeals.apk"
-                  download="MastMeals-native.apk"
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-[#047857] text-white hover:bg-[#065f46] text-[11px] font-semibold shadow-xs transition-transform active:scale-95 cursor-pointer no-underline"
-                  title={isHindi ? 'नेटिव एंड्रॉयड ऐप APK डाउनलोड करें' : 'Download Native Android App (.apk)'}
-                >
-                  <span className="material-symbols-outlined text-[15px]">android</span>
-                  <span>{isHindi ? 'APK' : 'APK'}</span>
-                </a>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Dual AI Capabilities Section: Voice + AI Scan (Always visible on mobile & native app) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-          {/* 1. Omnirush Voice Assistant */}
-          <div
-            onClick={onOpenVoice}
-            className="p-3.5 rounded-2xl bg-gradient-to-r from-[#1A3826] to-[#254d35] text-white flex items-center justify-between gap-3 shadow-md cursor-pointer hover:opacity-95 active:scale-[0.99] transition-all"
-          >
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-10 h-10 rounded-full bg-white/15 flex items-center justify-center shrink-0 border border-white/20">
-                <span className="material-symbols-outlined text-[22px] text-white">mic</span>
-              </div>
-              <div className="flex flex-col min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[13.5px] font-bold truncate">Omnirush Voice</span>
-                  <span className="text-[9.5px] bg-white/20 text-[#c8ebd1] font-semibold px-1.5 py-0.2 rounded-full shrink-0">
-                    Voice STT
-                  </span>
-                </div>
-                <span className="text-[11px] text-white/80 truncate">
-                  {isHindi ? 'बोलकर सामान व मील प्लान करें' : 'Speak to log items & meal plan'}
-                </span>
-              </div>
+          {isNativeAndroidApp() && (
+            <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#E8F0EC] text-[#1E4620] text-[11px] font-semibold border border-[#D1E2D7] shrink-0">
+              <span className="material-symbols-outlined text-[14px]">smartphone</span>
+              <span>Native Active</span>
             </div>
-            <div
-              className="w-7.5 h-7.5 rounded-full bg-white text-[#1A3826] flex items-center justify-center shrink-0 shadow-xs"
-              title="Start Voice Assistant"
-            >
-              <span className="material-symbols-outlined text-[17px]">arrow_forward</span>
-            </div>
-          </div>
-
-          {/* 2. Gemini AI Vision Scanner (Receipt OCR & Fridge Photo) */}
-          <div
-            onClick={() => (onOpenScan ? onOpenScan('receipt') : onNavigate('stock'))}
-            className="p-3.5 rounded-2xl bg-gradient-to-r from-[#0f3420] to-[#1A3826] text-white flex items-center justify-between gap-3 shadow-md cursor-pointer hover:opacity-95 active:scale-[0.99] transition-all border border-[#81a28a]/30"
-          >
-            <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-10 h-10 rounded-full bg-[#c8ebd1]/20 flex items-center justify-center shrink-0 border border-[#c8ebd1]/40">
-                <span className="material-symbols-outlined text-[22px] text-[#c8ebd1]">document_scanner</span>
-              </div>
-              <div className="flex flex-col min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[13.5px] font-bold truncate">
-                    {isHindi ? 'AI रसीद व फ्रिज स्कैन' : 'AI Scan (OCR)'}
-                  </span>
-                  <span className="text-[9.5px] bg-[#c8ebd1] text-[#032212] font-extrabold px-1.5 py-0.2 rounded-full shrink-0">
-                    Vision AI
-                  </span>
-                </div>
-                <span className="text-[11px] text-white/80 truncate">
-                  {isHindi ? 'किराना बिल या फ्रिज फोटो से ऑटो-स्टॉक' : 'Scan grocery receipt or fridge shelf'}
-                </span>
-              </div>
-            </div>
-            <div
-              className="w-7.5 h-7.5 rounded-full bg-[#c8ebd1] text-[#032212] flex items-center justify-center shrink-0 shadow-xs"
-              title="Open AI Scanner"
-            >
-              <span className="material-symbols-outlined text-[17px]">arrow_forward</span>
-            </div>
-          </div>
+          )}
         </div>
       </section>
 
-      {/* Smart Pantry Alert Ribbon: Warm Cream Card */}
-      {showExpiryAlert && expiringStock.length > 0 && (
-        <section className="p-3.5 rounded-xl bg-[#FAF6F0] border border-[#E9E1D6] text-[#1a1c1a] flex items-start gap-3 shadow-xs">
-          <div className="p-2 rounded-full bg-[#F2ECE1] text-[#B45309] shrink-0 mt-0.5">
-            <span className="material-symbols-outlined text-[20px]">notifications_active</span>
-          </div>
-          <div className="flex flex-col flex-1 min-w-0">
-            <div className="flex items-center justify-between">
-              <span className="text-[14px] font-bold text-[#1a1c1a]">
-                Expiry Alert • {isHindi ? 'तुरंत इस्तेमाल करें' : 'Expiring Soon'}
-              </span>
-              <span className="px-2 py-0.5 rounded-full bg-[#F2ECE1] text-[#B45309] text-[11px] font-semibold">
-                {expiringStock.length} Items
-              </span>
-            </div>
-            <p className="text-[13px] text-[#424843] mt-1 leading-snug">
-              {expiringStock.slice(0, 2).map((item, idx) => (
-                <React.Fragment key={item.id}>
-                  {idx > 0 && ' & '}
-                  <strong className="font-semibold text-[#1a1c1a]">{item.name}</strong>
-                </React.Fragment>
-              ))}{' '}
-              expiring soon. Plan Dal Palak tonight?
-            </p>
-            <div className="flex items-center gap-2 mt-2.5">
-              <button
-                className="px-3 py-1.5 rounded-full bg-[#1A3826] text-white text-[12px] font-semibold active:scale-95 transition-all flex items-center gap-1.5 shadow-xs hover:bg-[#132a1d]"
-                type="button"
-                onClick={handleAddPalak}
-              >
-                <span className="material-symbols-outlined text-[16px]">soup_kitchen</span>
-                <span>{expiryAdded ? 'Added to Dinner' : 'Add Palak to Dinner'}</span>
-              </button>
-              <button
-                className="px-3 py-1.5 rounded-full bg-white border border-[#E9E1D6] text-[#1a1c1a] text-[12px] font-medium active:scale-95 transition-transform hover:bg-[#F2ECE1]"
-                type="button"
-                onClick={() => setShowExpiryAlert(false)}
-              >
-                Dismiss
-              </button>
-            </div>
-          </div>
-        </section>
-      )}
-
       {/* Today's Meal Calendar Section (Pulled live from Unified Store Database Table) */}
-      <section className="flex flex-col gap-3">
-        <div className="flex items-baseline justify-between">
-          <div className="flex flex-col">
-            <h2 className="text-[18px] text-[#1a1c1a] flex items-center gap-2 font-bold flex-wrap">
-              <span>
-                {activeDateStr === todayStr
-                  ? isHindi
-                    ? 'आज का खाना'
-                    : "Today's Planned Meals"
-                  : `${selectedDayInfo?.dayName || ''} Planned Meals`}
-              </span>
-              <span className="text-[#424843] font-normal text-[15px]">•</span>
+      <section className="flex flex-col gap-4">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-col gap-1.5 min-w-0">
+            <h2 className="text-[18px] text-[#1a1c1a] font-bold">
+              {activeDateStr === todayStr
+                ? isHindi
+                  ? 'आज का खाना'
+                  : "Today's Planned Meals"
+                : `${selectedDayInfo?.dayName || ''} Planned Meals`}
+            </h2>
+            <div className="flex items-center gap-1.5 flex-wrap">
               <span className="px-2.5 py-0.5 rounded-full bg-[#E8F0EC] text-[#1E4620] text-[12px] font-medium">
-                {selectedDayInfo ? `${selectedDayInfo.dayName}, ${selectedDayInfo.monthShort} ${selectedDayInfo.dayNum}` : activeDateStr}
+                {selectedDayInfo
+                  ? `${selectedDayInfo.dayName}, ${selectedDayInfo.monthShort} ${selectedDayInfo.dayNum}`
+                  : activeDateStr}
               </span>
-              {selectedDayInfo && (
-                <span
-                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                    selectedDayInfo.varietyMode === 'new'
-                      ? 'bg-[#FAF6F0] text-[#B45309] border border-[#E9E1D6]'
-                      : 'bg-[#EDF2EE] text-[#1A3826] border border-[#c8ebd1]'
-                  }`}
-                >
-                  {selectedDayInfo.varietyMode === 'new' ? '✨ New Food Day' : 'Regular Day'}
+              {selectedDayInfo?.varietyMode === 'new' && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#FAF6F0] text-[#B45309] border border-[#E9E1D6]">
+                  ✨ New Food Day
                 </span>
               )}
-            </h2>
-            <span className="text-[11px] text-[#424843]">
-              Synced live with Calendar Plan • Tap meal card for complete recipe • Tap ✓ button to mark cooked
-            </span>
+            </div>
           </div>
           <button
             className="text-[12px] text-[#3b684a] font-semibold flex items-center gap-0.5 shrink-0"
@@ -462,7 +293,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 key={wd.dateStr}
                 type="button"
                 onClick={() => setSelectedDateStr(wd.dateStr)}
-                className={`py-1.5 px-1 rounded-xl flex flex-col items-center gap-0.5 transition-all relative ${
+                className={`py-2 px-1 rounded-xl flex flex-col items-center gap-0.5 transition-all relative ${
                   isSelected
                     ? 'bg-[#1A3826] text-white shadow-xs'
                     : 'bg-white text-[#1a1c1a] hover:bg-[#EDF2EE]'
@@ -501,13 +332,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             return (
               <article
                 key={slot}
-                className="p-3.5 rounded-xl bg-white border border-dashed border-[#D1E2D7] flex items-center justify-between gap-3 shadow-2xs"
+                className="p-4 rounded-xl bg-white border border-dashed border-[#D1E2D7] flex items-center justify-between gap-3 shadow-2xs"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-14 h-14 rounded-xl bg-[#f4f4f0] border border-[#E6E4DD] flex items-center justify-center text-[#727972]">
                     <span className="material-symbols-outlined text-[24px]">{meta.icon}</span>
                   </div>
-                  <div className="flex flex-col">
+                  <div className="flex flex-col gap-0.5">
                     <span className="text-[11px] uppercase tracking-wider text-[#727972] font-semibold">
                       {isHindi ? meta.labelHi : meta.labelEn} • {meta.timeLabel}
                     </span>
@@ -538,13 +369,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             <article
               key={meal.id}
               onClick={() => handleMealClick(meal)}
-              className={`p-3.5 rounded-xl bg-white border transition-all flex flex-col gap-3 shadow-xs cursor-pointer hover:border-[#3b684a] ${
+              className={`p-4 rounded-xl bg-white border transition-all flex flex-col gap-3.5 shadow-xs cursor-pointer hover:border-[#3b684a] ${
                 isDone ? 'border-[#c8ebd1] bg-[#fafdfa]' : 'border-[#E6E4DD]'
               }`}
             >
-              <div className="flex gap-3">
-                {/* Meal Icon / Thumbnail with Mark as Done overlay button */}
-                <div className="relative w-22 h-22 rounded-xl overflow-hidden shrink-0 bg-[#eeeeea] border border-[#E6E4DD] flex flex-col justify-between">
+              <div className="flex gap-3.5">
+                {/* Meal Thumbnail with status badge */}
+                <div className="relative w-22 h-22 rounded-xl overflow-hidden shrink-0 bg-[#eeeeea] border border-[#E6E4DD]">
                   <img
                     alt={meal.title}
                     className={`w-full h-full object-cover transition-opacity ${
@@ -552,51 +383,26 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                     }`}
                     src={meta.bgImg}
                   />
-                  {/* Top status badge on icon */}
                   <span
                     className={`absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold backdrop-blur-xs ${
-                      isDone
-                        ? 'bg-[#137333] text-white'
-                        : 'bg-white/90 text-[#1a1c1a]'
+                      isDone ? 'bg-[#137333] text-white' : 'bg-white/90 text-[#1a1c1a]'
                     }`}
                   >
                     {isDone ? '✓ Cooked' : meta.timeLabel}
                   </span>
-
-                  {/* Mark as Done Button directly on the meal icon */}
-                  {!isDone ? (
-                    <button
-                      type="button"
-                      onClick={(e) => handleMarkMealDone(e, meal)}
-                      title="Mark this meal as cooked"
-                      className="absolute bottom-1 inset-x-1 py-1 px-1.5 rounded-lg bg-[#1A3826]/95 hover:bg-[#0f2618] text-white text-[10px] font-bold flex items-center justify-center gap-0.5 shadow-md active:scale-95 transition-all"
-                    >
-                      <span className="material-symbols-outlined text-[13px]">check_circle</span>
-                      <span>Mark Done</span>
-                    </button>
-                  ) : (
-                    <div className="absolute bottom-1 inset-x-1 py-0.5 px-1.5 rounded-lg bg-[#EDF2EE]/95 text-[#137333] text-[10px] font-bold flex items-center justify-center gap-0.5 border border-[#c8ebd1]">
-                      <span className="material-symbols-outlined text-[12px]">task_alt</span>
-                      <span>Done</span>
-                    </div>
-                  )}
                 </div>
 
                 {/* Meal Title & Metadata */}
-                <div className="flex flex-col flex-1 min-w-0 justify-between">
-                  <div className="flex flex-col">
+                <div className="flex flex-col flex-1 min-w-0 justify-between gap-2">
+                  <div className="flex flex-col gap-0.5">
                     <div className="flex items-center justify-between gap-1">
                       <span className="text-[11px] uppercase tracking-wider text-[#727972] font-semibold">
-                        {isHindi ? meta.labelHi : meta.labelEn} • {meta.timeLabel}
+                        {isHindi ? meta.labelHi : meta.labelEn}
                       </span>
                       <div className="flex items-center gap-1.5">
-                        {meal.variety_type === 'new' ? (
+                        {meal.variety_type === 'new' && (
                           <span className="px-1.5 py-0.5 rounded bg-[#FAF6F0] text-[#B45309] border border-[#E9E1D6] text-[9.5px] font-bold">
                             ✨ New Dish
-                          </span>
-                        ) : (
-                          <span className="px-1.5 py-0.5 rounded bg-[#EDF2EE] text-[#1A3826] text-[9.5px] font-bold">
-                            Regular
                           </span>
                         )}
                         <span
@@ -608,16 +414,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                       </div>
                     </div>
 
-                    <h3 className="text-[15px] text-[#1a1c1a] font-bold truncate mt-0.5">
-                      {meal.title}
-                    </h3>
-                    <span className="text-[11.5px] text-[#3b684a] font-medium flex items-center gap-1 mt-0.5">
-                      <span className="material-symbols-outlined text-[14px]">menu_book</span>
-                      <span>Tap card for complete recipe &amp; steps</span>
-                    </span>
+                    <h3 className="text-[15px] text-[#1a1c1a] font-bold truncate">{meal.title}</h3>
                   </div>
 
-                  <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="flex items-center gap-1 text-[11.5px] text-[#424843]">
                       <span className="material-symbols-outlined text-[14px]">group</span>{' '}
                       {meal.servings} Servings
@@ -644,36 +444,29 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               {hasMissing && (
                 <div
                   onClick={(e) => e.stopPropagation()}
-                  className="p-2.5 rounded-lg bg-[#FAF6F0] border border-[#E9E1D6] text-[#1a1c1a] flex flex-col gap-1.5"
+                  className="p-3 rounded-lg bg-[#FAF6F0] border border-[#E9E1D6] text-[#1a1c1a] flex flex-col gap-2"
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="material-symbols-outlined text-[#B45309] text-[18px] shrink-0">
-                        warning
-                      </span>
-                      <span className="text-[12px] font-semibold text-[#1a1c1a] truncate">
-                        Missing: {missingList.map((m) => `${m.name} (${m.short_base}${m.unit_base})`).join(', ')}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <span className="text-[11px] text-[#424843]">
-                      Bought these items? Update kitchen stock immediately:
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="material-symbols-outlined text-[#B45309] text-[18px] shrink-0">
+                      warning
                     </span>
-                    <button
-                      className="px-3 py-1 rounded-full bg-[#1A3826] text-white text-[11.5px] font-semibold flex items-center gap-1 active:scale-95 transition-all hover:bg-[#132a1d]"
-                      type="button"
-                      onClick={handleRestockMissing}
-                    >
-                      <span className="material-symbols-outlined text-[14px]">add_shopping_cart</span>
-                      <span>+ Bought Required Items</span>
-                    </button>
+                    <span className="text-[12px] font-semibold text-[#1a1c1a] truncate">
+                      Missing: {missingList.map((m) => `${m.name} (${m.short_base}${m.unit_base})`).join(', ')}
+                    </span>
                   </div>
+                  <button
+                    className="self-start px-3 py-1 rounded-full bg-[#1A3826] text-white text-[11.5px] font-semibold flex items-center gap-1 active:scale-95 transition-all hover:bg-[#132a1d]"
+                    type="button"
+                    onClick={handleRestockMissing}
+                  >
+                    <span className="material-symbols-outlined text-[14px]">add_shopping_cart</span>
+                    <span>+ Bought Required Items</span>
+                  </button>
                 </div>
               )}
 
               {/* Card Footer: Protein, Recipe View button, and Mark as Done button */}
-              <div className="flex items-center justify-between pt-2 bg-[#f4f4f0] px-3 py-2 rounded-lg gap-2">
+              <div className="flex items-center justify-between bg-[#f4f4f0] px-3 py-2.5 rounded-lg gap-2">
                 <div className="flex items-center gap-1.5">
                   <span className="material-symbols-outlined text-[#3b684a] text-[18px]">
                     fitness_center
@@ -721,21 +514,16 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       </section>
 
       {/* Daily Protein Goal Tracker Widget (Connected to Today's Planned & Cooked Meals) */}
-      <section className="p-4 rounded-xl bg-white border border-[#E6E4DD] flex flex-col gap-3 shadow-xs">
-        <div className="flex items-center justify-between">
-          <div className="flex flex-col">
-            <span className="text-[15px] text-[#1a1c1a] font-bold">
-              {isHindi ? 'दैनिक प्रोटीन लक्ष्य' : 'Daily Protein Goal'}
-            </span>
-            <span className="text-[12px] text-[#424843]">
-              Live tracking from today&apos;s cooked meals
-            </span>
-          </div>
+      <section className="p-4 rounded-xl bg-white border border-[#E6E4DD] flex flex-col gap-4 shadow-xs">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[15px] text-[#1a1c1a] font-bold">
+            {isHindi ? 'दैनिक प्रोटीन लक्ष्य' : 'Daily Protein Goal'}
+          </span>
           <span className="px-2.5 py-1 rounded-full bg-[#E8F0EC] text-[#1E4620] text-[12px] font-semibold border border-[#D1E2D7]">
             {proteinPct}% Complete
           </span>
         </div>
-        <div className="flex items-center gap-4 py-1">
+        <div className="flex items-center gap-4">
           {/* Circular Progress Ring */}
           <div className="relative w-22 h-22 shrink-0 flex items-center justify-center">
             <svg className="w-22 h-22 -rotate-90" viewBox="0 0 96 96">
@@ -761,7 +549,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </div>
 
           {/* Breakdown items from today's planned meals */}
-          <div className="flex flex-col flex-1 gap-1.5">
+          <div className="flex flex-col flex-1 gap-2">
             {slots.map((slot) => {
               const m = todayMealsBySlot[slot];
               const meta = SLOT_META[slot];
@@ -790,9 +578,9 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </div>
         </div>
 
-                {/* Protein gap suggestions */}
+        {/* Protein gap suggestions */}
         {proteinGapG > 0 && (
-          <div className="flex flex-col gap-2 pt-3 border-t border-[#E6E4DD]">
+          <div className="flex flex-col gap-2 pt-4 border-t border-[#E6E4DD]">
             <span className="text-[12px] text-[#424843] font-medium">
               {isHindi
                 ? `आज लगभग ${proteinGapG} ग्राम प्रोटीन कम है, जोड़ें:`
@@ -813,7 +601,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </div>
         )}
         {lastManualLog && (
-          <div className="flex items-center justify-between pt-3 border-t border-[#E6E4DD] text-[12px] text-[#424843]">
+          <div className="flex items-center justify-between pt-4 border-t border-[#E6E4DD] text-[12px] text-[#424843]">
             <span>
               {isHindi
                 ? `आखिरी जोड़ा: +${lastManualLog.protein_g} ग्राम`
@@ -829,9 +617,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </div>
         )}
 
-
-              {/* Manual protein quick-add */}
-        <div className="flex flex-col gap-2 pt-3 border-t border-[#E6E4DD]">
+        {/* Manual protein quick-add */}
+        <div className="flex flex-col gap-2 pt-4 border-t border-[#E6E4DD]">
           <span className="text-[12px] text-[#424843] font-medium">
             {isHindi ? 'प्रोटीन जोड़ें (अंडा, दूध, शेक…)' : 'Quick add protein (egg, milk, shake…)'}
           </span>
@@ -868,17 +655,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       </section>
 
       {/* Quick Actions Bento Grid */}
-      <section className="flex flex-col gap-2.5">
-        <div className="flex items-center justify-between">
-          <span className="text-[15px] font-bold text-[#1a1c1a]">
-            {isHindi ? 'रसोई के तुरंत काम' : 'Kitchen Actions • तुरंत करें'}
-          </span>
-          <span className="text-[12px] text-[#424843]">Hostel Mode</span>
-        </div>
+      <section className="flex flex-col gap-3">
+        <span className="text-[15px] font-bold text-[#1a1c1a]">
+          {isHindi ? 'रसोई के तुरंत काम' : 'Kitchen Actions • तुरंत करें'}
+        </span>
         <div className="grid grid-cols-2 gap-3">
           {/* Action 1: Scan Bill */}
           <button
-            className="p-3.5 rounded-xl bg-white border border-[#E6E4DD] text-left flex flex-col justify-between gap-3 hover:bg-[#f4f4f0] active:scale-95 transition-all min-h-[92px] shadow-xs cursor-pointer"
+            className="p-4 rounded-xl bg-white border border-[#E6E4DD] text-left flex flex-col justify-between gap-3 hover:bg-[#f4f4f0] active:scale-95 transition-all min-h-[96px] shadow-xs cursor-pointer"
             type="button"
             onClick={() => (onOpenScan ? onOpenScan('receipt') : onNavigate('stock'))}
           >
@@ -893,7 +677,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
           {/* Action 2: Scan Fridge */}
           <button
-            className="p-3.5 rounded-xl bg-white border border-[#E6E4DD] text-left flex flex-col justify-between gap-3 hover:bg-[#f4f4f0] active:scale-95 transition-all min-h-[92px] shadow-xs cursor-pointer"
+            className="p-4 rounded-xl bg-white border border-[#E6E4DD] text-left flex flex-col justify-between gap-3 hover:bg-[#f4f4f0] active:scale-95 transition-all min-h-[96px] shadow-xs cursor-pointer"
             type="button"
             onClick={() => (onOpenScan ? onOpenScan('fridge') : onNavigate('stock'))}
           >
@@ -908,7 +692,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
           {/* Action 3: Smart Grocery */}
           <button
-            className="p-3.5 rounded-xl bg-white border border-[#E6E4DD] text-left flex flex-col justify-between gap-3 hover:bg-[#f4f4f0] active:scale-95 transition-all min-h-[92px] shadow-xs"
+            className="p-4 rounded-xl bg-white border border-[#E6E4DD] text-left flex flex-col justify-between gap-3 hover:bg-[#f4f4f0] active:scale-95 transition-all min-h-[96px] shadow-xs"
             type="button"
             onClick={() => onNavigate('shop')}
           >
@@ -936,7 +720,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
           {/* Action 4: AI Leftovers */}
           <button
-            className="p-3.5 rounded-xl bg-[#1A3826] text-left flex flex-col justify-between gap-3 border border-[#1A3826] hover:bg-[#132a1d] active:scale-95 transition-all min-h-[92px] shadow-xs text-white"
+            className="p-4 rounded-xl bg-[#1A3826] text-left flex flex-col justify-between gap-3 border border-[#1A3826] hover:bg-[#132a1d] active:scale-95 transition-all min-h-[96px] shadow-xs text-white"
             type="button"
             onClick={onOpenVoice}
           >
@@ -952,7 +736,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       </section>
 
       {/* Domestic Assistant / Cook Notes Sheet */}
-      <section className="p-3 rounded-xl bg-[#eeeeea] border border-[#E6E4DD] flex items-center justify-between gap-2 shadow-2xs">
+      <section className="p-3.5 rounded-xl bg-[#eeeeea] border border-[#E6E4DD] flex items-center justify-between gap-2 shadow-2xs">
         <div className="flex items-center gap-2.5 min-w-0">
           <div className="w-8 h-8 rounded-full bg-white border border-[#E6E4DD] flex items-center justify-center text-[#3b684a] shrink-0">
             <span className="material-symbols-outlined text-[20px]">record_voice_over</span>
