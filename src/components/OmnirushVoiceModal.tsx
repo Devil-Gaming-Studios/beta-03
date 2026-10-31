@@ -671,13 +671,13 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
           </div>
         )}
 
-        {/* Microphone Permission / Iframe Policy Notice */}
+        {/* Microphone Notice & Instant Test Chips */}
         {micNotice && (
           <div className="p-3 bg-[#FEF7E0] border border-[#B06000]/30 rounded-xl text-[11.5px] text-[#B06000] flex flex-col gap-2 shrink-0">
             <div className="flex items-start justify-between gap-2">
               <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-[16px] shrink-0">mic_off</span>
-                <span>{micNotice}</span>
+                <span className="material-symbols-outlined text-[16px] shrink-0 text-[#B06000]">mic_off</span>
+                <span className="font-medium">{micNotice}</span>
               </div>
               <button
                 type="button"
@@ -687,6 +687,35 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
                 <span className="material-symbols-outlined text-[16px]">close</span>
               </button>
             </div>
+
+            {/* Instant Voice Test Chips */}
+            <div className="flex flex-col gap-1 pt-0.5 border-t border-[#B06000]/20">
+              <span className="text-[10px] font-bold text-[#727972] uppercase tracking-wider">
+                Instant Voice Commands (tap to test):
+              </span>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {[
+                  { text: 'do kilo aloo add kar do', label: '🥔 +2 kg aloo' },
+                  { text: 'I bought everything that is required', label: '🛒 Bought required' },
+                  { text: 'ek litre doodh khatam ho gaya', label: '🥛 Doodh khatam' },
+                  { text: 'dinner me paneer bhurji banao', label: '🍲 Paneer Bhurji' },
+                ].map((chip, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      setInput(chip.text);
+                      handleSend(chip.text);
+                      setMicNotice(null);
+                    }}
+                    className="px-2 py-1 rounded-lg bg-white border border-[#B06000]/30 text-[#1a1c1a] text-[11px] font-semibold hover:bg-[#FEF3C7] active:scale-95 transition-all shadow-2xs"
+                  >
+                    🗣️ {chip.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="flex items-center gap-2 flex-wrap pt-0.5">
               <a
                 href={typeof window !== 'undefined' ? window.location.href : '#'}
@@ -695,11 +724,11 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
                 className="px-2.5 py-1 rounded-lg bg-[#1A3826] text-white text-[11px] font-bold flex items-center gap-1 hover:bg-[#132a1d] no-underline"
               >
                 <span className="material-symbols-outlined text-[14px]">open_in_new</span>
-                <span>Open App in New Tab (Enables Mic Popup)</span>
+                <span>Open in New Tab (Direct Mic Access)</span>
               </a>
               <label className="px-2.5 py-1 rounded-lg bg-white border border-[#B06000]/40 text-[#1a1c1a] text-[11px] font-bold flex items-center gap-1 cursor-pointer hover:bg-[#f4f4f0]">
                 <span className="material-symbols-outlined text-[14px]">upload_file</span>
-                <span>Upload / Record Audio File</span>
+                <span>Upload Audio File</span>
                 <input
                   type="file"
                   accept="audio/*,video/webm"

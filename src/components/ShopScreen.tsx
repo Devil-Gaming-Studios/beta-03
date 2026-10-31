@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { store } from '../services/store';
 import { ShoppingListItem } from '../types';
 import { SwiggyModal } from './SwiggyModal';
+import { ShopInboxConfirmCard } from './ShopInboxConfirmCard';
 
 interface ShopScreenProps {
   isHindi: boolean;

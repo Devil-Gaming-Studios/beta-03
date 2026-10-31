@@ -267,16 +267,27 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               </span>
             </div>
           </div>
-          {onOpenDownload && (
-            <button
-              onClick={onOpenDownload}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#1A3826] text-white hover:bg-[#132a1d] text-[11px] font-semibold shadow-xs shrink-0 transition-transform active:scale-95 cursor-pointer"
-              title={isHindi ? 'ऐप डाउनलोड करें' : 'Download / Install App'}
+          <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+            {onOpenDownload && (
+              <button
+                onClick={onOpenDownload}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-[#1A3826] text-white hover:bg-[#132a1d] text-[11px] font-semibold shadow-xs transition-transform active:scale-95 cursor-pointer"
+                title={isHindi ? 'वेब ऐप डाउनलोड / इंस्टॉल करें' : 'Download / Install Web App (PWA)'}
+              >
+                <span className="material-symbols-outlined text-[15px]">download</span>
+                <span>{isHindi ? 'वेब ऐप' : 'Web App'}</span>
+              </button>
+            )}
+            <a
+              href="/mastmeals.apk"
+              download="MastMeals-native.apk"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-[#047857] text-white hover:bg-[#065f46] text-[11px] font-semibold shadow-xs transition-transform active:scale-95 cursor-pointer no-underline"
+              title={isHindi ? 'नेटिव एंड्रॉयड ऐप APK डाउनलोड करें' : 'Download Native Android App (.apk)'}
             >
-              <span className="material-symbols-outlined text-[15px]">download</span>
-              <span>{isHindi ? 'ऐप डाउनलोड' : 'Download App'}</span>
-            </button>
-          )}
+              <span className="material-symbols-outlined text-[15px]">android</span>
+              <span>{isHindi ? 'नेटिव APK' : 'Native App'}</span>
+            </a>
+          </div>
         </div>
 
         {/* Voice Assistant Hero Card */}
