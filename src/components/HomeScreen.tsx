@@ -66,17 +66,52 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const todayStr = getTodayStr();
   const [selectedDateStr, setSelectedDateStr] = useState<string>(() => getTodayStr());
   const weekMonday = getMonday();
-  const weekDays = store.getWeekDays(weekMonday, isHindi);
+  const plan = store.getPlan(weekMonday);
+  const dietMemory = store.getDietMemory();
+
+  const weekDays =
+    typeof (store as any).getWeekDays === 'function'
+      ? store.getWeekDays(weekMonday, isHindi)
+      : (['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const).map((dayKey, idx) => {
+          const parts = weekMonday.split('-').map(Number);
+          const d = new Date(parts[0], (parts[1] || 1) - 1, (parts[2] || 1) + idx);
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, '0');
+          const dayNum = String(d.getDate()).padStart(2, '0');
+          const dateStr = `${y}-${m}-${dayNum}`;
+          return {
+            offset: idx,
+            dayKey,
+            dateStr,
+            dayName: d.toLocaleDateString(isHindi ? 'hi-IN' : 'en-US', { weekday: 'short' }),
+            dayNum: d.getDate(),
+            monthShort: d.toLocaleDateString(isHindi ? 'hi-IN' : 'en-US', { month: 'short' }),
+            isToday: dateStr === todayStr,
+            varietyMode: dietMemory?.weekly_variety_schedule?.[dayKey] || 'regular',
+          };
+        });
+
   const activeDateStr = weekDays.some((d) => d.dateStr === selectedDateStr)
     ? selectedDateStr
     : todayStr;
   const selectedDayInfo = weekDays.find((d) => d.dateStr === activeDateStr);
-  const plan = store.getPlan(weekMonday);
-  const dayMeals = store.getMealsForDate(activeDateStr);
+  const dayMeals =
+    typeof (store as any).getMealsForDate === 'function'
+      ? store.getMealsForDate(activeDateStr)
+      : (plan?.meals || []).filter((m) => m.meal_date === activeDateStr);
   const me = store.getMe();
   const recipesCount = store.getRecipes().length;
   const planCheck = store.planCheck(weekMonday);
-  const expiringStock = store.getExpiringStock(3);
+  const expiringStock =
+    typeof (store as any).getExpiringStock === 'function'
+      ? store.getExpiringStock(3)
+      : store
+          .getStock('all')
+          .filter(
+            (i) =>
+              i.qty_base > 0 &&
+              ((i.shelf_life_days !== undefined && i.shelf_life_days <= 3) || Boolean(i.expiry))
+          );
 
   const slots: MealSlot[] = ['breakfast', 'lunch', 'dinner'];
   const todayMealsBySlot: Record<MealSlot, PlannedMeal | undefined> = {

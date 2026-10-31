@@ -54,11 +54,36 @@ export const PlannerScreen: React.FC<PlannerScreenProps> = ({
   };
 
   // Build 7-day calendar strip from canonical weekStart (Monday) using shared store helper
-  const days = store.getWeekDays(weekStart, isHindi);
+  const days =
+    typeof (store as any).getWeekDays === 'function'
+      ? store.getWeekDays(weekStart, isHindi)
+      : DAY_KEYS.map((dayKey, idx) => {
+          const parts = weekStart.split('-').map(Number);
+          const d = new Date(parts[0], (parts[1] || 1) - 1, (parts[2] || 1) + idx);
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, '0');
+          const dayNum = String(d.getDate()).padStart(2, '0');
+          const dateStr = `${y}-${m}-${dayNum}`;
+          const now = new Date();
+          const todayLocal = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+          return {
+            offset: idx,
+            dayKey,
+            dateStr,
+            dayName: d.toLocaleDateString(isHindi ? 'hi-IN' : 'en-US', { weekday: 'short' }),
+            dayNum: d.getDate(),
+            monthShort: d.toLocaleDateString(isHindi ? 'hi-IN' : 'en-US', { month: 'short' }),
+            isToday: dateStr === todayLocal,
+            varietyMode: dietMemory.weekly_variety_schedule[dayKey] || 'regular',
+          };
+        });
 
   const selectedDay = days[selectedDayOffset] || days[0];
   const selectedDateStr = selectedDay.dateStr;
-  const dayMeals = store.getMealsForDate(selectedDateStr);
+  const dayMeals =
+    typeof (store as any).getMealsForDate === 'function'
+      ? store.getMealsForDate(selectedDateStr)
+      : (plan?.meals || []).filter((m) => m.meal_date === selectedDateStr);
 
   const showToast = (msg: string) => {
     setNotice(msg);

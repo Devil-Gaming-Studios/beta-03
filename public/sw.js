@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mast-meals-network-first-v6';
+const CACHE_NAME = 'mast-meals-network-first-v7';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
