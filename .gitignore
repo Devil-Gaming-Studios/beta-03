@@ -42,3 +42,6 @@ android/keystore/
 
 # Python bytecode in the test backend
 backend/__pycache__/
+
+# Generated graph data (rebuild with backend/graph/build_graph_data.py)
+data/graph/
