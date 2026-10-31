@@ -20,6 +20,7 @@ import { CommunityScreen } from './components/CommunityScreen';
 import { DownloadAppModal } from './components/DownloadAppModal';
 import { store } from './services/store';
 import { syncClient } from './services/syncClient';
+import { SyncLinkBanner } from './components/SyncLinkBanner';
 import { MealSlot } from './types';
 
 export const App: React.FC = () => {
@@ -102,6 +103,8 @@ export const App: React.FC = () => {
         onOpenDownload={() => setIsDownloadModalOpen(true)}
         onOpenScan={(mode) => setScanModalMode(mode || 'receipt')}
       />
+
+      <SyncLinkBanner isHindi={isHindi} />
 
       {/* Main Content Area */}
       <main className="flex-1 w-full pt-20 pb-24">

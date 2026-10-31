@@ -28,6 +28,7 @@ const listeners: Record<string, Function[]> = {};
 const realFetch = globalThis.fetch;
 (globalThis as any).fetch = (u: any, o: any) => realFetch(String(u).startsWith('/') ? BASE + u : u, o);
 
+if (process.env.SYNC_POLL_MS) (globalThis as any).__SYNC_POLL_MS = process.env.SYNC_POLL_MS;
 const { store } = await import('../src/services/store');
 const { syncClient } = await import('../src/services/syncClient');
 
@@ -57,6 +58,19 @@ if (cmd === 'register') {
 } else if (cmd === 'remove') {
   const it = store.getStock('all').find((s) => s.name === args[0]);
   console.log('removed', it ? store.removeStockItem(it.id) : false);
+} else if (cmd === 'register-local') {
+  const r = store.registerWithFullProfile({ ...base, householdName: 'Local Only Kitchen' } as any);
+  console.log(JSON.stringify({ local: r.success }));
+} else if (cmd === 'connect') {
+  const c = await syncClient.connect('asha@example.com', 'secret123', true);
+  console.log(JSON.stringify({ sync: c, hh: store.getMe().household.name, stock: names().filter((n) => /^ZZ/.test(n)) }));
+} else if (cmd === 'listen') {
+  // no polling help: the live stream alone must deliver the change within the window
+  syncClient.start();
+  await syncClient.syncNow();
+  await new Promise((r) => setTimeout(r, Number(args[0] || 5) * 1000));
+  console.log(JSON.stringify({ stock: names().filter((n) => /^ZZ/.test(n)) }));
+  process.exit(0);
 } else if (cmd === 'sync') {
   await syncClient.syncNow();
   console.log(JSON.stringify(syncClient.getInfo()));
