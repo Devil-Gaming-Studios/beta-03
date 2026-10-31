@@ -16,6 +16,7 @@ import { OmnirushVoiceModal } from './components/OmnirushVoiceModal';
 import { RecipeModal } from './components/RecipeModal';
 import { ScanModal } from './components/ScanModal';
 import { AuthScreen } from './components/AuthScreen';
+import { CommunityScreen } from './components/CommunityScreen';
 import { DownloadAppModal } from './components/DownloadAppModal';
 import { store } from './services/store';
 import { MealSlot } from './types';
@@ -188,7 +189,18 @@ export const App: React.FC = () => {
             <ShopScreen key={planRefreshKey} isHindi={isHindi} />
           ))}
 
-        {/* Tab 6: Household & Cloud Kitchen Profile / Roles / P&L Reports */}
+        {/* Tab 6: Community Dish Feed (Threads style) */}
+        {currentTab === 'community' && (
+          <CommunityScreen
+            key={planRefreshKey}
+            isHindi={isHindi}
+            onViewRecipe={(id, servings) =>
+              setViewRecipe({ id, servings, autoOpenPlanForm: false })
+            }
+          />
+        )}
+
+        {/* Tab 7: Household & Cloud Kitchen Profile / Roles / P&L Reports */}
         {currentTab === 'household' && (
           <HouseholdScreen
             key={planRefreshKey}

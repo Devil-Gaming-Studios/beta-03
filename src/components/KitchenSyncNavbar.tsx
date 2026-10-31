@@ -1,7 +1,7 @@
 import React from 'react';
 import { store } from '../services/store';
 
-export type NavTab = 'home' | 'planner' | 'recipes' | 'stock' | 'shop' | 'household';
+export type NavTab = 'home' | 'planner' | 'recipes' | 'stock' | 'shop' | 'community' | 'household';
 
 interface KitchenSyncNavbarProps {
   currentTab: NavTab;
@@ -188,6 +188,31 @@ export const KitchenSyncNavbar: React.FC<KitchenSyncNavbarProps> = ({
               : isHindi
               ? 'खरीदें'
               : 'Shop'}
+          </span>
+        </button>
+
+        {/* Community Dish Feed Tab */}
+        <button
+          className={`flex flex-col items-center justify-center flex-1 min-w-0 py-1 transition-all ${
+            currentTab === 'community' ? 'text-[#032212] font-semibold' : 'text-[#424843] hover:text-[#1a1c1a]'
+          }`}
+          type="button"
+          onClick={() => onSelectTab('community')}
+        >
+          <span
+            className={`w-8 sm:w-10 h-6 sm:h-7 rounded-full flex items-center justify-center transition-all duration-200 ${
+              currentTab === 'community' ? 'bg-[#E8F0EC]' : ''
+            }`}
+          >
+            <span
+              className="material-symbols-outlined text-[20px] sm:text-[22px]"
+              style={currentTab === 'community' ? { fontVariationSettings: "'FILL' 1" } : {}}
+            >
+              forum
+            </span>
+          </span>
+          <span className="text-[9px] sm:text-[10px] font-medium mt-0.5 text-center leading-tight truncate max-w-full">
+            {isHindi ? 'कम्युनिटी' : 'Feed'}
           </span>
         </button>
 

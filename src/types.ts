@@ -595,3 +595,21 @@ export interface CloudKitchenReport {
   low_margin_warnings: { name: string; margin_percent: number }[];
 }
 
+export interface CommunityPost {
+  id: string;
+  household_id: string;
+  author_id: string;
+  author_name: string;
+  author_avatar?: string;
+  caption: string;
+  image_url: string;
+  recipe_id?: string;
+  recipe_title?: string;
+  recipe_prep_time_mins?: number;
+  recipe_diet_tag?: 'veg' | 'nonveg' | 'egg';
+  likes_count: number;
+  liked_by_me: boolean;
+  created_at: string;
+}
+
+

@@ -41,6 +41,7 @@ import {
   OrderSource,
   PaymentStatus,
   CloudOrderItem,
+  CommunityPost,
 } from '../types';
 import seedData from '../data/graph_rag_seed.json';
 import {
@@ -392,6 +393,76 @@ interface DBState {
   purchaseLists: Record<string, PurchaseList[]>;
   cloudRole: Record<string, CloudKitchenRole>;
   pureVegOnly: Record<string, boolean>;
+  communityPosts: CommunityPost[];
+}
+
+export function getDefaultCommunityPosts(): CommunityPost[] {
+  return [
+    {
+      id: 'post_seed_1',
+      household_id: 'hh_alpha',
+      author_id: 'usr_beta',
+      author_name: 'Rohan Verma',
+      author_avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100&auto=format&fit=crop&q=80',
+      caption: 'Cooked fresh Paneer Bhurji with hot tawa rotis for dinner tonight! Used fresh malai paneer from the kitchen stock and finished with roasted kasuri methi & extra green chillies. Turned out super soft and protein-packed! 🔥🍛',
+      image_url: 'https://images.unsplash.com/photo-1567188040759-fb8a883dc6d8?w=800&auto=format&fit=crop&q=80',
+      recipe_id: 'rec_paneer_01',
+      recipe_title: 'High-Protein Paneer Bhurji & Roti',
+      recipe_prep_time_mins: 20,
+      recipe_diet_tag: 'veg',
+      likes_count: 14,
+      liked_by_me: true,
+      created_at: new Date(Date.now() - 2 * 3600000).toISOString(),
+    },
+    {
+      id: 'post_seed_2',
+      household_id: 'hh_alpha',
+      author_id: 'usr_alpha',
+      author_name: 'Divyansh (Head Chef)',
+      author_avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=100&auto=format&fit=crop&q=80',
+      caption: 'Sunday special Hyderabadi Dum Biryani batch cooked in copper handi! Layered with aromatic basmati, saffron infused milk, fried golden onions (birista) and desi ghee. Followed the recipe yield ratio from the planner!',
+      image_url: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=800&auto=format&fit=crop&q=80',
+      recipe_id: 'rec_biryani_01',
+      recipe_title: 'Vegetable Dum Biryani',
+      recipe_prep_time_mins: 45,
+      recipe_diet_tag: 'veg',
+      likes_count: 29,
+      liked_by_me: false,
+      created_at: new Date(Date.now() - 5 * 3600000).toISOString(),
+    },
+    {
+      id: 'post_seed_3',
+      household_id: 'hh_alpha',
+      author_id: 'usr_sneha',
+      author_name: 'Sneha Patel',
+      author_avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&auto=format&fit=crop&q=80',
+      caption: 'Comfort food at its absolute best: Lasooni Palak Moong Dal with hot jeera rice. Added double garlic tadka with a dash of hing in pure cow ghee. Light, nutritious and comforting.',
+      image_url: 'https://images.unsplash.com/photo-1546833999-b9f581a1996d?w=800&auto=format&fit=crop&q=80',
+      recipe_id: 'rec_palak_dal_01',
+      recipe_title: 'Lasooni Palak Moong Dal',
+      recipe_prep_time_mins: 25,
+      recipe_diet_tag: 'veg',
+      likes_count: 8,
+      liked_by_me: false,
+      created_at: new Date(Date.now() - 14 * 3600000).toISOString(),
+    },
+    {
+      id: 'post_seed_4',
+      household_id: 'hh_alpha',
+      author_id: 'usr_aman',
+      author_name: 'Aman Gupta',
+      author_avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&auto=format&fit=crop&q=80',
+      caption: 'Quick 15-minute Kanda Poha before heading to work! Roasted peanuts with crunchy mustard seeds and fresh curry leaves. Simple homestyle Indian breakfast!',
+      image_url: 'https://images.unsplash.com/photo-1626777552726-4a6b54c97e46?w=800&auto=format&fit=crop&q=80',
+      recipe_id: 'rec_poha_01',
+      recipe_title: 'Kanda Poha (कांदा पोहा)',
+      recipe_prep_time_mins: 15,
+      recipe_diet_tag: 'veg',
+      likes_count: 21,
+      liked_by_me: true,
+      created_at: new Date(Date.now() - 26 * 3600000).toISOString(),
+    },
+  ];
 }
 
 function initializeState(): DBState {
@@ -928,6 +999,7 @@ function initializeState(): DBState {
     pureVegOnly: {
       hh_alpha: false,
     },
+    communityPosts: getDefaultCommunityPosts(),
   };
 }
 
@@ -954,6 +1026,9 @@ class StoreService {
         if (!parsed.purchaseLists) parsed.purchaseLists = {};
         if (!parsed.cloudRole) parsed.cloudRole = {};
         if (!parsed.pureVegOnly) parsed.pureVegOnly = {};
+        if (!parsed.communityPosts || parsed.communityPosts.length === 0) {
+          parsed.communityPosts = getDefaultCommunityPosts();
+        }
 
         const hhId = parsed.currentHouseholdId || 'hh_alpha';
         if (!parsed.menuItems[hhId] || parsed.menuItems[hhId].length === 0) {
@@ -4776,6 +4851,81 @@ class StoreService {
 
   public getAuditLog() {
     return this.state.auditLog;
+  }
+
+  // ---------------------------------------------------------------------------
+  // COMMUNITY DISH FEED (Threads-style cooked dishes sharing)
+  // ---------------------------------------------------------------------------
+  public getCommunityPosts(): CommunityPost[] {
+    if (!this.state.communityPosts || this.state.communityPosts.length === 0) {
+      this.state.communityPosts = getDefaultCommunityPosts();
+      this.persist();
+    }
+    return this.state.communityPosts;
+  }
+
+  public createCommunityPost(data: {
+    caption: string;
+    image_url: string;
+    recipe_id?: string;
+    recipe_title?: string;
+    recipe_prep_time_mins?: number;
+    recipe_diet_tag?: 'veg' | 'nonveg' | 'egg';
+  }): CommunityPost {
+    if (!this.state.communityPosts) {
+      this.state.communityPosts = getDefaultCommunityPosts();
+    }
+
+    const me = this.getMe();
+    const newPost: CommunityPost = {
+      id: 'post_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+      household_id: me.household.id,
+      author_id: me.user.id,
+      author_name: me.user.name || 'Home Cook',
+      author_avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
+      caption: data.caption.trim(),
+      image_url: data.image_url,
+      recipe_id: data.recipe_id,
+      recipe_title: data.recipe_title,
+      recipe_prep_time_mins: data.recipe_prep_time_mins,
+      recipe_diet_tag: data.recipe_diet_tag,
+      likes_count: 0,
+      liked_by_me: false,
+      created_at: new Date().toISOString(),
+    };
+
+    this.state.communityPosts.unshift(newPost);
+    this.logAudit('community_post_created', { postId: newPost.id, recipe: data.recipe_title });
+    this.persist();
+    return newPost;
+  }
+
+  public togglePostLike(postId: string): { liked: boolean; likesCount: number } {
+    if (!this.state.communityPosts) {
+      this.state.communityPosts = getDefaultCommunityPosts();
+    }
+
+    const post = this.state.communityPosts.find((p) => p.id === postId);
+    if (!post) {
+      return { liked: false, likesCount: 0 };
+    }
+
+    post.liked_by_me = !post.liked_by_me;
+    post.likes_count = Math.max(0, post.likes_count + (post.liked_by_me ? 1 : -1));
+    this.persist();
+    return { liked: post.liked_by_me, likesCount: post.likes_count };
+  }
+
+  public deleteCommunityPost(postId: string): boolean {
+    if (!this.state.communityPosts) return false;
+    const initialLen = this.state.communityPosts.length;
+    this.state.communityPosts = this.state.communityPosts.filter((p) => p.id !== postId);
+    if (this.state.communityPosts.length !== initialLen) {
+      this.logAudit('community_post_deleted', { postId });
+      this.persist();
+      return true;
+    }
+    return false;
   }
 }
 
