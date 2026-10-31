@@ -10,7 +10,10 @@ import { HouseholdScreen } from './components/HouseholdScreen';
 import { OmnirushVoiceModal } from './components/OmnirushVoiceModal';
 import { RecipeModal } from './components/RecipeModal';
 import { ScanModal } from './components/ScanModal';
-import { MealSlot } from './types';
+import { OnboardingScreen } from './components/OnboardingScreen';
+import { store } from './services/store';
+
+import { DietPreference, MealSlot } from './types';
 
 export const App: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<NavTab>('home');
@@ -18,6 +21,7 @@ export const App: React.FC = () => {
   const [isVoiceOpen, setIsVoiceOpen] = useState(false);
   const [scanModalMode, setScanModalMode] = useState<'receipt' | 'fridge' | null>(null);
   const [planRefreshKey, setPlanRefreshKey] = useState(0);
+  const [onboarded, setOnboarded] = useState<boolean>(() => store.isOnboardingComplete());
   const [viewRecipe, setViewRecipe] = useState<{
     id: string;
     servings: number;
@@ -29,6 +33,23 @@ export const App: React.FC = () => {
   const toggleLanguage = () => {
     setIsHindi((prev) => !prev);
   };
+
+  const handleOnboardingComplete = (diet: DietPreference, isBeginner: boolean) => {
+    store.completeOnboarding(diet, isBeginner);
+    setPlanRefreshKey((k) => k + 1);
+    setOnboarded(true);
+  };
+
+  // Gate: nothing else renders until diet preference has been chosen.
+  if (!onboarded) {
+    return (
+      <OnboardingScreen
+        isHindi={isHindi}
+        onToggleLang={toggleLanguage}
+        onComplete={handleOnboardingComplete}
+      />
+    );
+  }
 
   return (
     <div className="bg-[#faf9f6] min-h-screen text-[#1a1c1a] flex flex-col selection:bg-[#EDF2EE] selection:text-[#032212]">

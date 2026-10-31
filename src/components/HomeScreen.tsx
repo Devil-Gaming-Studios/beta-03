@@ -46,7 +46,14 @@ const SLOT_META: Record<
       'https://lh3.googleusercontent.com/aida-public/AB6AXuDMd98cyEV-yWYvfqgo73Sovw0-2kuwXTJHhwES6mEUDRE_D9sv9x-Yk6OR773HDUUhy7xfHMPsQ7ZrMKTazJDIEyQP8wNNUPW5nMxqwWjDpXOTCN40djk5Z2Z0VR3otPp3JKOk3tzNTw1Za9TQPRh6-gIgxK9iiEU0SGl7pswMtYmOilxub99XN8EMfthFerpzQ2z90qZATqfg1my-fi-kLKtuiLaS6lwi-_wMLhM',
   },
 };
-
+const PROTEIN_ADDONS: { label: string; protein_g: number; nonVegOnly?: boolean }[] = [
+  { label: 'Paneer 50 g', protein_g: 9 },
+  { label: 'Dahi 200 ml', protein_g: 7 },
+  { label: 'Milk 250 ml', protein_g: 8 },
+  { label: 'Soya chunks 30 g', protein_g: 15 },
+  { label: '2 eggs', protein_g: 12, nonVegOnly: true },
+  { label: 'Chicken 100 g', protein_g: 25, nonVegOnly: true },
+];
 export const HomeScreen: React.FC<HomeScreenProps> = ({
   isHindi,
   onNavigate,
@@ -58,7 +65,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const [expiryAdded, setExpiryAdded] = useState(false);
   const [didiNote, setDidiNote] = useState('Kam namak aur bina pyaaz wali daal');
   const [isEditingNote, setIsEditingNote] = useState(false);
-  const [quickAddNotice, setQuickAddNotice] = useState<string | null>(null);
+    const [quickAddNotice, setQuickAddNotice] = useState<string | null>(null);
+  const [manualProteinInput, setManualProteinInput] = useState('');
   const [, setRefreshTick] = useState(0);
 
   const refresh = () => setRefreshTick((t) => t + 1);
@@ -167,9 +175,32 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
   // Compute real daily protein goal from today's planned & cooked meals
   const todayMealsList = slots.map((s) => todayMealsBySlot[s]).filter(Boolean) as PlannedMeal[];
-  const cookedProteinG = todayMealsList
+    const mealProteinG = todayMealsList
     .filter((m) => m.status === 'done')
     .reduce((acc, m) => acc + (m.nutrition?.protein_g || 14), 0);
+  const primaryMemberId = me.members[0]?.id || 'mem_1';
+  const manualProteinG = store.getManualProteinToday(primaryMemberId);
+  const cookedProteinG = mealProteinG + manualProteinG;
+  const lastManualLog = store.getLastManualProteinLogToday(primaryMemberId);
+
+  const handleUndoManualProtein = () => {
+    const removed = store.removeLastManualProteinLog(primaryMemberId);
+    setQuickAddNotice(
+      removed ? `Removed +${removed.protein_g}g protein entry` : 'Nothing to undo'
+    );
+    refresh();
+    setTimeout(() => setQuickAddNotice(null), 3000);
+  };
+
+  const handleAddManualProtein = (grams: number) => {
+    const log = store.addManualProteinLog(primaryMemberId, grams);
+    setQuickAddNotice(
+      log ? `Logged +${log.protein_g}g protein` : 'Enter a protein amount between 1 and 200 g'
+    );
+    if (log) setManualProteinInput('');
+    refresh();
+    setTimeout(() => setQuickAddNotice(null), 3000);
+  };
   const totalPlannedProteinG = todayMealsList.reduce(
     (acc, m) => acc + (m.nutrition?.protein_g || 14),
     0
@@ -177,6 +208,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const targetProteinG = Math.max(me.members[0]?.protein_target_g || 70, totalPlannedProteinG, 60);
   const proteinPct = Math.min(100, Math.round((cookedProteinG / targetProteinG) * 100));
   const strokeDashoffset = Math.round(238.7 * (1 - proteinPct / 100));
+  const proteinGapG = Math.max(0, targetProteinG - cookedProteinG);
+  // Fails closed: non-veg foods only when both the user and the member being tracked are non-veg
+  const showNonVegAddons =
+    me.user.diet_pref === 'nonveg' && me.members[0]?.diet_pref === 'nonveg';
+  const proteinAddons = PROTEIN_ADDONS.filter((a) => !a.nonVegOnly || showNonVegAddons);
 
   return (
     <div className="flex flex-col w-full px-4 pb-8 max-w-xl mx-auto gap-y-4">
@@ -687,6 +723,82 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                 </div>
               );
             })}
+          </div>
+        </div>
+
+                {/* Protein gap suggestions */}
+        {proteinGapG > 0 && (
+          <div className="flex flex-col gap-2 pt-3 border-t border-[#E6E4DD]">
+            <span className="text-[12px] text-[#424843] font-medium">
+              {isHindi
+                ? `आज लगभग ${proteinGapG} ग्राम प्रोटीन कम है, जोड़ें:`
+                : `About ${proteinGapG} g short today. Add:`}
+            </span>
+            <div className="flex items-center gap-2 flex-wrap">
+              {proteinAddons.map((a) => (
+                <button
+                  key={a.label}
+                  type="button"
+                  onClick={() => handleAddManualProtein(a.protein_g)}
+                  className="px-3 py-1 rounded-full bg-white text-[#1A3826] text-[12px] font-semibold border border-[#D1E2D7] active:scale-95 transition-all hover:bg-[#EDF2EE]"
+                >
+                  + {a.label} (≈{a.protein_g} g)
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {lastManualLog && (
+          <div className="flex items-center justify-between pt-3 border-t border-[#E6E4DD] text-[12px] text-[#424843]">
+            <span>
+              {isHindi
+                ? `आखिरी जोड़ा: +${lastManualLog.protein_g} ग्राम`
+                : `Last added: +${lastManualLog.protein_g} g`}
+            </span>
+            <button
+              type="button"
+              onClick={handleUndoManualProtein}
+              className="px-3 py-1 rounded-full bg-white border border-[#E6E4DD] text-[#1a1c1a] text-[11.5px] font-semibold hover:bg-[#eeeeea] active:scale-95 transition-all"
+            >
+              Undo
+            </button>
+          </div>
+        )}
+
+
+              {/* Manual protein quick-add */}
+        <div className="flex flex-col gap-2 pt-3 border-t border-[#E6E4DD]">
+          <span className="text-[12px] text-[#424843] font-medium">
+            {isHindi ? 'प्रोटीन जोड़ें (अंडा, दूध, शेक…)' : 'Quick add protein (egg, milk, shake…)'}
+          </span>
+          <div className="flex items-center gap-2 flex-wrap">
+            {[5, 10, 20].map((g) => (
+              <button
+                key={g}
+                type="button"
+                onClick={() => handleAddManualProtein(g)}
+                className="px-3 py-1 rounded-full bg-[#EDF2EE] text-[#1A3826] text-[12px] font-semibold border border-[#D1E2D7] active:scale-95 transition-all hover:bg-[#d8e6db]"
+              >
+                +{g}g
+              </button>
+            ))}
+            <input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={200}
+              value={manualProteinInput}
+              onChange={(e) => setManualProteinInput(e.target.value)}
+              placeholder="g"
+              className="w-16 text-[12px] bg-white border border-[#E6E4DD] rounded-full px-2.5 py-1 text-[#1a1c1a] focus:outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => handleAddManualProtein(Number(manualProteinInput))}
+              className="px-3 py-1 rounded-full bg-[#1A3826] text-white text-[12px] font-semibold active:scale-95 transition-all hover:bg-[#132a1d]"
+            >
+              Add
+            </button>
           </div>
         </div>
       </section>

@@ -27,6 +27,7 @@ export interface User {
   name: string;
   diet_pref: DietPreference;
   is_beginner_cook: boolean;
+  onboarding_completed?: boolean;
   google_sub?: string;
   created_at: string;
 }

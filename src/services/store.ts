@@ -724,6 +724,25 @@ class StoreService {
     return this.getMe();
   }
 
+  // --- Onboarding gate ---
+  // A user counts as onboarded only after explicitly finishing the onboarding screen.
+  // Saved states from older builds have no flag, so they see the screen once.
+  public isOnboardingComplete(): boolean {
+    const user = this.state.users[this.state.currentUserId];
+    return !!user && user.onboarding_completed === true;
+  }
+
+  public completeOnboarding(diet_pref: DietPreference, is_beginner_cook: boolean) {
+    const user = this.state.users[this.state.currentUserId];
+    if (user) {
+      user.diet_pref = diet_pref;
+      user.is_beginner_cook = is_beginner_cook;
+      user.onboarding_completed = true;
+      this.persist();
+    }
+    return this.getMe();
+  }
+
   // --- Multi-Week Diet Memory & Regular vs. New Schedule (localStorage) ---
   public getDietMemory(): UserDietMemory {
     try {
@@ -2779,6 +2798,48 @@ class StoreService {
       percentage: Math.min(100, Math.round((todayTotal / target) * 100)),
       logs,
     };
+  }
+
+    // --- Manual protein quick-add ---
+  public addManualProteinLog(memberId: string, grams: number): IntakeLog | null {
+    const g = Math.round(grams);
+    if (!Number.isFinite(g) || g <= 0 || g > 200) return null;
+    if (!Array.isArray(this.state.intakeLogs)) this.state.intakeLogs = [];
+    const log: IntakeLog = {
+      id: 'intake_manual_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+      member_id: memberId,
+      date: getTodayStr(),
+      protein_g: g,
+      source: 'manual',
+    };
+    this.state.intakeLogs.push(log);
+    this.logAudit('protein_manual_logged', { memberId, protein_g: g });
+    this.persist();
+    return log;
+  }
+
+  public getManualProteinToday(memberId: string): number {
+    const todayStr = getTodayStr();
+    return (this.state.intakeLogs || [])
+      .filter((l) => l.member_id === memberId && l.date === todayStr && l.source === 'manual')
+      .reduce((sum, l) => sum + l.protein_g, 0);
+  }
+
+  public getLastManualProteinLogToday(memberId: string): IntakeLog | null {
+    const todayStr = getTodayStr();
+    const logs = (this.state.intakeLogs || []).filter(
+      (l) => l.member_id === memberId && l.date === todayStr && l.source === 'manual'
+    );
+    return logs.length > 0 ? logs[logs.length - 1] : null;
+  }
+
+  public removeLastManualProteinLog(memberId: string): IntakeLog | null {
+    const last = this.getLastManualProteinLogToday(memberId);
+    if (!last) return null;
+    this.state.intakeLogs = this.state.intakeLogs.filter((l) => l.id !== last.id);
+    this.logAudit('protein_manual_removed', { memberId, protein_g: last.protein_g });
+    this.persist();
+    return last;
   }
 
   // --- Omnirush & Pending Actions ---
