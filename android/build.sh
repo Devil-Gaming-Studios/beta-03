@@ -29,7 +29,7 @@ mkdir -p build/classes build/dex
 
 echo "== javac"
 javac --release 17 -Xlint:-options -cp "$ANDROID_JAR" -d build/classes \
-  java/com/mastmeals/shell/MainActivity.java
+  java/com/mastmeals/shell/*.java
 
 # The d8/apksigner launchers are .bat on Windows, so drive their jars with java.
 javad8() { java -cp "$BT/lib/d8.jar" com.android.tools.r8.D8 "$@"; }

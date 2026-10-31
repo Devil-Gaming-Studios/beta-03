@@ -58,11 +58,12 @@ function getAiClient(): GoogleGenAI {
   });
 }
 
-const agentModel = process.env.GEMINI_MODEL || process.env.GEMINI_AGENT_MODEL || 'gemini-3.5-flash';
+const agentModel = process.env.GEMINI_MODEL || process.env.GEMINI_AGENT_MODEL || 'gemini-3.8-flash';
 const fallbackTextModel = 'gemini-3.8-flash';
 const transcribeModel = 'gemini-3.5-transcribe';
 
 import { graphService } from './server/graphService';
+import { shopInboxService } from './server/shopInboxService';
 
 let systemInstruction = `You are Omnirush, the assistant inside Mast Meals / KitchenSync, a household meal, recipe and kitchen-stock assistant for Indian households. You help with:
 1. Updating inventory stock (e.g. add/remove/set ingredients).
@@ -589,6 +590,129 @@ Carefully inspect the uploaded photo of a fridge, pantry shelf, countertop, or g
 });
 
 // ---------------------------------------------------------------------------
+// Shop Chat Listener & Telegram Bot Ingestion: /api/shop-inbox
+// ---------------------------------------------------------------------------
+app.post('/api/shop-inbox', async (req: Request, res: Response): Promise<any> => {
+  // 1. Rate limiting (max 30 requests per minute per IP / token)
+  const clientIp = req.ip || req.socket.remoteAddress || 'unknown';
+  const authHeader = req.headers.authorization || (req.headers['x-auth-token'] as string) || '';
+  const rateKey = `${clientIp}_${String(authHeader).slice(0, 20)}`;
+  if (!shopInboxService.checkRateLimit(rateKey)) {
+    return res.status(429).json({ error: 'Rate limit exceeded for shop inbox submissions. Please slow down.' });
+  }
+
+  // 2. Auth token validation (Bearer token or X-Auth-Token)
+  let token = '';
+  if (typeof authHeader === 'string') {
+    token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : authHeader.trim();
+  }
+  if (!token && process.env.APP_AUTH_TOKEN) {
+    return res.status(401).json({ error: 'Unauthorized: missing Authorization token' });
+  }
+  if (process.env.APP_AUTH_TOKEN && token !== process.env.APP_AUTH_TOKEN) {
+    return res.status(403).json({ error: 'Forbidden: invalid Authorization token' });
+  }
+
+  // 3. Payload validation
+  const { source, sender, text, timestamp } = req.body;
+  if (!text || typeof text !== 'string' || !text.trim()) {
+    return res.status(400).json({ error: 'Message text is required' });
+  }
+  const validSources = ['whatsapp', 'telegram', 'telegram_bot', 'manual', 'test'];
+  const normalizedSource = validSources.includes(source) ? (source as any) : 'manual';
+
+  try {
+    const inboxItem = await shopInboxService.ingestShopMessage({
+      source: normalizedSource,
+      sender: sender || 'Shop Contact',
+      text: text.trim(),
+      timestamp: timestamp ? Number(timestamp) : Date.now(),
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: 'Shop message received and stored in pending inbox for user confirmation.',
+      item: inboxItem,
+    });
+  } catch (err: any) {
+    console.error('Failed to process shop message into inbox:', err);
+    return res.status(500).json({ error: `Failed to process shop message: ${err?.message || 'Internal error'}` });
+  }
+});
+
+app.get('/api/shop-inbox', (req: Request, res: Response) => {
+  const { status } = req.query;
+  const items = status === 'all'
+    ? shopInboxService.getAllItems()
+    : shopInboxService.getPendingItems();
+  return res.json({ items });
+});
+
+app.post('/api/shop-inbox/:id/apply', (req: Request, res: Response): any => {
+  const { items } = req.body;
+  const applied = shopInboxService.markApplied(req.params.id, Array.isArray(items) ? items : undefined);
+  if (!applied) {
+    return res.status(404).json({ error: 'Shop inbox item not found' });
+  }
+  return res.json({ success: true, item: applied });
+});
+
+app.delete('/api/shop-inbox/:id', (req: Request, res: Response): any => {
+  const deleted = shopInboxService.deleteItem(req.params.id);
+  if (!deleted) {
+    return res.status(404).json({ error: 'Shop inbox item not found' });
+  }
+  return res.json({ success: true, message: 'Shop inbox item removed' });
+});
+
+app.post('/api/telegram-webhook', async (req: Request, res: Response): Promise<any> => {
+  // Validate secret token if sent or configured
+  const secretHeader = req.headers['x-telegram-bot-api-secret-token'];
+  const configuredSecret = process.env.TELEGRAM_BOT_SECRET_TOKEN || 'mastmeals_telegram_secret';
+  if (secretHeader && secretHeader !== configuredSecret) {
+    console.warn('Telegram webhook rejected: secret token mismatch');
+    return res.status(403).json({ error: 'Invalid secret token' });
+  }
+
+  const update = req.body;
+  const msg = update?.message || update?.edited_message || update?.channel_post;
+  if (!msg || !msg.text) {
+    return res.status(200).json({ ok: true, ignored: 'No text message in update' });
+  }
+
+  // Chat-ID allow-list enforcement
+  const allowedChatIdsStr = process.env.TELEGRAM_ALLOWED_CHAT_IDS || '';
+  if (allowedChatIdsStr && allowedChatIdsStr.trim() !== '*') {
+    const allowedChatIds = allowedChatIdsStr.split(',').map((id) => id.trim());
+    const chatId = String(msg.chat?.id || '');
+    const senderId = String(msg.from?.id || '');
+    if (!allowedChatIds.includes(chatId) && !allowedChatIds.includes(senderId)) {
+      console.warn(`Telegram webhook: rejected unauthorized chat ID ${chatId} / sender ${senderId}`);
+      return res.status(200).json({ ok: true, ignored: 'Chat ID not in allow-list' });
+    }
+  }
+
+  const senderName = [msg.from?.first_name, msg.from?.last_name].filter(Boolean).join(' ') ||
+    msg.from?.username ||
+    msg.chat?.title ||
+    'Telegram Shop Contact';
+
+  try {
+    const inboxItem = await shopInboxService.ingestShopMessage({
+      source: 'telegram_bot',
+      sender: senderName,
+      text: msg.text,
+      timestamp: (msg.date ? Number(msg.date) * 1000 : Date.now()),
+    });
+
+    return res.status(200).json({ ok: true, inboxId: inboxItem.id });
+  } catch (err: any) {
+    console.error('Telegram bot webhook processing error:', err);
+    return res.status(200).json({ ok: true, error: err?.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Speech-to-Text (STT) Routing API: Shruti, Cactus Whisper & Sarvam Saaras v3
 // ---------------------------------------------------------------------------
 const SARVAM_API_KEY = process.env.SARVAM_API_KEY || '';
@@ -692,71 +816,100 @@ app.post('/api/stt/transcribe', async (req: Request, res: Response): Promise<any
       try {
         const ai = getAiClient();
         const cleanBase64 = audioBase64.replace(/^data:[^;]+;base64,/i, '').trim();
-        const cleanMimeType = (mimeType || 'audio/webm').split(';')[0].trim() || 'audio/webm';
+        let rawMime = (mimeType || 'audio/webm').split(';')[0].trim().toLowerCase();
+        if (rawMime.includes('webm')) rawMime = 'audio/webm';
+        else if (rawMime.includes('mp4') || rawMime.includes('m4a')) rawMime = 'audio/mp4';
+        else if (rawMime.includes('wav')) rawMime = 'audio/wav';
+        else if (rawMime.includes('ogg')) rawMime = 'audio/ogg';
 
         let transcribedText = '';
+
+        // Primary: gemini-3.8-flash native multimodal audio
         try {
-          const transcribeRes = await ai.models.generateContent({
-            model: transcribeModel,
+          const flashRes = await ai.models.generateContent({
+            model: 'gemini-3.8-flash',
             contents: {
               parts: [
                 {
                   inlineData: {
                     data: cleanBase64,
-                    mimeType: cleanMimeType,
+                    mimeType: rawMime,
                   },
                 },
                 {
-                  text: `Transcribe the spoken words in this audio into text (${detectedLang === 'en' ? 'English' : 'Hindi, Hinglish, or English'}). Return only the exact words spoken, or an empty string if silent.`,
+                  text: `You are an Indian kitchen voice assistant for KitchenSync / Mast Meals.
+Listen to this audio recording and transcribe the user's speech accurately into Hindi, English, or Hinglish.
+Common commands include:
+- Kitchen stock adjustments: e.g. "2 kilo aloo add kar do", "1 litre doodh khatam ho gaya", "dahi aur paneer khatam", "add 500g butter".
+- Meal planning & cooking: e.g. "dinner me paneer bhurji rakh do", "poore hafte ka meal plan banao", "kya banayein".
+- Restock & shopping: e.g. "I bought everything required", "saara zaroori samaan khareed liya", "add bread to shopping list".
+
+CRITICAL INSTRUCTIONS:
+- Return ONLY the exact words spoken.
+- Do NOT add explanation, greetings, or punctuation marks around the text.
+- If the audio contains only silence, static, or background noise with no audible human speech, return an empty string "".`,
                 },
               ],
             },
           });
-          transcribedText = (transcribeRes.text || '').trim();
-        } catch {
-          const fallbackRes = await ai.models.generateContent({
-            model: agentModel,
-            contents: {
-              parts: [
-                {
-                  inlineData: {
-                    data: cleanBase64,
-                    mimeType: cleanMimeType,
+          const textOut = (flashRes.text || '').trim();
+          if (textOut && !textOut.toLowerCase().includes('[silence]') && textOut !== '""' && textOut !== "''") {
+            transcribedText = textOut.replace(/^["']|["']$/g, '').trim();
+          }
+        } catch (flashErr: any) {
+          console.warn('Gemini 3.8 Flash audio transcribe error, trying transcribeModel:', flashErr?.message);
+        }
+
+        // Secondary: gemini-3.5-transcribe if primary returned empty
+        if (!transcribedText) {
+          try {
+            const transcribeRes = await ai.models.generateContent({
+              model: transcribeModel,
+              contents: {
+                parts: [
+                  {
+                    inlineData: {
+                      data: cleanBase64,
+                      mimeType: rawMime,
+                    },
                   },
-                },
-                {
-                  text: `You are an Indian kitchen speech-to-text engine for KitchenSync.
-Transcribe the spoken words in the audio accurately into text.
-IMPORTANT: Do NOT invent or guess words if the audio is silent or contains only background noise; if no clear speech is heard, return {"transcript": "", "language": "${detectedLang}", "confidence": 0.0}.
-Output ONLY valid JSON:
-{"transcript": "transcribed text", "language": "${detectedLang}", "confidence": 0.95}`,
-                },
-              ],
-            },
-            config: {
-              responseMimeType: 'application/json',
-            },
-          });
-          const parsed = JSON.parse(fallbackRes.text || '{}');
-          transcribedText = (parsed.transcript || '').trim();
+                  {
+                    text: 'Transcribe this audio.',
+                  },
+                ],
+              },
+            });
+            const tText = (
+              transcribeRes.text ||
+              (transcribeRes.candidates?.[0]?.content?.parts?.[0] as any)?.text ||
+              ''
+            ).trim();
+            if (tText && !tText.toLowerCase().includes('silence')) {
+              transcribedText = tText;
+            }
+          } catch (tErr: any) {
+            console.warn('gemini-3.5-transcribe error:', tErr?.message);
+          }
         }
 
         if (transcribedText) {
           finalTranscript = transcribedText;
-          baseScore = 0.95;
+          finalEngine = 'gemini_flash';
+          baseScore = 0.96;
           fallbackTriggered = true;
         }
       } catch (geminiErr: any) {
-        console.warn('Gemini audio transcription notice:', geminiErr?.message);
+        console.warn('Gemini audio transcription failed:', geminiErr?.message);
       }
     }
   }
 
-  // Format response engine tag (accurate labeling: Web Speech API / Sarvam Saaras)
+  // Format response engine tag (accurate labeling: Web Speech API / Sarvam Saaras / Gemini Cloud)
   const engineLabels: Record<string, string> = {
     shruti: 'Browser Speech Recognition (Hinglish tuned)',
     cactus_whisper: 'Browser Speech Recognition (English)',
     sarvam_saaras: 'Sarvam Saaras v3 (cloud fallback)',
+    gemini_flash: 'Gemini Audio Intelligence (Cloud STT)',
   };
 
   return res.json({

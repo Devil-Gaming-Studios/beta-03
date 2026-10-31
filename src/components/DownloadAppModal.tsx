@@ -32,10 +32,10 @@ export const DownloadAppModal: React.FC<DownloadAppModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-black/65 backdrop-blur-sm animate-fade-in">
       <div
         aria-modal="true"
-        className="bg-[#faf9f6] w-full max-w-md rounded-3xl shadow-2xl border border-[#E6E4DD] overflow-hidden flex flex-col max-h-[90vh]"
+        className="bg-[#faf9f6] w-full max-w-xl rounded-3xl shadow-2xl border border-[#E6E4DD] overflow-hidden flex flex-col max-h-[92vh]"
         role="dialog"
       >
         {/* Header with App Branding */}
@@ -47,13 +47,15 @@ export const DownloadAppModal: React.FC<DownloadAppModalProps> = ({
               src="/icon.svg"
             />
             <div>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-2">
                 <h3 className="font-bold text-lg leading-tight">Mast Meals</h3>
-                <span className="text-[10px] bg-[#d97706] text-white px-1.5 py-0.5 rounded-full font-semibold uppercase tracking-wider">
-                  PWA
+                <span className="text-[10px] bg-[#34D399] text-[#032212] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
+                  Web &amp; Native
                 </span>
               </div>
-              <p className="text-xs text-[#b7e9c3] mt-0.5">KitchenSync Household OS</p>
+              <p className="text-xs text-[#b7e9c3] mt-0.5">
+                {isHindi ? 'किचनसिंक हाउसहोल्ड ओएस - वेब व नेटिव ऐप्स' : 'KitchenSync Household OS • Web & Native Apps'}
+              </p>
             </div>
           </div>
           <button
@@ -67,63 +69,121 @@ export const DownloadAppModal: React.FC<DownloadAppModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div className="p-5 overflow-y-auto space-y-4">
+        <div className="p-4 sm:p-6 overflow-y-auto space-y-4">
           {/* Status banner if already installed */}
           {isInstalled && (
             <div className="p-3 bg-[#e8f5e9] border border-[#a5d6a7] text-[#1b5e20] rounded-xl text-xs flex items-center gap-2">
               <span className="material-symbols-outlined text-[18px]">verified</span>
               <span className="font-medium">
                 {isHindi
-                  ? 'यह ऐप आपके डिवाइस पर पहले से इंस्टॉल है।'
-                  : 'This app is already installed on your device.'}
+                  ? 'वेब ऐप आपके डिवाइस पर पहले से इंस्टॉल है।'
+                  : 'Web App (PWA) is already installed on this device.'}
               </span>
             </div>
           )}
 
-          {/* Value Highlights */}
-          <div className="grid grid-cols-3 gap-2 text-center">
-            <div className="p-2.5 rounded-2xl bg-white border border-[#E6E4DD]">
-              <span className="material-symbols-outlined text-[#1A3826] text-[22px]">offline_bolt</span>
-              <p className="text-[11px] font-semibold text-[#1a1c1a] mt-1">
-                {isHindi ? 'ऑफलाइन तैयार' : 'Offline Ready'}
-              </p>
-              <p className="text-[10px] text-[#727972]">No internet needed</p>
-            </div>
-            <div className="p-2.5 rounded-2xl bg-white border border-[#E6E4DD]">
-              <span className="material-symbols-outlined text-[#1A3826] text-[22px]">speed</span>
-              <p className="text-[11px] font-semibold text-[#1a1c1a] mt-1">
-                {isHindi ? 'फास्ट लोड' : 'Instant Launch'}
-              </p>
-              <p className="text-[10px] text-[#727972]">&lt; 3MB size</p>
-            </div>
-            <div className="p-2.5 rounded-2xl bg-white border border-[#E6E4DD]">
-              <span className="material-symbols-outlined text-[#1A3826] text-[22px]">home_app_logo</span>
-              <p className="text-[11px] font-semibold text-[#1a1c1a] mt-1">
-                {isHindi ? 'होम स्क्रीन' : 'Home Screen'}
-              </p>
-              <p className="text-[10px] text-[#727972]">1-tap icon</p>
-            </div>
-          </div>
+          {/* Side-by-side Dual Download Section */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            {/* Option 1: Web App (PWA) */}
+            <div className="p-4 rounded-2xl bg-white border border-[#E6E4DD] shadow-xs flex flex-col justify-between hover:border-[#1A3826]/40 transition-all">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="w-9 h-9 rounded-xl bg-[#EDF2EE] text-[#1A3826] flex items-center justify-center font-bold">
+                    <span className="material-symbols-outlined text-[20px]">language</span>
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-[#E8F0EC] text-[#137333] text-[10px] font-bold">
+                    Web App (PWA)
+                  </span>
+                </div>
+                <h4 className="text-[15px] font-bold text-[#1a1c1a]">
+                  {isHindi ? 'वेब ऐप इंस्टॉल करें' : 'Install Web App'}
+                </h4>
+                <p className="text-[11.5px] text-[#424843] leading-relaxed">
+                  {isHindi
+                    ? 'ब्राउज़र से 1-टैप में होम स्क्रीन पर जोड़ें। क्रोम, सफारी, एज में 100% ऑफलाइन काम करता है।'
+                    : '1-tap install on Chrome, Safari, Edge, or mobile browsers. Offline ready, zero store fees.'}
+                </p>
+                <ul className="text-[11px] text-[#727972] space-y-1 pt-1">
+                  <li className="flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[14px] text-[#137333]">check</span>
+                    <span>Instant Launch (&lt; 3MB)</span>
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[14px] text-[#137333]">check</span>
+                    <span>Full Offline Mode</span>
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[14px] text-[#137333]">check</span>
+                    <span>Home Screen Icon</span>
+                  </li>
+                </ul>
+              </div>
 
-          {/* Primary Action Button */}
-          <div>
-            <button
-              className="w-full py-3.5 px-4 rounded-xl bg-[#1A3826] hover:bg-[#132a1d] active:scale-[0.98] transition-all text-white font-semibold text-sm flex items-center justify-center gap-2 shadow-md cursor-pointer"
-              type="button"
-              onClick={handleInstallClick}
-            >
-              <span className="material-symbols-outlined text-[20px]">download_for_offline</span>
-              <span>
-                {isHindi
-                  ? 'ऐप इंस्टॉल करें / डाउनलोड करें'
-                  : 'Install App / Add to Home Screen'}
-              </span>
-            </button>
-            <p className="text-[11px] text-center text-[#727972] mt-1.5">
-              {isHindi
-                ? 'गूगल क्रोम, सफारी, एज या एंड्रॉयड ब्राउज़र द्वारा सीधे इंस्टॉल करें'
-                : 'Installs directly via Chrome, Safari, Edge or Android browser without app store fees'}
-            </p>
+              <div className="pt-4">
+                <button
+                  className="w-full py-2.5 px-3 rounded-xl bg-[#1A3826] hover:bg-[#132a1d] active:scale-[0.98] transition-all text-white font-semibold text-xs flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
+                  type="button"
+                  onClick={handleInstallClick}
+                >
+                  <span className="material-symbols-outlined text-[18px]">download_for_offline</span>
+                  <span>{isHindi ? 'वेब ऐप इंस्टॉल करें' : 'Install Web App'}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Option 2: Native Android App (.apk) */}
+            <div className="p-4 rounded-2xl bg-white border border-[#34D399]/40 shadow-xs flex flex-col justify-between hover:border-[#10B981] transition-all relative overflow-hidden">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="w-9 h-9 rounded-xl bg-[#DCFCE7] text-[#15803D] flex items-center justify-center font-bold">
+                    <span className="material-symbols-outlined text-[20px]">android</span>
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-[#DCFCE7] text-[#15803D] text-[10px] font-bold">
+                    Native Android APK
+                  </span>
+                </div>
+                <h4 className="text-[15px] font-bold text-[#1a1c1a]">
+                  {isHindi ? 'नेटिव ऐप डाउनलोड करें' : 'Download Native App'}
+                </h4>
+                <p className="text-[11.5px] text-[#424843] leading-relaxed">
+                  {isHindi
+                    ? 'एंड्रॉयड APK जिसमें WhatsApp और Telegram से शॉप चैट लिसनर, रूम डेटाबेस और बैकग्राउंड सिंक शामिल है।'
+                    : 'Native Android app featuring Shop Chat Listener (WhatsApp & Telegram), offline Room queue & WebBridge.'}
+                </p>
+                <ul className="text-[11px] text-[#727972] space-y-1 pt-1">
+                  <li className="flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[14px] text-[#15803D]">check</span>
+                    <span>Shop Chat Listener Service</span>
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[14px] text-[#15803D]">check</span>
+                    <span>WhatsApp &amp; Telegram support</span>
+                  </li>
+                  <li className="flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-[14px] text-[#15803D]">check</span>
+                    <span>Offline Room SQLite Queue</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="pt-4 flex flex-col gap-1.5">
+                <a
+                  className="w-full py-2.5 px-3 rounded-xl bg-[#047857] hover:bg-[#065f46] active:scale-[0.98] transition-all text-white font-semibold text-xs flex items-center justify-center gap-1.5 shadow-sm cursor-pointer no-underline text-center"
+                  download="MastMeals-native.apk"
+                  href="/mastmeals.apk"
+                >
+                  <span className="material-symbols-outlined text-[18px]">android</span>
+                  <span>{isHindi ? 'नेटिव APK डाउनलोड करें' : 'Download Native APK'}</span>
+                </a>
+                <a
+                  className="text-[10.5px] text-center text-[#727972] hover:text-[#1a1c1a] underline"
+                  download="MastMeals-package.zip"
+                  href="/MastMeals-test.zip"
+                >
+                  {isHindi ? 'ज़िप पैकेज डाउनलोड करें (.zip)' : 'Download Standalone Package (.zip)'}
+                </a>
+              </div>
+            </div>
           </div>
 
           {/* iOS Safari Instructions */}
@@ -168,26 +228,6 @@ export const DownloadAppModal: React.FC<DownloadAppModalProps> = ({
               </p>
             </div>
           )}
-
-          {/* Alternate: Offline ZIP Bundle */}
-          <div className="pt-2 border-t border-[#E6E4DD] flex items-center justify-between text-xs">
-            <div>
-              <span className="font-medium text-[#1a1c1a]">
-                {isHindi ? 'ऑफ़लाइन पैकेज (.zip)' : 'Standalone Bundle (.zip)'}
-              </span>
-              <p className="text-[11px] text-[#727972]">
-                {isHindi ? 'स्थानीय उपयोग और बैकअप के लिए' : 'For offline deployment or local test'}
-              </p>
-            </div>
-            <a
-              className="px-3 py-1.5 rounded-lg bg-[#eeeeea] hover:bg-[#e4e4df] text-[#1a1c1a] font-medium text-xs flex items-center gap-1 transition-colors cursor-pointer"
-              download="MastMeals-package.zip"
-              href="/MastMeals-test.zip"
-            >
-              <span className="material-symbols-outlined text-[15px]">folder_zip</span>
-              <span>{isHindi ? 'डाउनलोड करें' : 'Download ZIP'}</span>
-            </a>
-          </div>
         </div>
       </div>
     </div>
