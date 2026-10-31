@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { store } from '../services/store';
 import { CommunityPost, Recipe } from '../types';
+import { shareNative, vibrateNative } from '../utils/nativeApp';
 
 interface CommunityScreenProps {
   isHindi: boolean;
@@ -148,6 +149,7 @@ export const CommunityScreen: React.FC<CommunityScreenProps> = ({ isHindi, onVie
   };
 
   const handleToggleLike = (postId: string) => {
+    vibrateNative(50);
     store.togglePostLike(postId);
     setRefreshKey((k) => k + 1);
   };
@@ -160,20 +162,11 @@ export const CommunityScreen: React.FC<CommunityScreenProps> = ({ isHindi, onVie
     }
   };
 
-  const handleSharePost = (post: CommunityPost) => {
-    if (navigator.share) {
-      navigator
-        .share({
-          title: `${post.author_name}'s dish on KitchenSync`,
-          text: `${post.caption} ${post.recipe_title ? `(Recipe: ${post.recipe_title})` : ''}`,
-          url: window.location.href,
-        })
-        .catch(() => {});
-    } else {
-      navigator.clipboard?.writeText(
-        `Check out ${post.author_name}'s dish on KitchenSync: "${post.caption}"`
-      );
-      showToast(isHindi ? 'लिंक कॉपी हो गया!' : 'Post link copied to clipboard!');
+  const handleSharePost = async (post: CommunityPost) => {
+    const shareText = `Check out ${post.author_name}'s dish on KitchenSync: "${post.caption}" ${post.recipe_title ? `(Recipe: ${post.recipe_title})` : ''}`;
+    const shared = await shareNative(shareText, `${post.author_name}'s dish on KitchenSync`);
+    if (shared) {
+      showToast(isHindi ? 'शेयर किया गया / कॉपी हुआ!' : 'Shared / copied to clipboard!');
     }
   };
 

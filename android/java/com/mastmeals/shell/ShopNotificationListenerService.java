@@ -119,10 +119,20 @@ public class ShopNotificationListenerService extends NotificationListenerService
 
         if (conversationName.isEmpty()) return;
 
-        // Strict case-insensitive match against configured shop contact name
-        boolean isMatch = conversationName.equalsIgnoreCase(configuredContact) ||
-                conversationName.toLowerCase().contains(configuredContact.toLowerCase()) ||
-                configuredContact.toLowerCase().contains(conversationName.toLowerCase());
+        // Strict case-insensitive match against configured shop/contractor contact names (supports comma-separated list)
+        boolean isMatch = false;
+        String[] allowedTargets = configuredContact.split("[,;]");
+        for (String target : allowedTargets) {
+            String cleanTarget = target.trim();
+            if (!cleanTarget.isEmpty()) {
+                if (conversationName.equalsIgnoreCase(cleanTarget) ||
+                        conversationName.toLowerCase().contains(cleanTarget.toLowerCase()) ||
+                        cleanTarget.toLowerCase().contains(conversationName.toLowerCase())) {
+                    isMatch = true;
+                    break;
+                }
+            }
+        }
 
         if (!isMatch) {
             // Discard immediately: NEVER log, persist, or forward other chats

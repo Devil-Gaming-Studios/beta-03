@@ -8,6 +8,7 @@ import {
   CloudKitchenRole,
 } from '../types';
 import { canPerformCloudAction } from '../services/cloudKitchenService';
+import { shareNative } from '../utils/nativeApp';
 
 interface CloudKitchenHomeProps {
   isHindi: boolean;
@@ -900,9 +901,31 @@ export const CloudKitchenHome: React.FC<CloudKitchenHomeProps> = ({
               <button
                 type="button"
                 onClick={() => setShowKOTModal(null)}
-                className="flex-1 py-2 rounded-xl border border-gray-300 text-[12px] font-bold text-gray-700"
+                className="px-3 py-2 rounded-xl border border-gray-300 text-[12px] font-bold text-gray-700 hover:bg-gray-50"
               >
                 Close
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const kotText = [
+                    `🍳 KOT / ORDER #${showKOTModal.id.slice(-6).toUpperCase()}`,
+                    `Customer: ${showKOTModal.customer_name} ${showKOTModal.customer_phone ? `(${showKOTModal.customer_phone})` : ''}`,
+                    `Source: ${showKOTModal.source.toUpperCase()} | Scheduled: ${showKOTModal.scheduled_time}`,
+                    '---------------------------',
+                    ...showKOTModal.items.map((it) => `${it.quantity}x ${it.name}${it.variant_name ? ` (${it.variant_name})` : ''} - ₹${it.total_price_inr}`),
+                    '---------------------------',
+                    `Total: ₹${showKOTModal.total_amount_inr} | Payment: ${showKOTModal.payment_status.toUpperCase()}`,
+                    showKOTModal.notes ? `Note: ${showKOTModal.notes}` : '',
+                  ].filter(Boolean).join('\n');
+
+                  const shared = await shareNative(kotText, `KOT Order #${showKOTModal.id.slice(-6).toUpperCase()}`);
+                  if (shared) showToast('KOT shared successfully');
+                }}
+                className="flex-1 py-2 rounded-xl bg-[#047857] text-white text-[12px] font-bold flex items-center justify-center gap-1 shadow-xs hover:bg-[#065f46]"
+              >
+                <span className="material-symbols-outlined text-[16px]">share</span>
+                <span>Share KOT</span>
               </button>
               <button
                 type="button"
@@ -910,7 +933,7 @@ export const CloudKitchenHome: React.FC<CloudKitchenHomeProps> = ({
                   window.print();
                   showToast('Sent to printer / KOT ready');
                 }}
-                className="flex-1 py-2 rounded-xl bg-[#1A3826] text-white text-[12px] font-bold flex items-center justify-center gap-1"
+                className="flex-1 py-2 rounded-xl bg-[#1A3826] text-white text-[12px] font-bold flex items-center justify-center gap-1 hover:bg-[#132a1d]"
               >
                 <span className="material-symbols-outlined text-[16px]">print</span>
                 <span>Print KOT</span>

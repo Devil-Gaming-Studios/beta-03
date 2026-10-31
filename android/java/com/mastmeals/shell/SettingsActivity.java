@@ -71,16 +71,16 @@ public class SettingsActivity extends Activity {
         subtitle.setPadding(0, dp(4), 0, dp(16));
         layout.addView(subtitle);
 
-        // Section 1: Shop Contact Name
-        layout.addView(createLabel("Shop Contact Name (WhatsApp / Telegram)"));
+        // Section 1: Shop & Contractor Contact Names
+        layout.addView(createLabel("Shop / Contractor Contact Names (WhatsApp / Telegram)"));
         editContact = new EditText(this);
-        editContact.setText(prefs.getString(KEY_CONTACT, "Gupta Kirana Store"));
-        editContact.setHint("e.g. Gupta Kirana Store");
+        editContact.setText(prefs.getString(KEY_CONTACT, "Gupta Kirana Store, Dairy Contractor"));
+        editContact.setHint("e.g. Gupta Kirana Store, Fresh Veggies, Orders");
         styleInput(editContact);
         layout.addView(editContact);
 
         TextView contactNote = new TextView(this);
-        contactNote.setText("Only notifications from this specific contact name will be processed. All other chats are strictly ignored.");
+        contactNote.setText("Notifications from these specific contacts/contractors will be processed into your pending inbox (comma-separated). All other chats are strictly ignored.");
         contactNote.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
         contactNote.setTextColor(Color.parseColor("#888888"));
         contactNote.setPadding(0, dp(2), 0, dp(16));
