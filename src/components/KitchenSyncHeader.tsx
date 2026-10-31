@@ -5,6 +5,7 @@ interface KitchenSyncHeaderProps {
   onToggleLang: () => void;
   onOpenProfile: () => void;
   onOpenVoice: () => void;
+  onOpenDownload: () => void;
 }
 
 export const KitchenSyncHeader: React.FC<KitchenSyncHeaderProps> = ({
@@ -12,6 +13,7 @@ export const KitchenSyncHeader: React.FC<KitchenSyncHeaderProps> = ({
   onToggleLang,
   onOpenProfile,
   onOpenVoice,
+  onOpenDownload,
 }) => {
   return (
     <header className="fixed top-0 inset-x-0 z-50 bg-[#faf9f6]/90 backdrop-blur-xl border-b border-[#E6E4DD] pt-safe">
@@ -44,8 +46,22 @@ export const KitchenSyncHeader: React.FC<KitchenSyncHeaderProps> = ({
           </div>
         </div>
 
-        {/* Right: Omnirush Voice Mic, Sync Status and User Profile */}
-        <div className="flex items-center gap-2">
+        {/* Right: Download, Omnirush Voice Mic, Sync Status and User Profile */}
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Download App Action Button */}
+          <button
+            aria-label="Download and Install Web App"
+            className="flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-full bg-[#1A3826]/10 text-[#1A3826] hover:bg-[#1A3826]/15 active:scale-95 transition-all text-xs font-semibold cursor-pointer border border-[#1A3826]/20"
+            type="button"
+            onClick={onOpenDownload}
+            title="Download or install Mast Meals web app on home screen"
+          >
+            <span className="material-symbols-outlined text-[17px]">download</span>
+            <span className="hidden xs:inline">
+              {isHindi ? 'डाउनलोड' : 'Download'}
+            </span>
+          </button>
+
           {/* Header Mic Action Button */}
           <button
             aria-label="Omnirush Voice Assistant (Shruti & Cactus Whisper)"

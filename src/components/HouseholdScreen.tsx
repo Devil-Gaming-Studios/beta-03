@@ -10,6 +10,7 @@ import {
   DietPreference,
   UserDietMemory,
 } from '../types';
+import { usePWAInstall } from '../hooks/usePWAInstall';
 
 interface HouseholdScreenProps {
   isHindi: boolean;
@@ -74,6 +75,7 @@ const REGION_OPTIONS = [
 ];
 
 export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi }) => {
+  const { install, isInstalled } = usePWAInstall();
   const [me, setMe] = useState(() => store.getMe());
   const [dietMemory, setDietMemory] = useState<UserDietMemory>(() => store.getDietMemory());
   const [showAddMember, setShowAddMember] = useState(false);
@@ -985,6 +987,75 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi }) => 
             </button>
           </div>
         </form>
+      </div>
+
+      {/* App Download & Installation Card */}
+      <div className="p-4 rounded-2xl bg-white border border-[#E6E4DD] shadow-xs flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-[#1A3826] text-[20px]">
+              install_mobile
+            </span>
+            <h2 className="text-[13px] font-bold text-[#1a1c1a]">
+              {isHindi ? 'वेब ऐप इंस्टॉल करें / डाउनलोड' : 'Download Web App (PWA)'}
+            </h2>
+          </div>
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#e8f5e9] text-[#1b5e20] font-semibold">
+            {isInstalled ? 'Installed' : 'Ready'}
+          </span>
+        </div>
+
+        <p className="text-[11.5px] text-[#424843]">
+          {isHindi
+            ? 'मस्त मील्स को अपने मोबाइल या डेस्कटॉप होम स्क्रीन पर जोड़ें। यह बिना इंटरनेट के भी सुपरफ़ास्ट चलेगा।'
+            : 'Add Mast Meals to your home screen or desktop. Works offline, launches in full-screen standalone mode with zero browser address bars.'}
+        </p>
+
+        <div className="flex items-center gap-2 pt-1">
+          <button
+            type="button"
+            onClick={async () => {
+              const res = await install();
+              if (res === 'accepted') {
+                setNotice(isHindi ? 'ऐप इंस्टॉल हो गया!' : 'App installed successfully!');
+              } else if (res === 'manual_ios') {
+                setNotice(
+                  isHindi
+                    ? 'सफारी में Share (⎙) दबाकर "Add to Home Screen" चुनें'
+                    : 'In Safari, tap Share (⎙) -> "Add to Home Screen"'
+                );
+              } else {
+                setNotice(
+                  isHindi
+                    ? 'ब्राउज़र एड्रेस बार में ⤓ आइकन पर क्लिक करें'
+                    : 'Click the install icon in your browser address bar'
+                );
+              }
+            }}
+            className="flex-1 py-2.5 px-3 rounded-xl bg-[#1A3826] hover:bg-[#132a1d] active:scale-95 text-white text-[12px] font-semibold flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[17px]">download</span>
+            <span>
+              {isInstalled
+                ? isHindi
+                  ? 'ऐप इंस्टॉल है'
+                  : 'App Installed'
+                : isHindi
+                  ? 'होम स्क्रीन पर जोड़ें'
+                  : 'Install to Home Screen'}
+            </span>
+          </button>
+
+          <a
+            href="/MastMeals-test.zip"
+            download="MastMeals-package.zip"
+            className="py-2.5 px-3 rounded-xl bg-[#eeeeea] hover:bg-[#e4e4df] text-[#1a1c1a] text-[12px] font-medium flex items-center gap-1 transition-colors cursor-pointer"
+            title="Download standalone offline zip"
+          >
+            <span className="material-symbols-outlined text-[16px]">folder_zip</span>
+            <span>ZIP</span>
+          </a>
+        </div>
       </div>
     </div>
   );

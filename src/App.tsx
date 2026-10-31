@@ -11,6 +11,7 @@ import { OmnirushVoiceModal } from './components/OmnirushVoiceModal';
 import { RecipeModal } from './components/RecipeModal';
 import { ScanModal } from './components/ScanModal';
 import { OnboardingScreen } from './components/OnboardingScreen';
+import { DownloadAppModal } from './components/DownloadAppModal';
 import { store } from './services/store';
 import { DietPreference, MealSlot } from './types';
 
@@ -18,6 +19,7 @@ export const App: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<NavTab>('home');
   const [isHindi, setIsHindi] = useState(false);
   const [isVoiceOpen, setIsVoiceOpen] = useState(false);
+  const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
   const [scanModalMode, setScanModalMode] = useState<'receipt' | 'fridge' | null>(null);
   const [planRefreshKey, setPlanRefreshKey] = useState(0);
   const [onboarded, setOnboarded] = useState<boolean>(() => store.isOnboardingComplete());
@@ -58,6 +60,7 @@ export const App: React.FC = () => {
         onToggleLang={toggleLanguage}
         onOpenProfile={() => setCurrentTab('household')}
         onOpenVoice={() => setIsVoiceOpen(true)}
+        onOpenDownload={() => setIsDownloadModalOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -69,6 +72,7 @@ export const App: React.FC = () => {
             onNavigate={(tab) => setCurrentTab(tab)}
             onOpenVoice={() => setIsVoiceOpen(true)}
             onOpenScan={(mode) => setScanModalMode(mode)}
+            onOpenDownload={() => setIsDownloadModalOpen(true)}
             onViewRecipe={(id, servings, planDate, planSlot) =>
               setViewRecipe({
                 id,
@@ -175,6 +179,13 @@ export const App: React.FC = () => {
         autoOpenPlanForm={viewRecipe?.autoOpenPlanForm}
         onClose={() => setViewRecipe(null)}
         onPlanUpdated={() => setPlanRefreshKey((k) => k + 1)}
+      />
+
+      {/* Download Web App / PWA Install Modal */}
+      <DownloadAppModal
+        isOpen={isDownloadModalOpen}
+        onClose={() => setIsDownloadModalOpen(false)}
+        isHindi={isHindi}
       />
     </div>
   );

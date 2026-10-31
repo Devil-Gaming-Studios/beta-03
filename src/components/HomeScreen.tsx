@@ -9,6 +9,7 @@ interface HomeScreenProps {
   onOpenVoice: () => void;
   onOpenScan?: (mode: 'receipt' | 'fridge') => void;
   onViewRecipe?: (recipeId: string, servings: number, planDate?: string, planSlot?: MealSlot) => void;
+  onOpenDownload?: () => void;
 }
 
 const SLOT_META: Record<
@@ -60,6 +61,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onOpenVoice,
   onOpenScan,
   onViewRecipe,
+  onOpenDownload,
 }) => {
   const [showExpiryAlert, setShowExpiryAlert] = useState(true);
   const [expiryAdded, setExpiryAdded] = useState(false);
@@ -247,25 +249,34 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </div>
         </div>
 
-        {/* Offline Readiness Notification Chip */}
-        <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-[#f4f4f0] border border-[#E6E4DD] text-[#1a1c1a]">
-          <div className="flex items-center gap-2">
+        {/* Offline Readiness Notification Chip & Download App Action */}
+        <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-[#f4f4f0] border border-[#E6E4DD] text-[#1a1c1a] gap-2">
+          <div className="flex items-center gap-2 min-w-0">
             <span
-              className="material-symbols-outlined text-[#3b684a] text-[20px]"
+              className="material-symbols-outlined text-[#3b684a] text-[20px] shrink-0"
               style={{ fontVariationSettings: "'FILL' 1" }}
             >
               cloud_done
             </span>
-            <div className="flex flex-col">
-              <span className="text-[12px] font-semibold text-[#032212]">
+            <div className="flex flex-col min-w-0">
+              <span className="text-[12px] font-semibold text-[#032212] truncate">
                 Offline ready • {recipesCount} recipes cached
               </span>
-              <span className="text-[11px] text-[#424843]">
+              <span className="text-[11px] text-[#424843] truncate">
                 {isHindi ? 'बिना इंटरनेट के भी चलेगा' : 'Functions completely offline'}
               </span>
             </div>
           </div>
-          <span className="material-symbols-outlined text-[#727972] text-[18px]">verified_user</span>
+          {onOpenDownload && (
+            <button
+              onClick={onOpenDownload}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#1A3826] text-white hover:bg-[#132a1d] text-[11px] font-semibold shadow-xs shrink-0 transition-transform active:scale-95 cursor-pointer"
+              title={isHindi ? 'ऐप डाउनलोड करें' : 'Download / Install App'}
+            >
+              <span className="material-symbols-outlined text-[15px]">download</span>
+              <span>{isHindi ? 'ऐप डाउनलोड' : 'Download App'}</span>
+            </button>
+          )}
         </div>
 
         {/* Voice Assistant Hero Card */}
@@ -919,6 +930,35 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           <span>{isEditingNote ? 'Save' : 'Edit'}</span>
         </button>
       </section>
+
+      {/* Install / Download KitchenSync App Card */}
+      {onOpenDownload && (
+        <section className="p-4 rounded-2xl bg-gradient-to-br from-[#f8faf8] to-[#edf4ef] border border-[#d2e4d7] flex items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-[#1A3826] text-white flex items-center justify-center shrink-0 shadow-xs">
+              <span className="material-symbols-outlined text-[22px]">install_mobile</span>
+            </div>
+            <div className="flex flex-col min-w-0">
+              <span className="text-[13px] font-bold text-[#1a1c1a]">
+                {isHindi ? 'किचनसिंक ऐप इंस्टॉल करें' : 'Get KitchenSync App'}
+              </span>
+              <span className="text-[11px] text-[#424843]">
+                {isHindi
+                  ? 'होमस्क्रीन पर जोड़ें या ऑफलाइन ज़िप डाउनलोड करें'
+                  : 'Install on Home Screen or download offline app'}
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onOpenDownload}
+            className="px-3.5 py-2 rounded-xl bg-[#1A3826] text-white text-[12px] font-semibold hover:bg-[#132a1d] active:scale-95 transition-all shadow-xs shrink-0 flex items-center gap-1.5 cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[16px]">download</span>
+            <span>{isHindi ? 'डाउनलोड' : 'Download'}</span>
+          </button>
+        </section>
+      )}
     </div>
   );
 };
