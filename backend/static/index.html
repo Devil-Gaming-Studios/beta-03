@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mast Meals</title>
+<style>
+  :root { --bg:#0f1115; --card:#171a21; --line:#242a35; --text:#e8ecf3; --dim:#93a0b4; --accent:#4ade80; --warn:#fbbf24; --bad:#f87171; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; padding:14px 12px 40px; }
+  h1 { font-size:17px; margin:0; }
+  .top { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:12px; }
+  .pill { font-size:11px; padding:4px 8px; border-radius:999px; border:1px solid var(--line); color:var(--dim); }
+  .pill.ok { color:var(--accent); border-color:#1f5135; } .pill.bad { color:var(--bad); border-color:#5b2323; }
+  nav { display:flex; gap:6px; margin-bottom:12px; }
+  nav button { flex:1; background:#151922; color:var(--dim); border:1px solid var(--line); border-radius:10px; padding:9px 0; font:inherit; font-weight:600; }
+  nav button.on { background:#1d2430; color:var(--text); border-color:#33415a; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:12px; margin-bottom:10px; }
+  .card h2 { font-size:11.5px; text-transform:uppercase; letter-spacing:.08em; color:var(--dim); margin:0 0 8px; font-weight:650; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; }
+  select, input, textarea, button { font:inherit; color:inherit; }
+  select, input[type=date], input[type=number], input[type=text] { background:#11141a; border:1px solid var(--line); border-radius:9px; padding:8px 9px; min-width:0; }
+  textarea { width:100%; min-height:74px; background:#11141a; border:1px solid var(--line); border-radius:11px; padding:10px; }
+  button.act { background:var(--accent); color:#052e16; border:0; border-radius:10px; padding:10px 14px; font-weight:650; }
+  button.ghost { background:#1d222c; color:var(--text); border:1px solid var(--line); border-radius:10px; padding:9px 12px; font-weight:550; }
+  button:disabled { opacity:.5; }
+  .meal { display:flex; justify-content:space-between; gap:8px; padding:8px 0; border-bottom:1px solid #202531; align-items:flex-start; }
+  .meal:last-child { border-bottom:0; }
+  .meal .t { font-weight:600; } .meal .s { color:var(--dim); font-size:12.5px; }
+  .tag { font-size:11px; border:1px solid var(--line); border-radius:999px; padding:1px 7px; color:var(--dim); margin-right:4px; }
+  .tag.done { color:var(--accent); border-color:#1f5135; } .tag.miss { color:var(--warn); border-color:#4a3a12; }
+  ul.stock { list-style:none; margin:0; padding:0; display:grid; grid-template-columns:1fr 1fr; gap:5px 12px; }
+  ul.stock li { display:flex; justify-content:space-between; gap:6px; font-size:13px; border-bottom:1px dashed #202531; padding-bottom:3px; }
+  .q { color:var(--dim); font-variant-numeric:tabular-nums; }
+  .muted { color:var(--dim); font-size:12px; } .warn { color:var(--warn); font-size:12.5px; } .err { color:var(--bad); font-size:13px; white-space:pre-wrap; }
+  .hidden { display:none; }
+  .items { width:100%; border-collapse:collapse; font-size:13px; margin-top:6px; }
+  .items td, .items th { text-align:left; padding:6px 4px; border-bottom:1px solid #202531; }
+  .items th { color:var(--dim); font-size:11px; text-transform:uppercase; }
+  .spinner { width:13px; height:13px; border:2px solid #0b3d22; border-top-color:#052e16; border-radius:50%; display:inline-block; animation:spin .8s linear infinite; vertical-align:-2px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+</style>
+</head>
+<body>
+  <div class="top">
+    <h1>Mast Meals</h1>
+    <span id="who" class="pill">…</span>
+  </div>
+
+  <nav>
+    <button data-tab="plan" class="on">Plan</button>
+    <button data-tab="stock">Stock</button>
+    <button data-tab="shop">Shop</button>
+    <button data-tab="chat">Chat</button>
+  </nav>
+
+  <section id="tab-plan">
+    <div class="card">
+      <h2>This week</h2>
+      <div class="muted" id="week"></div>
+      <div id="meals" class="muted">loading…</div>
+    </div>
+    <div class="card">
+      <h2>Add a meal</h2>
+      <div class="row">
+        <select id="recipe"></select>
+        <input id="date" type="date">
+        <select id="slot"><option>breakfast</option><option selected>lunch</option><option>dinner</option></select>
+        <input id="servings" type="number" min="1" max="20" value="2" style="width:74px">
+      </div>
+      <div class="row" style="margin-top:8px"><button class="act" id="add-meal">Add</button></div>
+    </div>
+  </section>
+
+  <section id="tab-stock" class="hidden">
+    <div class="card">
+      <h2>Stock</h2>
+      <ul class="stock" id="stock"></ul>
+    </div>
+    <div class="card">
+      <h2>Adjust an item</h2>
+      <div class="row">
+        <select id="adj-ing"></select>
+        <select id="adj-op"><option>add</option><option>remove</option><option>set</option></select>
+        <input id="adj-qty" type="number" min="1" value="500" style="width:90px">
+      </div>
+      <div class="row" style="margin-top:8px"><button class="act" id="adjust">Apply</button></div>
+    </div>
+  </section>
+
+  <section id="tab-shop" class="hidden">
+    <div class="card">
+      <h2>Shopping list</h2>
+      <div id="shop" class="muted">No list yet.</div>
+      <div class="row" style="margin-top:8px"><button class="act" id="gen-list">Generate from plan</button></div>
+      <div class="muted" style="margin-top:8px">Swiggy cart handoff is not wired: MCP client approval is pending.</div>
+    </div>
+  </section>
+
+  <section id="tab-chat" class="hidden">
+    <div class="card">
+      <h2>Ask Omnirush</h2>
+      <div class="muted">llama 3.1 on the laptop; replies take 8 to 30 seconds.</div>
+      <textarea id="text" placeholder="do kilo aloo aur ek litre dahi add kar do" style="margin-top:8px"></textarea>
+      <div class="row" style="margin-top:8px">
+        <select id="mode"><option>chat</option><option>plan</option><option>cart</option></select>
+        <button class="act" id="send">Send</button>
+      </div>
+      <div id="chat-error" class="err hidden"></div>
+    </div>
+    <div class="card hidden" id="reply">
+      <h2>Proposal</h2>
+      <div id="reply-message"></div>
+      <div id="reply-warnings" class="warn"></div>
+      <div id="reply-unmatched" class="muted"></div>
+      <table class="items hidden" id="reply-items">
+        <thead><tr><th>Item</th><th>Change</th><th>Stock after</th></tr></thead><tbody></tbody>
+      </table>
+      <div id="reply-meta" class="muted" style="margin-top:6px"></div>
+      <div class="row" style="margin-top:8px" id="reply-actions">
+        <button class="act" id="confirm">Confirm</button>
+        <button class="ghost" id="discard">Discard</button>
+      </div>
+    </div>
+  </section>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const store = {
+  get access() { return localStorage.getItem('ks_access'); },
+  get refresh() { return localStorage.getItem('ks_refresh'); },
+  get client() { return localStorage.getItem('ks_client'); },
+  save(d) {
+    if (d.access_token) localStorage.setItem('ks_access', d.access_token);
+    if (d.refresh_token) localStorage.setItem('ks_refresh', d.refresh_token);
+    if (d.client_id) localStorage.setItem('ks_client', d.client_id);
+  },
+  clear() { localStorage.clear(); }
+};
+
+async function devLogin() {
+  const r = await fetch('/auth/dev-login', {method:'POST', headers:{'content-type':'application/json'},
+    body: JSON.stringify({email: 'app@local', name: 'App'})});
+  if (!r.ok) throw new Error('login failed: ' + r.status);
+  const d = await r.json(); store.save(d); return d;
+}
+
+async function api(path, opts = {}, retry = true) {
+  if (!store.access) await devLogin();
+  const headers = Object.assign({}, opts.headers || {}, {authorization: 'Bearer ' + store.access});
+  const r = await fetch(path, Object.assign({}, opts, {headers}));
+  if (r.status === 401 && retry) {
+    let ok = false;
+    if (store.refresh && store.client) {
+      const rr = await fetch('/auth/refresh', {method:'POST', headers:{'content-type':'application/json'},
+        body: JSON.stringify({refresh_token: store.refresh, client_id: store.client})});
+      if (rr.ok) { store.save(await rr.json()); ok = true; }
+    }
+    if (!ok) { store.clear(); await devLogin(); }
+    return api(path, opts, false);
+  }
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error((data.error || data.detail || ('http ' + r.status)));
+  return data;
+}
+
+let pendingId = null, lastPlan = null, recipes = [], ingredients = [];
+
+async function boot() {
+  try {
+    const me = await api('/api/me');
+    $('who').textContent = me.household.name + ' · ' + me.role;
+    $('who').className = 'pill ok';
+    const d = new Date(); $('date').value = d.toISOString().slice(0, 10);
+    recipes = (await api('/api/recipes')).recipes;
+    $('recipe').innerHTML = recipes.map(r => `<option value="${r.id}">${r.title}</option>`).join('');
+    ingredients = (await api('/api/ingredients')).ingredients;
+    $('adj-ing').innerHTML = ingredients.map(i => `<option value="${i.id}">${i.name}</option>`).join('');
+    await Promise.all([loadPlan(), loadStock(), loadShop()]);
+  } catch (e) {
+    $('who').textContent = 'backend down'; $('who').className = 'pill bad';
+    $('meals').textContent = String(e);
+  }
+}
+
+function mealRow(m) {
+  const missing = (m.missing || []).map(x => x.name).join(', ');
+  const badge = m.status === 'done' ? '<span class="tag done">done</span>'
+    : m.status === 'skipped' ? '<span class="tag">skipped</span>' : '<span class="tag">planned</span>';
+  const miss = missing ? `<span class="tag miss">short: ${missing}</span>` : '';
+  const acts = m.status === 'planned'
+    ? `<div class="row" style="margin-top:6px"><button class="ghost" data-done="${m.id}">Mark done</button><button class="ghost" data-skip="${m.id}">Skip</button></div>` : '';
+  return `<div class="meal"><div><div class="t">${m.title || '—'}</div>
+    <div class="s">${m.meal_date} · ${m.slot} · ${m.servings} servings</div>
+    <div style="margin-top:4px">${badge}${miss}</div>${acts}</div></div>`;
+}
+
+async function loadPlan() {
+  const p = await api('/api/plan');
+  lastPlan = p; $('week').textContent = 'Week of ' + p.week_start;
+  $('meals').innerHTML = p.meals.length ? p.meals.map(mealRow).join('') : '<span class="muted">No meals planned yet.</span>';
+  document.querySelectorAll('[data-done]').forEach(b => b.onclick = async () => {
+    b.disabled = true;
+    try { const r = await api('/api/plan/meals/' + b.dataset.done + '/done', {method:'POST'});
+      await Promise.all([loadPlan(), loadStock()]); } catch (e) { alert(e.message); }
+  });
+  document.querySelectorAll('[data-skip]').forEach(b => b.onclick = async () => {
+    b.disabled = true;
+    try { await api('/api/plan/meals/' + b.dataset.skip + '/skip', {method:'POST'}); await loadPlan(); }
+    catch (e) { alert(e.message); }
+  });
+}
+
+async function loadStock() {
+  const d = await api('/api/stock');
+  $('stock').innerHTML = d.stock.map(s => `<li><span>${s.name}</span><span class="q">${Math.round(s.qty_base)} ${s.unit_base}</span></li>`).join('')
+    || '<li class="muted">empty</li>';
+}
+
+async function loadShop() {
+  const d = await api('/api/shopping-list');
+  $('shop').innerHTML = d.items.length
+    ? '<table class="items"><thead><tr><th>Item</th><th>Buy</th></tr></thead><tbody>' +
+      d.items.map(i => `<tr><td>${i.name}</td><td>${Math.round(i.qty_base)} ${i.base_unit}</td></tr>`).join('') + '</tbody></table>'
+    : '<span class="muted">No list yet.</span>';
+}
+
+$('add-meal').onclick = async () => {
+  $('add-meal').disabled = true;
+  try {
+    await api('/api/plan/meals', {method:'POST', headers:{'content-type':'application/json'},
+      body: JSON.stringify({meal_date: $('date').value, slot: $('slot').value,
+        household_recipe_id: $('recipe').value, servings: Number($('servings').value)})});
+    await loadPlan();
+  } catch (e) { alert(e.message); } finally { $('add-meal').disabled = false; }
+};
+
+$('adjust').onclick = async () => {
+  $('adjust').disabled = true;
+  try {
+    await api('/api/stock/adjust', {method:'POST', headers:{'content-type':'application/json'},
+      body: JSON.stringify({ingredient_id: $('adj-ing').value, op: $('adj-op').value,
+        qty_base: Number($('adj-qty').value)})});
+    await loadStock();
+  } catch (e) { alert(e.message); } finally { $('adjust').disabled = false; }
+};
+
+$('gen-list').onclick = async () => {
+  $('gen-list').disabled = true;
+  try { await api('/api/shopping-list/generate', {method:'POST', headers:{'content-type':'application/json'}, body:'{}'});
+    await loadShop(); } catch (e) { alert(e.message); } finally { $('gen-list').disabled = false; }
+};
+
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('nav button').forEach(x => x.classList.toggle('on', x === b));
+  ['plan','stock','shop','chat'].forEach(t => $('tab-' + t).classList.toggle('hidden', t !== b.dataset.tab));
+});
+
+$('send').onclick = async () => {
+  const text = $('text').value.trim(); if (!text) return;
+  $('chat-error').classList.add('hidden'); $('reply').classList.add('hidden');
+  $('send').disabled = true; $('send').innerHTML = '<span class="spinner"></span> thinking';
+  try {
+    const d = await api('/api/chat', {method:'POST', headers:{'content-type':'application/json'},
+      body: JSON.stringify({text, mode: $('mode').value})});
+    pendingId = d.proposal_id;
+    $('reply').classList.remove('hidden');
+    $('reply-message').textContent = d.message || '(no message)';
+    $('reply-warnings').textContent = (d.warnings || []).join(' · ');
+    $('reply-unmatched').textContent = (d.unmatched || []).length
+      ? 'Unmatched: ' + d.unmatched.map(u => `${u.raw_name} (${u.reason})`).join(', ') : '';
+    const tbody = $('reply-items').querySelector('tbody'); tbody.innerHTML = '';
+    $('reply-items').classList.toggle('hidden', !(d.items || []).length);
+    (d.items || []).forEach(it => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${it.name}</td><td>${it.op} ${Math.round(it.qty_base)} ${it.unit_base}</td>` +
+        `<td>${Math.round(it.before)} → ${Math.round(it.after)} ${it.unit_base}</td>`;
+      tbody.appendChild(tr);
+    });
+    $('reply-actions').classList.toggle('hidden', !pendingId);
+    $('reply-meta').textContent = `${d.intent || 'no proposal'} · ${(d.timing||{}).model || ''}`;
+  } catch (e) {
+    $('chat-error').classList.remove('hidden'); $('chat-error').textContent = String(e);
+  } finally { $('send').disabled = false; $('send').textContent = 'Send'; }
+};
+
+$('discard').onclick = () => { pendingId = null; $('reply').classList.add('hidden'); };
+
+$('confirm').onclick = async () => {
+  if (!pendingId) return; $('confirm').disabled = true;
+  try {
+    await api('/api/confirm', {method:'POST', headers:{'content-type':'application/json'},
+      body: JSON.stringify({proposal_id: pendingId})});
+    pendingId = null; $('reply').classList.add('hidden');
+    await Promise.all([loadStock(), loadPlan()]);
+  } catch (e) { $('chat-error').classList.remove('hidden'); $('chat-error').textContent = String(e); }
+  finally { $('confirm').disabled = false; }
+};
+
+boot();
+</script>
+</body>
+</html>

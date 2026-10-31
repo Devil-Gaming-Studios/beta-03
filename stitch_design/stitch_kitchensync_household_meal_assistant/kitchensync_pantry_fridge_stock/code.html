@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+
+<html lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><meta content="mobile_tab" name="shell-type"/><link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{width:100vw;margin:0;padding:0;background-color:#faf9f6;}body{overscroll-behavior:none;-webkit-tap-highlight-color:transparent;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script><script id="tailwind-config">tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        "colors": {
+          "surface-bright": "#faf9f6",
+          "outline-variant": "#c2c8c1",
+          "on-primary-fixed-variant": "#2f4d3a",
+          "secondary-container": "#b7e9c3",
+          "secondary-fixed-dim": "#a1d2ad",
+          "surface-container-lowest": "#ffffff",
+          "sage-wash": "#EDF2EE",
+          "on-tertiary": "#ffffff",
+          "background": "#faf9f6",
+          "dietary-veg": "#137333",
+          "surface-container": "#eeeeea",
+          "surface-container-high": "#e8e8e5",
+          "tertiary": "#3b0d00",
+          "error-container": "#ffdad6",
+          "surface-container-highest": "#e2e3df",
+          "inverse-surface": "#2f312f",
+          "surface-dim": "#dadad7",
+          "on-secondary-fixed": "#00210f",
+          "on-tertiary-fixed-variant": "#822801",
+          "on-tertiary-fixed": "#390c00",
+          "canvas-subtle": "#F5F4EF",
+          "inverse-on-surface": "#f1f1ed",
+          "border-strong": "#D5D2C7",
+          "surface-variant": "#e2e3df",
+          "error": "#ba1a1a",
+          "primary-container": "#1a3826",
+          "primary-fixed-dim": "#adcfb5",
+          "surface-tint": "#466550",
+          "on-surface-variant": "#424843",
+          "primary-fixed": "#c8ebd1",
+          "on-secondary": "#ffffff",
+          "on-surface": "#1a1c1a",
+          "secondary-fixed": "#bceec8",
+          "dietary-egg": "#D97706",
+          "surface-card": "#FFFFFF",
+          "on-error": "#ffffff",
+          "on-secondary-container": "#3d6a4c",
+          "on-background": "#1a1c1a",
+          "primary": "#032212",
+          "surface": "#faf9f6",
+          "on-primary-fixed": "#022111",
+          "sage-muted": "#6E8879",
+          "on-primary": "#ffffff",
+          "canvas-base": "#FBFBF9",
+          "on-error-container": "#93000a",
+          "on-tertiary-container": "#ef774d",
+          "inverse-primary": "#adcfb5",
+          "accent-cider": "#B45309",
+          "on-secondary-fixed-variant": "#224f33",
+          "surface-container-low": "#f4f4f0",
+          "secondary": "#3b684a",
+          "on-primary-container": "#81a28a",
+          "tertiary-fixed": "#ffdbcf",
+          "terracotta-soft": "#FBF1ED",
+          "tertiary-fixed-dim": "#ffb59c",
+          "tertiary-container": "#5f1a00",
+          "border-subtle": "#E6E4DD",
+          "outline": "#727972",
+          "dietary-nonveg": "#9E2A2B"
+        },
+        "borderRadius": {
+          "DEFAULT": "0.25rem",
+          "lg": "0.5rem",
+          "xl": "0.75rem",
+          "full": "9999px"
+        },
+        "spacing": {
+          "space-xl": "2rem",
+          "margin": "1rem",
+          "space-md": "0.75rem",
+          "gutter-tablet": "1.5rem",
+          "space-xs": "0.25rem",
+          "gutter": "1rem",
+          "space-sm": "0.5rem",
+          "margin-desktop": "2.5rem",
+          "space-lg": "1.25rem",
+          "margin-tablet": "1.5rem"
+        },
+        "fontFamily": {
+          "headline-sm": ["Noto Sans"],
+          "headline-lg-mobile": ["Noto Sans"],
+          "label-lg": ["Noto Sans"],
+          "label-md": ["Noto Sans"],
+          "label-bilingual": ["Noto Sans"],
+          "body-md": ["Noto Sans"],
+          "headline-md": ["Noto Sans"],
+          "headline-lg": ["Noto Sans"],
+          "body-lg": ["Noto Sans"],
+          "body-sm": ["Noto Sans"],
+          "title-md": ["Noto Sans"]
+        },
+        "fontSize": {
+          "headline-sm": ["18px", { "lineHeight": "26px", "fontWeight": "600" }],
+          "headline-lg-mobile": ["26px", { "lineHeight": "34px", "letterSpacing": "-0.015em", "fontWeight": "600" }],
+          "label-lg": ["14px", { "lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "500" }],
+          "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "500" }],
+          "label-bilingual": ["12px", { "lineHeight": "18px", "fontWeight": "500" }],
+          "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+          "headline-md": ["22px", { "lineHeight": "30px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+          "headline-lg": ["32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "600" }],
+          "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+          "body-sm": ["12px", { "lineHeight": "18px", "fontWeight": "400" }],
+          "title-md": ["15px", { "lineHeight": "22px", "fontWeight": "600" }]
+        }
+      }
+    }
+  };</script><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head><body class="bg-surface font-body-md text-on-surface flex flex-col min-h-screen selection:bg-primary-fixed selection:text-on-primary-fixed"><header class="fixed top-0 inset-x-0 z-50 bg-surface/90 backdrop-blur-xl border-b border-border-subtle pt-safe"><div class="h-16 px-margin flex items-center justify-between gap-space-sm"><div class="flex items-center gap-space-sm"><img alt="KitchenSync Logo" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDJTSmI7D5flyHg8j7_KcMP3FhgR0Q6dtlH0V_4_0nMT3ky-qpyB_8czpFrBER4bRsAsttvOONILRI_iwuxgbL3j1wJuoGX0NsgLqg2qQfJ1DTVZzHB40KeJn8Jms-GB2QRWpv_GLeDnZJnf1k_jb_JD0BfPBlHDO81tdtDwUD-0oI1Gyy2ybT_vB1x6Ni_kH10RP_y6rhgfVby0HVcnNROWJgNDYLX1gNpFDzwA-8"/><div class="flex flex-col"><div class="flex items-center gap-1.5"><span class="font-title-md text-title-md text-on-surface tracking-tight leading-none font-bold">KitchenSync</span><button aria-label="Toggle bilingual English or Hindi" class="min-h-[32px] px-2 py-0.5 rounded-full bg-surface-container-high border border-border-subtle text-on-surface font-label-bilingual text-[11px] flex items-center justify-center hover:bg-surface-variant transition-colors" type="button"><span class="text-primary font-bold">EN</span><span class="text-outline text-[10px] mx-0.5">/</span><span class="text-on-surface-variant font-medium">हिं</span></button></div></div></div><div class="flex items-center gap-space-xs"><div class="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-sage-wash text-secondary font-label-md text-label-md"><span class="w-2 h-2 rounded-full bg-secondary"></span><span>Synced</span></div><button aria-label="Divyansh Profile" class="min-w-[40px] min-h-[40px] flex items-center justify-center p-0.5 rounded-full hover:opacity-90 transition-opacity" type="button"><img alt="Profile" class="w-8 h-8 rounded-full object-cover ring-2 ring-primary-container/20" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAvWXKJqQoUyHSDnCIHVnIPJaGAsId8KUD21MHq0Z223bcJLiGwxrVQTjwuHcqLu9DUpm-Qf4B3k7T9xj2NVcBW9BQEpTfeQCj8ous3n0dwktB3ynX6zav0uFmxBzhpnqF6A4CtPhJtIzhSpZJ8lnnqWaTsZtaruPM6OJmmmhRhRSETa1IdHJVUfG_U6HyTUcs5qtYM09dKWQfbrO8nie6fqwgrJLqMuRgJe9r3ZPU"/></button></div></div></header><main class="flex flex-col relative w-full pt-16 pb-24 bg-surface min-h-screen"><div class="flex flex-col w-full pb-20">
+<!-- Top Offline / Active Synced Micro Bar -->
+<div class="px-margin pt-2.5 pb-1 flex items-center justify-between">
+<div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-surface-container border border-border-subtle text-on-surface-variant text-label-bilingual font-label-bilingual">
+<span class="w-2 h-2 rounded-full bg-primary-container"></span>
+<span class="text-on-surface font-semibold">Flat 304 Pantry</span>
+<span class="text-outline text-[11px]">•</span>
+<span class="text-secondary font-bold">4 Active Members</span>
+</div>
+<div class="flex items-center gap-1 bg-sage-wash border border-border-subtle px-2.5 py-1 rounded-full text-label-bilingual font-label-bilingual text-dietary-veg">
+<span class="material-symbols-outlined text-[15px] text-dietary-veg">eco</span>
+<span class="font-semibold text-dietary-veg text-[11px]">100% शाकाहारी (Veg Mode)</span>
+</div>
+</div>
+<!-- Smart Search & Voice Section -->
+<div class="px-margin pt-2 pb-2">
+<div class="relative flex items-center w-full bg-surface-container-low border border-border-subtle rounded-xl focus-within:border-secondary transition-colors">
+<div class="pl-3.5 pr-2 flex items-center pointer-events-none text-on-surface-variant">
+<span class="material-symbols-outlined text-[20px]">search</span>
+</div>
+<input class="w-full bg-transparent py-2.5 pr-20 text-on-surface font-body-md text-body-md placeholder:text-outline focus:outline-none" id="inventorySearchInput" placeholder="Search atta, spices, dairy... / सामग्री खोजें" type="text"/>
+<div class="absolute right-1.5 flex items-center gap-1">
+<button aria-label="Hindi Voice Search" class="w-9 h-9 flex items-center justify-center rounded-lg bg-surface-container text-primary-container hover:bg-surface-variant transition-colors" type="button">
+<span class="material-symbols-outlined text-[18px]">mic</span>
+</button>
+<button aria-label="Scan barcode" class="w-9 h-9 flex items-center justify-center rounded-lg text-on-surface-variant hover:bg-surface-container transition-colors" type="button">
+<span class="material-symbols-outlined text-[18px]">barcode_scanner</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Filter & Category Chips Horizontal Scroll -->
+<div class="px-margin py-1 overflow-x-auto no-scrollbar flex items-center gap-2">
+<button class="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-terracotta-soft border border-accent-cider/30 text-accent-cider text-label-md font-label-md" type="button">
+<span class="material-symbols-outlined text-[15px] text-accent-cider">timer</span>
+<span>Expiring Soon (3)</span>
+<span class="text-accent-cider/80 text-[11px] font-medium">जल्द समाप्त</span>
+</button>
+<button class="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-container-low border border-border-subtle text-on-surface text-label-md font-label-md hover:bg-surface-container" type="button">
+<span class="material-symbols-outlined text-[15px] text-secondary">shelves</span>
+<span>Pantry / भंडार</span>
+</button>
+<button class="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-container-low border border-border-subtle text-on-surface text-label-md font-label-md hover:bg-surface-container" type="button">
+<span class="material-symbols-outlined text-[15px] text-secondary">kitchen</span>
+<span>Fridge / फ्रिज</span>
+</button>
+<button class="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-container-low border border-border-subtle text-on-surface text-label-md font-label-md hover:bg-surface-container" type="button">
+<span class="material-symbols-outlined text-[15px] text-secondary">spa</span>
+<span>Dry Spices (मसाले)</span>
+</button>
+</div>
+<!-- Multi-User Inventory Scope Segmented Tabs -->
+<div class="px-margin pt-2.5 pb-1">
+<div class="bg-surface-container p-1 rounded-xl flex items-center justify-between border border-border-subtle" id="inventoryTabs">
+<button class="tab-btn flex-1 py-1.5 px-2 rounded-lg text-center font-semibold text-on-surface transition-all bg-surface-container-lowest shadow-[0_1px_3px_rgba(0,0,0,0.06)]" data-tab="mine" onclick="switchScope('mine')" type="button">
+<span class="block text-body-md font-semibold leading-tight">Mine (Divyansh)</span>
+<span class="text-[11px] text-secondary font-medium">मेरा सामान [12]</span>
+</button>
+<button class="tab-btn flex-1 py-1.5 px-2 rounded-lg text-center font-medium text-on-surface-variant transition-all hover:text-on-surface" data-tab="shared" onclick="switchScope('shared')" type="button">
+<span class="block text-body-md font-semibold leading-tight">Shared (304)</span>
+<span class="text-[11px] text-outline font-medium">साझा भंडार [24]</span>
+</button>
+<button class="tab-btn flex-1 py-1.5 px-2 rounded-lg text-center font-medium text-on-surface-variant transition-all hover:text-on-surface" data-tab="all" onclick="switchScope('all')" type="button">
+<span class="block text-body-md font-semibold leading-tight">All Items</span>
+<span class="text-[11px] text-outline font-medium">कुल स्टॉक [36]</span>
+</button>
+</div>
+</div>
+<!-- Multi-user Status & Pure-Veg Banner -->
+<div class="px-margin pt-2 pb-1">
+<div class="bg-sage-wash/60 border border-border-subtle rounded-xl p-3 flex items-center justify-between">
+<div class="flex items-center gap-2.5">
+<div class="w-8 h-8 rounded-full bg-secondary-container/50 border border-secondary/20 flex items-center justify-center text-primary-container">
+<span class="material-symbols-outlined text-[17px]">verified_user</span>
+</div>
+<div>
+<p class="font-label-md text-label-md text-on-surface font-semibold">Pure-Veg Household Filter Active</p>
+<p class="font-label-bilingual text-label-bilingual text-on-surface-variant text-[11px]">Non-veg inventory hidden per Divyansh's setting</p>
+</div>
+</div>
+<span class="px-2.5 py-0.5 rounded-full bg-primary-container text-on-primary font-label-bilingual text-[10px] font-semibold">100% शुद्ध</span>
+</div>
+</div>
+<!-- Inventory Items Feed -->
+<div class="px-margin pt-2 flex flex-col gap-3" id="inventoryItemsContainer">
+<!-- ITEM 1: Chakki Fresh Atta -->
+<div class="inventory-card bg-surface-card rounded-xl p-3.5 border border-border-subtle shadow-[0_1px_3px_rgba(0,0,0,0.04)] flex flex-col gap-2.5" data-category="pantry" data-owner="shared">
+<div class="flex items-start justify-between gap-2">
+<div class="flex items-start gap-2.5">
+<!-- Indian Veg Food Mark -->
+<div class="w-4 h-4 rounded-sm border-[1.5px] border-dietary-veg flex items-center justify-center flex-shrink-0 mt-0.5" title="Pure Vegetarian (FSSAI)">
+<span class="w-2 h-2 rounded-full bg-dietary-veg"></span>
+</div>
+<div>
+<div class="flex items-center gap-2">
+<h2 class="font-title-md text-title-md text-on-surface font-bold leading-tight">Chakki Fresh Atta</h2>
+<span class="px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-label-bilingual text-[11px]">भंडार (Pantry)</span>
+</div>
+<p class="font-label-bilingual text-label-bilingual text-on-surface-variant">आशीर्वाद गेहूं आटा • 100% Whole Wheat</p>
+</div>
+</div>
+<div class="flex flex-col items-end">
+<span class="text-headline-sm font-headline-sm text-primary font-bold tracking-tight">4.5 kg</span>
+<span class="font-label-bilingual text-label-bilingual text-on-surface-variant">~90 रोटियां</span>
+</div>
+</div>
+<!-- Item Meta Pills -->
+<div class="flex flex-wrap items-center justify-between gap-1.5 pt-0.5">
+<div class="flex items-center gap-1.5">
+<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-sage-wash text-secondary font-label-md text-label-md font-medium">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span>
+            Fresh • 45 days left
+          </span>
+<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-label-bilingual text-label-bilingual">
+<span class="material-symbols-outlined text-[13px]">person</span>
+            Rohan (Shared 304)
+          </span>
+</div>
+</div>
+<!-- Actions & Tactile Desi Quantity Adjuster -->
+<div class="flex items-center justify-between gap-2 pt-1.5 bg-surface-container-low p-2 rounded-lg border border-border-subtle">
+<div class="flex items-center gap-1 bg-surface-container rounded-lg p-0.5">
+<button aria-label="Decrease by 500g" class="min-w-[40px] min-h-[36px] flex items-center justify-center rounded bg-surface-card text-on-surface hover:bg-surface-variant active:scale-95 transition-transform border border-border-subtle" type="button">
+<span class="material-symbols-outlined text-[17px]">remove</span>
+</button>
+<div class="px-2.5 text-center">
+<span class="font-label-md text-label-md text-on-surface font-bold block">500 g</span>
+<span class="font-label-bilingual text-[10px] text-on-surface-variant">आधा किलो</span>
+</div>
+<button aria-label="Increase by 500g" class="min-w-[40px] min-h-[36px] flex items-center justify-center rounded bg-surface-card text-on-surface hover:bg-surface-variant active:scale-95 transition-transform border border-border-subtle" type="button">
+<span class="material-symbols-outlined text-[17px]">add</span>
+</button>
+</div>
+<button class="min-h-[40px] px-3.5 rounded-lg bg-surface-container text-on-surface hover:bg-surface-variant border border-border-subtle transition-colors flex items-center gap-1.5 font-label-bilingual text-label-bilingual font-medium" type="button">
+<span class="material-symbols-outlined text-[15px]">person_add</span>
+<span>Move to Mine</span>
+</button>
+</div>
+</div>
+<!-- ITEM 2: Toor Dal (Shared Stock) -->
+<div class="inventory-card bg-surface-card rounded-xl p-3.5 border border-border-subtle shadow-[0_1px_3px_rgba(0,0,0,0.04)] flex flex-col gap-2.5" data-category="pantry" data-owner="shared">
+<div class="flex items-start justify-between gap-2">
+<div class="flex items-start gap-2.5">
+<!-- Indian Veg Food Mark -->
+<div class="w-4 h-4 rounded-sm border-[1.5px] border-dietary-veg flex items-center justify-center flex-shrink-0 mt-0.5">
+<span class="w-2 h-2 rounded-full bg-dietary-veg"></span>
+</div>
+<div>
+<div class="flex items-center gap-2">
+<h2 class="font-title-md text-title-md text-on-surface font-bold leading-tight">Toor Dal (अरहर दाल)</h2>
+<span class="px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-label-bilingual text-[11px]">भंडार</span>
+</div>
+<p class="font-label-bilingual text-label-bilingual text-on-surface-variant">Unpolished Desi Toor • Shared stock</p>
+</div>
+</div>
+<div class="flex flex-col items-end">
+<span class="text-headline-sm font-headline-sm text-primary font-bold tracking-tight">1.2 kg</span>
+<span class="font-label-bilingual text-label-bilingual text-on-surface-variant">~8 कटोरी दाल</span>
+</div>
+</div>
+<div class="flex items-center justify-between gap-1.5 pt-0.5">
+<div class="flex items-center gap-1.5">
+<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-sage-wash text-secondary font-label-md text-label-md font-medium">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span>
+            Safe • 3 months left
+          </span>
+<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-label-bilingual text-label-bilingual">
+<span class="material-symbols-outlined text-[13px]">groups</span>
+            Room 304 Shared
+          </span>
+</div>
+<button aria-label="Quick adjust Toor Dal" class="min-h-[38px] px-3 rounded-lg bg-surface-container border border-border-subtle text-on-surface hover:bg-surface-variant flex items-center gap-1 font-label-bilingual text-label-bilingual font-medium" type="button">
+<span class="material-symbols-outlined text-[15px]">tune</span>
+<span>1 Katori (200g) Use</span>
+</button>
+</div>
+</div>
+<!-- ITEM 3: Mother Dairy Toned Milk (Expiring Tomorrow Alert!) -->
+<div class="inventory-card bg-surface-card rounded-xl p-3.5 border border-border-subtle shadow-[0_1px_3px_rgba(0,0,0,0.04)] flex flex-col gap-2.5 relative overflow-hidden" data-category="fridge" data-owner="mine">
+<!-- Subtle Muted Urgency Indicator -->
+<div class="absolute top-0 left-0 right-0 h-1 bg-accent-cider/60"></div>
+<div class="flex items-start justify-between gap-2 pt-0.5">
+<div class="flex items-start gap-2.5">
+<!-- Indian Veg Food Mark -->
+<div class="w-4 h-4 rounded-sm border-[1.5px] border-dietary-veg flex items-center justify-center flex-shrink-0 mt-0.5">
+<span class="w-2 h-2 rounded-full bg-dietary-veg"></span>
+</div>
+<div>
+<div class="flex items-center gap-2 flex-wrap">
+<h2 class="font-title-md text-title-md text-on-surface font-bold leading-tight">Mother Dairy Toned Milk</h2>
+<span class="px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-label-bilingual text-[11px]">फ्रिज (Fridge)</span>
+</div>
+<p class="font-label-bilingual text-label-bilingual text-on-surface-variant">Blue Packet • पाश्चुरीकृत टोंड दूध</p>
+</div>
+</div>
+<div class="flex flex-col items-end">
+<span class="text-headline-sm font-headline-sm text-on-surface font-bold tracking-tight">1 Pkt</span>
+<span class="font-label-bilingual text-label-bilingual text-on-surface-variant">500 ml थैली</span>
+</div>
+</div>
+<!-- Expiry Chip & Ownership -->
+<div class="flex flex-wrap items-center justify-between gap-1.5">
+<div class="flex items-center gap-1.5">
+<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-terracotta-soft border border-accent-cider/25 text-accent-cider font-label-md text-label-md font-medium">
+<span class="material-symbols-outlined text-[14px] text-accent-cider">priority_high</span>
+            Tomorrow! (Use soon / कल तक खत्म करें)
+          </span>
+<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-sage-wash text-secondary font-label-bilingual text-label-bilingual font-medium">
+<span class="material-symbols-outlined text-[13px]">account_circle</span>
+            Divyansh (Mine)
+          </span>
+</div>
+</div>
+<!-- Action Footer -->
+<div class="flex items-center justify-between gap-2 pt-1">
+<button class="min-h-[42px] flex-1 py-2 rounded-lg bg-primary-container text-on-primary font-label-bilingual text-label-bilingual font-semibold flex items-center justify-center gap-1.5 shadow-sm hover:opacity-95 active:scale-98 transition-all" type="button">
+<span class="material-symbols-outlined text-[17px]">local_cafe</span>
+<span>Boil Chai / Make Curd</span>
+</button>
+<button class="min-h-[42px] px-3.5 rounded-lg bg-surface-container text-on-surface font-label-bilingual text-label-bilingual font-medium border border-border-subtle flex items-center gap-1 hover:bg-surface-variant transition-colors" type="button">
+<span class="material-symbols-outlined text-[15px]">group</span>
+<span>Move to Shared</span>
+</button>
+</div>
+</div>
+<!-- ITEM 4: Kashmiri Red Chilli Powder & Haldi (Dry Spice Rack) -->
+<div class="inventory-card bg-surface-card rounded-xl p-3.5 border border-border-subtle shadow-[0_1px_3px_rgba(0,0,0,0.04)] flex flex-col gap-2.5" data-category="spices" data-owner="shared">
+<div class="flex items-start justify-between gap-2">
+<div class="flex items-start gap-2.5">
+<!-- Indian Veg Food Mark -->
+<div class="w-4 h-4 rounded-sm border-[1.5px] border-dietary-veg flex items-center justify-center flex-shrink-0 mt-0.5">
+<span class="w-2 h-2 rounded-full bg-dietary-veg"></span>
+</div>
+<div>
+<div class="flex items-center gap-2">
+<h2 class="font-title-md text-title-md text-on-surface font-bold leading-tight">Kashmiri Mirch &amp; Haldi</h2>
+<span class="px-2 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-label-bilingual text-[11px]">मसाला दानी</span>
+</div>
+<p class="font-label-bilingual text-label-bilingual text-on-surface-variant">MDH Deggi Mirch &amp; Golden Turmeric</p>
+</div>
+</div>
+<div class="flex flex-col items-end">
+<span class="text-headline-sm font-headline-sm text-primary font-bold tracking-tight">200 g</span>
+<span class="font-label-bilingual text-label-bilingual text-on-surface-variant">Stock OK • पर्याप्त</span>
+</div>
+</div>
+<div class="flex items-center justify-between gap-1.5 pt-0.5">
+<div class="flex items-center gap-1.5">
+<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-label-md text-label-md">
+<span class="material-symbols-outlined text-[13px] text-secondary">check_circle</span>
+            Dry Spice Rack (अलमारी)
+          </span>
+<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant font-label-bilingual text-label-bilingual">
+            Shared Kitchen
+          </span>
+</div>
+<button aria-label="Pinch / Spoon update" class="min-h-[38px] px-3 rounded-lg bg-surface-container border border-border-subtle text-on-surface hover:bg-surface-variant flex items-center gap-1 font-label-bilingual text-label-bilingual font-medium" type="button">
+<span class="material-symbols-outlined text-[15px]">drive_file_rename_outline</span>
+<span>-1 Spoon (चम्मच)</span>
+</button>
+</div>
+</div>
+<!-- ITEM 5: Fresh Coriander (धनिया) - Low Stock / Alert Badge -->
+<div class="inventory-card bg-surface-card rounded-xl p-3.5 border border-border-subtle shadow-[0_1px_3px_rgba(0,0,0,0.04)] flex flex-col gap-2.5" data-category="fridge" data-owner="shared">
+<div class="flex items-start justify-between gap-2">
+<div class="flex items-start gap-2.5">
+<!-- Indian Veg Food Mark -->
+<div class="w-4 h-4 rounded-sm border-[1.5px] border-dietary-veg flex items-center justify-center flex-shrink-0 mt-0.5">
+<span class="w-2 h-2 rounded-full bg-dietary-veg"></span>
+</div>
+<div>
+<div class="flex items-center gap-2 flex-wrap">
+<h2 class="font-title-md text-title-md text-on-surface font-bold leading-tight">Fresh Coriander (धनिया)</h2>
+<span class="px-2 py-0.5 rounded-full bg-terracotta-soft text-accent-cider border border-accent-cider/20 font-label-bilingual text-[11px] font-medium">
+                Low Stock / समाप्त प्राय
+              </span>
+</div>
+<p class="font-label-bilingual text-label-bilingual text-on-surface-variant">Crisp green leaves • फ्रिज सब्जी बॉक्स</p>
+</div>
+</div>
+<div class="flex flex-col items-end">
+<span class="text-headline-sm font-headline-sm text-on-surface font-bold tracking-tight">1 bunch</span>
+<span class="font-label-bilingual text-label-bilingual text-accent-cider font-medium">Only stems left</span>
+</div>
+</div>
+<div class="flex items-center justify-between gap-2 pt-1">
+<div class="flex items-center gap-1 text-on-surface-variant font-label-bilingual text-label-bilingual">
+<span class="material-symbols-outlined text-[15px] text-accent-cider">shopping_cart_checkout</span>
+<span>Needed for dinner Dal Tadka</span>
+</div>
+<button class="min-h-[40px] px-3.5 rounded-lg bg-primary-container text-on-primary font-label-bilingual text-label-bilingual font-semibold flex items-center gap-1.5 shadow-sm hover:opacity-90 transition-opacity" type="button">
+<span class="material-symbols-outlined text-[15px]">add_shopping_cart</span>
+<span>Add to Zepto List (+10₹)</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Standardized AI Confirm Card: Recent Kitchen Detection Micro-State -->
+<div class="px-margin pt-3">
+<div class="bg-surface-card border border-border-subtle rounded-xl p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)] flex flex-col gap-3">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary text-[20px]">smart_toy</span>
+<div>
+<h3 class="font-title-md text-title-md text-on-surface font-bold">Smart Scan Insight / AI सुझाव</h3>
+<p class="font-label-bilingual text-label-bilingual text-on-surface-variant text-[11px]">Auto-detected from fridge door opening sensor</p>
+</div>
+</div>
+<span class="px-2 py-0.5 rounded-full bg-surface-container border border-border-subtle text-secondary font-label-md text-label-md font-semibold text-[11px]">New</span>
+</div>
+<!-- Proposed Changes Box -->
+<div class="bg-surface-container-low border border-border-subtle p-3 rounded-lg flex flex-col gap-2">
+<div class="flex items-center justify-between text-body-md font-body-md text-on-surface">
+<div class="flex items-center gap-2">
+<span class="w-5 h-5 rounded-full bg-sage-wash text-secondary flex items-center justify-center font-bold text-xs border border-secondary/20">+</span>
+<div>
+<p class="font-semibold leading-tight text-body-md">Amul Salted Butter (100g)</p>
+<p class="font-label-bilingual text-label-bilingual text-on-surface-variant text-[11px]">अमूल मक्खन टिकिया • Dairy Crisper</p>
+</div>
+</div>
+<span class="font-label-md text-label-md text-on-surface-variant">Unopened</span>
+</div>
+<div class="flex items-center justify-between text-body-md font-body-md text-on-surface">
+<div class="flex items-center gap-2">
+<span class="w-5 h-5 rounded-full bg-surface-container-high text-on-surface-variant flex items-center justify-center font-bold text-xs border border-border-subtle">~</span>
+<div>
+<p class="font-semibold leading-tight text-body-md">Ginger Garlic Paste</p>
+<p class="font-label-bilingual text-label-bilingual text-on-surface-variant text-[11px]">अदरक-लहसुन पेस्ट • Adjusted to 40%</p>
+</div>
+</div>
+<span class="font-label-md text-label-md text-on-surface-variant">Pouch</span>
+</div>
+</div>
+<!-- Action Footer -->
+<div class="flex items-center gap-2 pt-0.5">
+<button class="min-h-[40px] flex-1 rounded-lg bg-primary-container text-on-primary font-label-lg text-label-lg font-semibold flex items-center justify-center gap-1 shadow-sm active:scale-98 transition-transform" type="button">
+<span class="material-symbols-outlined text-[17px]">check</span>
+<span>Confirm All / जोड़ें</span>
+</button>
+<button class="min-h-[40px] px-3.5 rounded-lg bg-surface-container text-on-surface border border-border-subtle font-label-bilingual text-label-bilingual font-medium hover:bg-surface-variant transition-colors" type="button">
+<span>Edit</span>
+</button>
+<button class="min-h-[40px] px-3 rounded-lg text-on-surface-variant hover:text-error hover:bg-error-container/20 font-label-bilingual text-label-bilingual font-medium transition-colors" type="button">
+<span>Dismiss</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Floating Quick-Action Bar for Rapid Indian Kitchen Inputs -->
+<div class="fixed bottom-20 inset-x-0 z-40 px-margin pointer-events-none flex justify-center">
+<div class="pointer-events-auto bg-primary-container text-inverse-on-surface p-1.5 rounded-full shadow-xl flex items-center gap-1.5 max-w-md w-full justify-between border border-primary-container/40">
+<!-- Manual Add -->
+<button class="min-h-[40px] flex-1 px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/15 text-white flex items-center justify-center gap-1 font-label-bilingual text-label-bilingual font-semibold shadow-none active:scale-95 transition-all" onclick="triggerManualAdd()" type="button">
+<span class="material-symbols-outlined text-[17px]">add</span>
+<span>+ Manual</span>
+</button>
+<!-- Scan Bill / Receipt -->
+<button class="min-h-[40px] flex-1 px-3 py-1.5 rounded-full text-white/90 hover:bg-white/10 flex items-center justify-center gap-1 font-label-bilingual text-label-bilingual font-medium active:scale-95 transition-all" onclick="triggerReceiptScan()" type="button">
+<span class="material-symbols-outlined text-[17px] text-secondary-fixed">receipt_long</span>
+<span>Scan Bill</span>
+</button>
+<!-- Scan Fridge Camera -->
+<button class="min-h-[40px] flex-1 px-3 py-1.5 rounded-full text-white/90 hover:bg-white/10 flex items-center justify-center gap-1 font-label-bilingual text-label-bilingual font-medium active:scale-95 transition-all" onclick="triggerFridgeScan()" type="button">
+<span class="material-symbols-outlined text-[17px] text-primary-fixed">kitchen</span>
+<span>Fridge Cam</span>
+</button>
+</div>
+</div>
+</div>
+<script>
+  function switchScope(scope) {
+    const tabButtons = document.querySelectorAll('#inventoryTabs .tab-btn');
+    tabButtons.forEach(btn => {
+      const isTarget = btn.getAttribute('data-tab') === scope;
+      if (isTarget) {
+        btn.classList.add('bg-surface-container-lowest', 'shadow-[0_1px_3px_rgba(0,0,0,0.06)]', 'text-on-surface');
+        btn.classList.remove('text-on-surface-variant');
+      } else {
+        btn.classList.remove('bg-surface-container-lowest', 'shadow-[0_1px_3px_rgba(0,0,0,0.06)]', 'text-on-surface');
+        btn.classList.add('text-on-surface-variant');
+      }
+    });
+
+    const items = document.querySelectorAll('.inventory-card');
+    items.forEach(item => {
+      const owner = item.getAttribute('data-owner');
+      if (scope === 'all') {
+        item.style.display = 'flex';
+      } else if (scope === 'mine') {
+        item.style.display = (owner === 'mine') ? 'flex' : 'none';
+      } else if (scope === 'shared') {
+        item.style.display = (owner === 'shared') ? 'flex' : 'none';
+      }
+    });
+  }
+
+  function triggerManualAdd() {
+    const input = document.getElementById('inventorySearchInput');
+    if (input) {
+      input.focus();
+      input.placeholder = "Enter item name & weight (e.g., Jeera 100g)...";
+    }
+  }
+
+  function triggerReceiptScan() {
+    alert("Opening camera for grocery receipt (Blinkit / Zepto / D-Mart / Local Kirana receipt)...");
+  }
+
+  function triggerFridgeScan() {
+    alert("Smart Fridge Cam analyzing shelves for milk pouches, curd, and vegetables...");
+  }
+
+  // Quick Client Search filter micro-interaction
+  const searchInput = document.getElementById('inventorySearchInput');
+  if (searchInput) {
+    searchInput.addEventListener('input', function(e) {
+      const query = e.target.value.toLowerCase().trim();
+      const items = document.querySelectorAll('.inventory-card');
+      items.forEach(item => {
+        const text = item.innerText.toLowerCase();
+        if (text.includes(query)) {
+          item.style.display = 'flex';
+        } else {
+          item.style.display = 'none';
+        }
+      });
+    });
+  }
+</script></main><nav class="fixed bottom-0 inset-x-0 z-50 pb-safe bg-surface/90 backdrop-blur-xl border-t border-border-subtle" data-active-classes="text-primary font-semibold [&amp;_span.indicator]:scale-100 [&amp;_span.indicator]:bg-primary-fixed"><div class="flex justify-around items-center h-20 px-2 max-w-lg mx-auto relative"><a class="group flex flex-col items-center justify-center min-w-[56px] min-h-[48px] py-1 text-on-surface-variant hover:text-on-surface transition-all" data-path="home" href="#"><span class="indicator w-12 h-7 rounded-full flex items-center justify-center transition-all duration-200"><span class="material-symbols-outlined text-[24px]">cottage</span></span><span class="font-label-bilingual text-label-bilingual mt-0.5 text-center leading-tight">होम<span class="block text-[10px] opacity-75">Home</span></span></a><a class="group flex flex-col items-center justify-center min-w-[56px] min-h-[48px] py-1 text-on-surface-variant hover:text-on-surface transition-all" data-path="meal-planner" href="#"><span class="indicator w-12 h-7 rounded-full flex items-center justify-center transition-all duration-200"><span class="material-symbols-outlined text-[24px]">calendar_month</span></span><span class="font-label-bilingual text-label-bilingual mt-0.5 text-center leading-tight">प्लानर<span class="block text-[10px] opacity-75">Plan</span></span></a><div class="flex flex-col items-center justify-center -mt-6"><a aria-label="बोलें / Ask AI Voice Action" class="flex flex-col items-center justify-center w-14 h-14 rounded-full bg-primary-container shadow-lg shadow-primary-container/25 text-on-primary active:scale-95 transition-transform" data-path="voice-ask-ai" href="#"><span class="material-symbols-outlined text-[26px]">mic</span></a><span class="font-label-bilingual text-label-bilingual text-on-surface font-semibold mt-1">बोलें AI</span></div><a aria-current="page" class="group flex flex-col items-center justify-center min-w-[56px] min-h-[48px] py-1 transition-all text-primary font-semibold [&amp;_span.indicator]:scale-100 [&amp;_span.indicator]:bg-primary-fixed" data-path="pantry-stock" href="#"><span class="indicator w-12 h-7 rounded-full flex items-center justify-center transition-all duration-200"><span class="material-symbols-outlined text-[24px]">kitchen</span></span><span class="font-label-bilingual text-label-bilingual mt-0.5 text-center leading-tight">स्टॉक<span class="block text-[10px] opacity-75">Stock</span></span></a><a class="group flex flex-col items-center justify-center min-w-[56px] min-h-[48px] py-1 text-on-surface-variant hover:text-on-surface transition-all" data-path="household-settings" href="#"><span class="indicator w-12 h-7 rounded-full flex items-center justify-center transition-all duration-200"><span class="material-symbols-outlined text-[24px]">group</span></span><span class="font-label-bilingual text-label-bilingual mt-0.5 text-center leading-tight">घर &amp; सेटिंग्स<span class="block text-[10px] opacity-75">House</span></span></a></div><div class="w-full flex justify-center pb-1"><div class="w-32 h-1 bg-on-surface/20 rounded-full"></div></div></nav></body></html>

@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+
+<html lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><meta content="mobile_blank" name="shell-type"/><link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{width:100vw;margin:0;padding:0;background-color:#fdf8fd;}body{overscroll-behavior:none;-webkit-tap-highlight-color:transparent;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { colors: { "error": "#ba1a1a", "surface-tint": "#2a6b2c", "surface": "#fdf8fd", "tertiary-fixed": "#a3f69c", "background": "#fdf8fd", "inverse-surface": "#313034", "surface-variant": "#e5e1e7", "primary-fixed": "#acf4a4", "on-primary-container": "#90d689", "surface-container-low": "#f7f2f8", "on-error-container": "#93000a", "secondary-container": "#fc6018", "error-container": "#ffdad6", "on-tertiary": "#ffffff", "surface-bright": "#fdf8fd", "on-error": "#ffffff", "on-secondary-fixed-variant": "#802a00", "on-primary": "#ffffff", "on-secondary": "#ffffff", "on-primary-fixed-variant": "#0c5216", "secondary-fixed": "#ffdbcf", "secondary": "#a83900", "on-surface-variant": "#41493e", "inverse-primary": "#91d78a", "on-secondary-container": "#531800", "tertiary-fixed-dim": "#88d982", "surface-container": "#f1ecf2", "on-background": "#1c1b1f", "surface-dim": "#ddd9de", "surface-container-highest": "#e5e1e7", "inverse-on-surface": "#f4eff5", "on-secondary-fixed": "#380d00", "tertiary": "#00450d", "surface-container-lowest": "#ffffff", "primary": "#00450d", "tertiary-container": "#055f18", "primary-container": "#1b5e20", "on-tertiary-fixed": "#002204", "on-tertiary-container": "#86d881", "outline": "#717a6d", "secondary-fixed-dim": "#ffb59a", "on-tertiary-fixed-variant": "#005312", "on-primary-fixed": "#002203", "primary-fixed-dim": "#91d78a", "surface-container-high": "#ebe7ec", "on-surface": "#1c1b1f", "outline-variant": "#c0c9bb" }, borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, spacing: { "margin-desktop": "2rem", "margin": "1rem", "space-sm": "0.5rem", "space-md": "1rem", "gutter": "1rem", "margin-tablet": "1.5rem", "space-xs": "0.25rem", "space-lg": "1.5rem", "space-xl": "2rem", "gutter-tablet": "1.5rem" }, fontFamily: { "headline-lg": ["Noto Sans"], "body-md": ["Noto Sans"], "display-lg-mobile": ["Noto Sans"], "body-sm": ["Noto Sans"], "body-lg": ["Noto Sans"], "label-md": ["Noto Sans"], "display-lg": ["Noto Sans"], "title-md": ["Noto Sans"], "headline-sm": ["Noto Sans"], "headline-lg-mobile": ["Noto Sans"], "headline-md": ["Noto Sans"], "label-lg": ["Noto Sans"], "label-bilingual": ["Noto Sans"] }, fontSize: { "headline-lg": ["2rem", { "lineHeight": "2.5rem", "fontWeight": "600" }], "body-md": ["0.875rem", { "lineHeight": "1.375rem", "fontWeight": "400" }], "display-lg-mobile": ["2.25rem", { "lineHeight": "2.75rem", "letterSpacing": "-0.01em", "fontWeight": "700" }], "body-sm": ["0.75rem", { "lineHeight": "1.125rem", "fontWeight": "400" }], "body-lg": ["1rem", { "lineHeight": "1.5rem", "fontWeight": "400" }], "label-md": ["0.75rem", { "lineHeight": "1rem", "letterSpacing": "0.02em", "fontWeight": "600" }], "display-lg": ["3rem", { "lineHeight": "3.5rem", "letterSpacing": "-0.02em", "fontWeight": "700" }], "title-md": ["1rem", { "lineHeight": "1.5rem", "fontWeight": "600" }], "headline-sm": ["1.25rem", { "lineHeight": "1.75rem", "fontWeight": "600" }], "headline-lg-mobile": ["1.625rem", { "lineHeight": "2.125rem", "fontWeight": "600" }], "headline-md": ["1.5rem", { "lineHeight": "2rem", "fontWeight": "600" }], "label-lg": ["0.875rem", { "lineHeight": "1.25rem", "letterSpacing": "0.01em", "fontWeight": "600" }], "label-bilingual": ["0.75rem", { "lineHeight": "1.125rem", "fontWeight": "500" }] } } } };</script><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head><body class="bg-surface font-body-md text-on-surface flex flex-col min-h-screen selection:bg-primary-fixed selection:text-on-primary-fixed pt-safe pb-safe"><main class="flex flex-col relative w-full bg-surface min-h-screen"><div class="flex flex-col w-full">
+<div class="px-space-lg pt-space-md pb-space-xl flex flex-col space-y-space-lg">
+<!-- Top Bar: Brand, Trust Pill, Language Switcher -->
+<header class="flex items-center justify-between gap-space-sm">
+<div class="flex items-center space-x-space-xs">
+<div class="w-10 h-10 rounded-xl bg-primary-container text-on-primary flex items-center justify-center shadow-sm">
+<span class="material-symbols-outlined text-headline-sm" style="font-variation-settings: 'FILL' 1;">skillet</span>
+</div>
+<div>
+<span class="font-headline-sm text-headline-sm text-primary tracking-tight block leading-none">KitchenSync</span>
+<span class="font-label-bilingual text-label-bilingual text-sage-muted block mt-0.5">किचन-सिंक</span>
+</div>
+</div>
+<!-- Bilingual Language Toggle -->
+<div class="flex items-center bg-surface-container p-0.5 rounded-full shadow-inner">
+<button class="px-space-sm py-1 rounded-full font-label-md text-label-md bg-surface-card text-primary shadow-sm transition-all" id="lang-en" onclick="setLang('en')">
+          EN
+        </button>
+<button class="px-space-sm py-1 rounded-full font-label-md text-label-md text-sage-muted hover:text-primary transition-all" id="lang-hi" onclick="setLang('hi')">
+          हिंदी
+        </button>
+</div>
+</header>
+<!-- Social Proof Pill -->
+<div class="flex items-center">
+<div class="inline-flex items-center space-x-space-xs bg-sage-wash text-primary px-space-md py-1.5 rounded-full shadow-sm">
+<span class="material-symbols-outlined text-[16px] text-dietary-veg" style="font-variation-settings: 'FILL' 1;">verified</span>
+<span class="font-label-md text-label-md tracking-normal">
+<span class="lang-en">Join 45,000+ Indian Flatmates &amp; Homes</span>
+<span class="lang-hi hidden">45,000+ भारतीय फ्लैट व घरों का भरोसा</span>
+</span>
+</div>
+</div>
+<!-- Editorial Hero Card with Visual Backdrop -->
+<div class="relative overflow-hidden rounded-[20px] bg-primary text-on-primary shadow-md">
+<!-- Ambient Image Background -->
+<div class="absolute inset-0 opacity-25 mix-blend-luminosity bg-cover bg-center" data-alt="Warm modern Indian minimalist kitchen pantry with neatly labeled glass spice jars, brass spice container, fresh curry leaves, and ceramic bowls on a serene warm countertop with soft morning sunlight." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAH4CgHl7Nd6oz-F_Phb-4hDckkjOyn3yapREkvHHFQ7EVcWSnKFZyFW9JbEQGcqdkOHvtaNuThkMWwxcYDHZ58GJ2sNY4syHojwr4DhBU26Hm1_PcwnCjCbRbTBHjGvIEtScmuQCnbID5_GJyD3naHCwpna5AQojgg63V8sWGdaP80iDtSD3qdR7rc5Am85IgnwxClzWkTnyhRgn2BINYvyRpiDsUSaxBb3BPRhn8')"></div>
+<!-- Gradient Scrim -->
+<div class="absolute inset-0 bg-gradient-to-t from-primary via-primary/80 to-transparent"></div>
+<div class="relative p-space-lg flex flex-col space-y-space-md">
+<!-- Badge -->
+<div class="flex items-center space-x-space-xs">
+<span class="bg-primary-fixed/20 text-primary-fixed px-space-sm py-0.5 rounded-full font-label-md text-label-md flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-fixed animate-pulse"></span>
+            Smart Kitchen AI
+          </span>
+<span class="bg-surface-card/15 text-surface-card px-space-sm py-0.5 rounded-full font-label-bilingual text-label-bilingual">
+            घर और हॉस्टल साथी
+          </span>
+</div>
+<!-- Punchy Culinary Header -->
+<div>
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile text-on-primary leading-tight">
+<span class="lang-en">Never ask “Aaj khane mein kya banega?” again.</span>
+<span class="lang-hi hidden">“आज खाने में क्या बनेगा?” की झंझट हमेशा के लिए खत्म!</span>
+</h1>
+<p class="font-body-md text-body-md text-on-primary-container mt-space-xs leading-relaxed">
+<span class="lang-en">Smart pantry tracking, shared grocery split &amp; zero-waste meal suggestions for flatmates and families.</span>
+<span class="lang-hi hidden">रूममेट्स व परिवार के लिए स्मार्ट राशन हिसाब, रेसिपी सुझाव और झंझट-मुक्त रसोई।</span>
+</p>
+</div>
+<!-- Value Highlight Mini-Bento Grid -->
+<div class="grid grid-cols-2 gap-space-xs pt-space-xs">
+<div class="bg-surface-card/10 backdrop-blur-md rounded-xl p-space-sm flex items-start space-x-space-xs">
+<div class="w-7 h-7 rounded-lg bg-surface-card/20 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[16px] text-primary-fixed">group_work</span>
+</div>
+<div>
+<p class="font-title-md text-title-md text-on-primary text-[13px] leading-tight">Flatmate Sync</p>
+<p class="font-body-sm text-body-sm text-on-primary-container text-[11px] leading-tight mt-0.5">Shared pantry lists</p>
+</div>
+</div>
+<div class="bg-surface-card/10 backdrop-blur-md rounded-xl p-space-sm flex items-start space-x-space-xs">
+<div class="w-7 h-7 rounded-lg bg-surface-card/20 flex items-center justify-center shrink-0">
+<!-- FSSAI Veg Symbol Mini -->
+<div class="w-3.5 h-3.5 bg-surface-card rounded-sm flex items-center justify-center">
+<div class="w-1.5 h-1.5 rounded-full bg-dietary-veg"></div>
+</div>
+</div>
+<div>
+<p class="font-title-md text-title-md text-on-primary text-[13px] leading-tight">Pure-Veg Guard</p>
+<p class="font-body-sm text-body-sm text-on-primary-container text-[11px] leading-tight mt-0.5">Strict shelf segregation</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Auth & Entry Action Stack -->
+<div class="flex flex-col space-y-space-md">
+<!-- 1. Google OAuth Primary -->
+<button class="w-full bg-surface-card hover:bg-surface-container text-on-surface py-3.5 px-space-lg rounded-[14px] shadow-sm flex items-center justify-center space-x-space-md active:scale-[0.99] transition-all" type="button">
+<svg class="w-5 h-5 shrink-0" viewbox="0 0 24 24">
+<path d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z" fill="#4285F4"></path>
+<path d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.24v3.15C3.26 21.36 7.33 24 12 24z" fill="#34A853"></path>
+<path d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.24C.45 8.16 0 9.94 0 12s.45 3.84 1.24 5.42l4.04-3.15z" fill="#FBBC05"></path>
+<path d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.24 6.58l4.04 3.15c.95-2.83 3.6-4.98 6.72-4.98z" fill="#EA4335"></path>
+</svg>
+<span class="font-title-md text-title-md font-semibold text-primary">
+<span class="lang-en">Continue with Google</span>
+<span class="lang-hi hidden">गूगल से आगे बढ़ें</span>
+</span>
+</button>
+<!-- 2. Phone / OTP Option -->
+<button class="w-full bg-primary text-on-primary py-3.5 px-space-lg rounded-[14px] shadow-sm flex items-center justify-center space-x-space-sm active:scale-[0.99] transition-all" type="button">
+<span class="material-symbols-outlined text-headline-sm" style="font-variation-settings: 'FILL' 1;">sms</span>
+<span class="font-title-md text-title-md font-semibold text-on-primary">
+<span class="lang-en">Continue with Mobile Number</span>
+<span class="lang-hi hidden">मोबाइल नंबर / OTP से लॉगिन</span>
+</span>
+</button>
+<!-- Divider -->
+<div class="flex items-center space-x-space-sm py-1">
+<div class="h-[1px] flex-1 bg-surface-variant"></div>
+<span class="font-label-md text-label-md text-sage-muted uppercase tracking-wider">
+<span class="lang-en">or join flat</span>
+<span class="lang-hi hidden">या इनवाइट कोड</span>
+</span>
+<div class="h-[1px] flex-1 bg-surface-variant"></div>
+</div>
+<!-- 3. Roommate / Flatmate Invite Code Inset Container -->
+<div class="bg-surface-container-low rounded-[18px] p-space-md shadow-sm space-y-space-xs">
+<div class="flex items-center justify-between">
+<label class="font-title-md text-title-md text-primary flex items-center gap-1.5" for="invite-input">
+<span class="material-symbols-outlined text-[18px] text-secondary">vpn_key</span>
+<span class="lang-en">Got an invite code?</span>
+<span class="lang-hi hidden">फ्लैटमेट का इनवाइट कोड है?</span>
+</label>
+<span class="font-label-bilingual text-label-bilingual text-sage-muted">Hostel &amp; Flat</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">
+<span class="lang-en">Enter code shared by your flatmate or cook to instantly sync kitchen shelves.</span>
+<span class="lang-hi hidden">अपने रूममेट या कुक द्वारा भेजा गया 6-अंकों का कोड दर्ज करके तुरंत जुड़ें।</span>
+</p>
+<div class="flex items-center gap-space-xs pt-1">
+<div class="relative flex-1">
+<input class="w-full h-11 bg-surface-card text-on-surface uppercase tracking-wider font-semibold px-space-md rounded-xl shadow-inner focus:outline-none focus:bg-surface-card placeholder:text-outline-variant placeholder:font-normal font-body-md text-body-md" id="invite-input" maxlength="8" placeholder="e.g. BLR-402" type="text"/>
+<span class="hidden absolute right-3 top-3 material-symbols-outlined text-dietary-veg text-[18px]" id="code-status">check_circle</span>
+</div>
+<button class="h-11 px-space-md bg-primary-container text-on-primary font-label-lg text-label-lg rounded-xl shadow-sm hover:opacity-95 active:scale-95 transition-all shrink-0 flex items-center space-x-1" onclick="validateInvite()" type="button">
+<span class="lang-en">Join Flat</span>
+<span class="lang-hi hidden">जुड़ें</span>
+<span class="material-symbols-outlined text-[16px]">arrow_forward</span>
+</button>
+</div>
+<div class="hidden font-body-sm text-body-sm text-dietary-veg flex items-center gap-1 pt-1" id="invite-feedback">
+<span class="material-symbols-outlined text-[16px]">home</span>
+<span>Flat found: <strong>Indiranagar Green Villa (3 members)</strong></span>
+</div>
+</div>
+</div>
+<!-- Trust & Dietary Compliance Assurance Badges -->
+<div class="bg-sage-wash/60 rounded-[18px] p-space-md space-y-space-sm shadow-sm">
+<!-- Dietary Segregation Trust -->
+<div class="flex items-start space-x-space-sm">
+<!-- Dual Dietary Pip Indicator -->
+<div class="flex items-center space-x-1 shrink-0 mt-0.5">
+<div class="w-4 h-4 bg-surface-card rounded-sm flex items-center justify-center shadow-xs">
+<div class="w-2 h-2 rounded-full bg-dietary-veg"></div>
+</div>
+<div class="w-4 h-4 bg-surface-card rounded-sm flex items-center justify-center shadow-xs">
+<div class="w-2 h-2 rounded-full bg-dietary-nonveg"></div>
+</div>
+</div>
+<div>
+<p class="font-title-md text-title-md text-primary text-[13px] leading-tight">
+<span class="lang-en">100% Respect for Dietary Preferences</span>
+<span class="lang-hi hidden">खानपान प्राथमिकताओं का 100% सम्मान</span>
+</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant text-[11px] leading-relaxed mt-0.5">
+<span class="lang-en">Strict separation for Pure-Veg homes, Jain dietary locks &amp; halal flatmate tagging.</span>
+<span class="lang-hi hidden">शुद्ध शाकाहारी, जैन रसोई व अलग बर्तनों/सामग्री की विशेष डिजिटल सुरक्षा।</span>
+</p>
+</div>
+</div>
+<div class="h-[1px] bg-outline-variant/30"></div>
+<!-- Offline & Privacy Trust -->
+<div class="flex items-start space-x-space-sm">
+<div class="w-8 h-8 rounded-lg bg-surface-card flex items-center justify-center shrink-0 shadow-xs text-primary">
+<span class="material-symbols-outlined text-[18px]">lock</span>
+</div>
+<div>
+<p class="font-title-md text-title-md text-primary text-[13px] leading-tight">
+<span class="lang-en">Encrypted &amp; Syncs Offline</span>
+<span class="lang-hi hidden">सुरक्षित डेटा और ऑफलाइन सिंक</span>
+</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant text-[11px] leading-relaxed mt-0.5">
+<span class="lang-en">Works seamlessly even in weak basement supermarket network zones. No spam, ever.</span>
+<span class="lang-hi hidden">सुपरमार्केट के बेसमेंट में भी चलेगा। आपका निजी डेटा कभी बेचा नहीं जाता।</span>
+</p>
+</div>
+</div>
+</div>
+<!-- Modern Culinary Snapshot Mosaic -->
+<div class="grid grid-cols-3 gap-space-xs pt-1">
+<div class="relative rounded-xl overflow-hidden h-20 shadow-sm">
+<img class="w-full h-full object-cover" data-alt="Close up aesthetic shot of brass traditional Indian spice dabba with turmeric, cumin, mustard seeds and whole red chillies on marble top with gentle morning shadows." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA5UYRJQ8wy10OtX_h6XmcGqBq9ZFEIGhJM1nHLwdTn2J8MCDIhf_EE4mR2CmFc0lZzSxyOy-_Y31KwwyJLRMZuLBQUaL_36WY1Ufv8dzCwS3xIYZFDpc38ZnGHrk-eZg0LZ_P7d9ESIcDUwIm_PCdFFVschbD-lMe-5Fzq_EHncQ81R3RBOn7Tw9S7zDOotyrBgkraU0XNaWtzgF2e5M_3or00nFDkh_bYHrwGC5E"/>
+<div class="absolute bottom-1 left-1 bg-surface-card/85 backdrop-blur-xs px-1.5 py-0.5 rounded text-[10px] font-semibold text-primary">
+          Pantry
+        </div>
+</div>
+<div class="relative rounded-xl overflow-hidden h-20 shadow-sm">
+<img class="w-full h-full object-cover" data-alt="Steaming homemade bowl of fragrant dal tadka garnished with fresh cilantro and fried cumin seeds served in a dark ceramic artisanal bowl." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDob10VRhDNkZZ5H3JV7OZ5frai9dKn3Hec9RLVZ0qAyHXAoL_QtKJlXS31WP50yMpUz_sdNKUlI5fCvfU7zpF-gU5EwMlL6TKJ1GFJN4Chl8RXwm7dn3wdaIEQAPUivPugf99OHURnKBq2UVvhvpxaIRfs2E1gKyRW04oTgCsXG0zb0c-7-fQufA2HOWqnN1JJkI-KQnOd7tRNVgnAyUupyan3HfwAkd8IdpygV5c"/>
+<div class="absolute bottom-1 left-1 bg-surface-card/85 backdrop-blur-xs px-1.5 py-0.5 rounded text-[10px] font-semibold text-primary">
+          Meal Sync
+        </div>
+</div>
+<div class="relative rounded-xl overflow-hidden h-20 shadow-sm">
+<img class="w-full h-full object-cover" data-alt="Fresh organic green vegetables, mint leaves, coriander and ginger arranged neatly on a woven jute kitchen counter basket in bright ambient daylight." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB7gugk2L3zYbU4_eZI-DBd4Uq3-3SuTDRtqALl_rXiU0wNaIBRVlxyYsPxix64wM0RnvKXWE5JjUEPiJAVCXTy7GJVELH0liyzejrfbuXfYtiAA2nHwyss1ukD7hzHNaevLAsgD8Um15v0sYFM1xCt_4Hnl5bHyWxJLBwZEirMkVKx-X7MHbO7IKePHlKzPWuFc8MScjNqMS7JPU_VDIRblBmQPZ-W_2IRvO29zOM"/>
+<div class="absolute bottom-1 left-1 bg-surface-card/85 backdrop-blur-xs px-1.5 py-0.5 rounded text-[10px] font-semibold text-primary">
+          Fresh Stock
+        </div>
+</div>
+</div>
+<!-- Legal & Terms Footer -->
+<footer class="pt-space-xs text-center space-y-1">
+<p class="font-body-sm text-body-sm text-sage-muted text-[11px] leading-normal">
+<span class="lang-en">By continuing, you agree to KitchenSync’s </span>
+<span class="lang-hi hidden">आगे बढ़कर आप KitchenSync के </span>
+<a class="underline hover:text-primary font-medium" href="#terms">Terms of Service</a>
+<span class="lang-en"> &amp; </span>
+<span class="lang-hi hidden"> व </span>
+<a class="underline hover:text-primary font-medium" href="#privacy">Privacy Policy</a>.
+      </p>
+<p class="font-label-bilingual text-label-bilingual text-sage-muted/70 text-[10px]">
+        Designed for Bangalore, Mumbai, NCR &amp; hostels across India • Made with care
+      </p>
+</footer>
+</div>
+</div>
+<script>
+  function setLang(lang) {
+    const btnEn = document.getElementById('lang-en');
+    const btnHi = document.getElementById('lang-hi');
+    const enNodes = document.querySelectorAll('.lang-en');
+    const hiNodes = document.querySelectorAll('.lang-hi');
+
+    if (lang === 'hi') {
+      btnHi.classList.add('bg-surface-card', 'text-primary', 'shadow-sm');
+      btnHi.classList.remove('text-sage-muted');
+      btnEn.classList.remove('bg-surface-card', 'text-primary', 'shadow-sm');
+      btnEn.classList.add('text-sage-muted');
+
+      enNodes.forEach(el => el.classList.add('hidden'));
+      hiNodes.forEach(el => el.classList.remove('hidden'));
+    } else {
+      btnEn.classList.add('bg-surface-card', 'text-primary', 'shadow-sm');
+      btnEn.classList.remove('text-sage-muted');
+      btnHi.classList.remove('bg-surface-card', 'text-primary', 'shadow-sm');
+      btnHi.classList.add('text-sage-muted');
+
+      hiNodes.forEach(el => el.classList.add('hidden'));
+      enNodes.forEach(el => el.classList.remove('hidden'));
+    }
+  }
+
+  function validateInvite() {
+    const input = document.getElementById('invite-input');
+    const status = document.getElementById('code-status');
+    const feedback = document.getElementById('invite-feedback');
+
+    if (input.value.trim().length >= 3) {
+      status.classList.remove('hidden');
+      feedback.classList.remove('hidden');
+    } else {
+      input.focus();
+    }
+  }
+</script></main></body></html>
