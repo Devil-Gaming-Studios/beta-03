@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { store } from '../services/store';
+import { syncClient, CLIENT_BUILD } from '../services/syncClient';
 import {
   AgeGroup,
   CookEquipment,
@@ -119,18 +120,53 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
   const [regFavoriteDishes, setRegFavoriteDishes] = useState('Dal Tadka, Roti, Aloo Jeera, Paneer Bhurji');
 
   const [regError, setRegError] = useState<string | null>(null);
+  const [regBusy, setRegBusy] = useState(false);
+  const [diag, setDiag] = useState('checking server…');
+  useEffect(() => {
+    let alive = true;
+    syncClient.health().then((h) => {
+      if (!alive) return;
+      setDiag(h ? `app ${CLIENT_BUILD} · server ${h.build} · storage ${h.storage} · ${h.accounts} account(s)` : `app ${CLIENT_BUILD} · server unreachable or running old code`);
+    });
+    return () => { alive = false; };
+  }, []);
 
   // Quick Demo Logins
   const registeredUsers = store.getAllRegisteredUsers();
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError(null);
     if (!loginIdentifier.trim()) {
       setLoginError(isHindi ? 'कृपया ईमेल, मोबाइल या यूज़रनेम दर्ज करें' : 'Please enter email, mobile or username');
       return;
     }
-    const res = store.login(loginIdentifier, loginPassword || undefined);
+    let res = store.login(loginIdentifier, loginPassword || undefined);
+    const syncEmail = syncClient.accountEmailFor(loginIdentifier);
+    if (!res.success && syncEmail && loginPassword) {
+      // New device: the account lives on the server. Sign in there, pull the data, then log in locally.
+      const linked = await syncClient.connect(syncEmail, loginPassword, false);
+      if (linked.ok) res = store.login(loginIdentifier, loginPassword);
+      else if (linked.error && /no sync account/i.test(linked.error)) {
+        setLoginError(isHindi
+          ? 'यह खाता सर्वर पर अभी नहीं है। जिस फ़ोन पर बनाया था वहाँ लॉग आउट करके पासवर्ड से दोबारा लॉग इन करें (बैज "सिंक हो गया" दिखे), फिर यहाँ कोशिश करें।'
+          : 'This account is not on the server yet. On the phone where you created it, log out and log in again with the password (the badge must say "Synced"), then try here.');
+        return;
+      } else if (linked.error) {
+        setLoginError(linked.error);
+        return;
+      }
+    } else if (res.success && res.user && loginPassword && !syncClient.isLinked()) {
+      // Existing local account: link (or create) its sync account in the background.
+      await syncClient.connect(res.user.email, loginPassword, true);
+    }
+    if (!res.success && !syncEmail) {
+      // A username only exists on the device that created it; other devices find accounts by email or mobile.
+      setLoginError(isHindi
+        ? 'इस डिवाइस पर यह यूज़रनेम नहीं मिला। नए डिवाइस पर अपने ईमेल या मोबाइल नंबर से लॉग इन करें।'
+        : 'No account with that username on this device. On a new device, log in with your email or mobile number instead of your username.');
+      return;
+    }
     if (res.success) {
       onLoginSuccess();
     } else {
@@ -169,8 +205,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
     );
   };
 
-  const handleRegisterSubmit = (e: React.FormEvent) => {
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (regBusy) return;
     setRegError(null);
 
     if (!regName.trim()) {
@@ -249,16 +286,38 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
       regular_dishes: parsedDishes.length > 0 ? parsedDishes : undefined,
     };
 
-    const res = store.registerWithFullProfile(regData);
-    if (res.success) {
-      onLoginSuccess();
-    } else {
-      setRegError(isHindi ? 'पंजीकरण विफल रहा' : 'Registration failed');
+    // Create the account on the server first so it exists on every device, then build it locally.
+    setRegBusy(true);
+    try {
+      const acct = await syncClient.createAccount(regData.emailOrPhone, regData.password || 'password123');
+      if (!acct.ok) {
+        setRegError(
+          acct.exists
+            ? (isHindi ? 'इस ईमेल/मोबाइल से खाता पहले से है। कृपया लॉग इन करें।' : 'An account with this email/mobile already exists. Please log in instead.')
+            : acct.network
+              ? (isHindi ? 'सर्वर से कनेक्ट नहीं हो पा रहा। खाता सभी डिवाइस पर चले इसके लिए इंटरनेट चाहिए — दोबारा कोशिश करें।' : 'Cannot reach the server. Accounts are created online so they work on every device — check your connection and try again.')
+              : (acct.error || (isHindi ? 'पंजीकरण विफल रहा' : 'Registration failed'))
+        );
+        return;
+      }
+      const res = store.registerWithFullProfile(regData);
+      syncClient.release(); // start live sync; uploads the new profile straight away
+      // Give the first upload a moment so the profile is on the server before the next screen (never blocks long).
+      await Promise.race([syncClient.syncNow(), new Promise((r) => setTimeout(r, 4000))]);
+      if (res.success) {
+        onLoginSuccess();
+      } else {
+        setRegError(isHindi ? 'पंजीकरण विफल रहा' : 'Registration failed');
+      }
+    } finally {
+      syncClient.release(); // no-op unless an account was just created; never leave sync on hold
+      setRegBusy(false);
     }
   };
 
   return (
     <div className="bg-[#FAF9F6] min-h-screen text-[#1a1c1a] flex flex-col selection:bg-[#EDF2EE] selection:text-[#032212]">
+      <div className="fixed bottom-1 left-2 z-50 text-[10px] text-[#727972] pointer-events-none select-none">{diag}</div>
       {/* Top Header */}
       <header className="sticky top-0 z-40 bg-[#FAF9F6]/95 backdrop-blur-md border-b border-[#E6E4DD] px-4 py-3">
         <div className="max-w-md mx-auto flex items-center justify-between">
@@ -957,7 +1016,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
             <div className="pt-2 pb-6">
               <button
                 type="submit"
-                className="w-full py-3.5 rounded-2xl bg-[#1A3826] hover:bg-[#132a1d] active:scale-[0.99] text-white text-[15px] font-bold flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+                disabled={regBusy}
+                className="w-full py-3.5 rounded-2xl bg-[#1A3826] hover:bg-[#132a1d] active:scale-[0.99] disabled:opacity-60 text-white text-[15px] font-bold flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
               >
                 <span className="material-symbols-outlined text-[20px]">check_circle</span>
                 <span>{isHindi ? 'प्रोफ़ाइल सहेजें और किचन शुरू करें' : 'Complete Setup & Launch Kitchen'}</span>

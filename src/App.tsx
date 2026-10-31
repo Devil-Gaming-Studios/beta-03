@@ -19,6 +19,7 @@ import { AuthScreen } from './components/AuthScreen';
 import { CommunityScreen } from './components/CommunityScreen';
 import { DownloadAppModal } from './components/DownloadAppModal';
 import { store } from './services/store';
+import { syncClient } from './services/syncClient';
 import { MealSlot } from './types';
 
 export const App: React.FC = () => {
@@ -61,6 +62,38 @@ export const App: React.FC = () => {
       }
     }
   }, []);
+
+  // Start cross-device sync and refresh the screens whenever another device's changes arrive.
+  React.useEffect(() => {
+    syncClient.start();
+    // Remounting a screen discards what the person is typing, so while a field has focus wait for it to blur.
+    let pending = false;
+    const flush = () => { pending = false; setPlanRefreshKey((k) => k + 1); };
+    const typing = () => {
+      const el = document.activeElement as HTMLElement | null;
+      return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
+    };
+    const onSynced = () => {
+      if (!typing()) return flush();
+      if (pending) return;
+      pending = true;
+      const onBlur = () => { document.removeEventListener('focusout', onBlur); setTimeout(() => { if (pending) flush(); }, 150); };
+      document.addEventListener('focusout', onBlur);
+    };
+    window.addEventListener('mastmeals:synced', onSynced);
+    return () => window.removeEventListener('mastmeals:synced', onSynced);
+  }, []);
+
+  // Heal accounts that exist only on this device: once logged in, link them to the server using the password
+  // stored with the local profile (no typing needed). Demo users (@local) are skipped; failures stay silent
+  // and the "Sync off" badge on the Profile tab can still be used to link by hand.
+  React.useEffect(() => {
+    if (!isAuthenticated || syncClient.isLinked()) return;
+    const u: any = store.getMe().user;
+    if (u?.email && u?.password && !/@local$/i.test(u.email)) {
+      void syncClient.connect(u.email, u.password, true);
+    }
+  }, [isAuthenticated]);
 
   const toggleLanguage = () => {
     setIsHindi((prev) => !prev);

@@ -67,6 +67,7 @@ import { shopInboxService } from './server/shopInboxService';
 import { swiggyOAuthService } from './server/swiggyOAuth';
 import { swiggyTokenStore } from './server/swiggyTokenStore';
 import { swiggyMcpClient } from './server/swiggyMcpClient';
+import * as syncService from './server/syncService';
 
 let systemInstruction = `You are Omnirush, the assistant inside Mast Meals / KitchenSync, a household meal, recipe and kitchen-stock assistant for Indian households. You help with:
 1. Updating inventory stock (e.g. add/remove/set ingredients).
@@ -98,6 +99,78 @@ try {
 } catch {
   // Use fallback systemInstruction
 }
+
+// ---------------------------------------------------------------------------
+// Cross-device sync (account + document store). See server/syncService.ts
+// ---------------------------------------------------------------------------
+function syncAuth(req: Request, res: Response): string | null {
+  const h = req.headers.authorization || '';
+  const accountId = syncService.verifyToken(h.startsWith('Bearer ') ? h.slice(7) : undefined);
+  if (!accountId) { res.status(401).json({ error: 'invalid or expired sync token' }); return null; }
+  return accountId;
+}
+
+// Safe to expose: no emails, no secrets. Open /api/sync/health on any device to see what that device is talking to.
+app.get('/api/sync/health', (_req: Request, res: Response) => {
+  res.set('Cache-Control', 'no-store');
+  res.json(syncService.stats());
+});
+
+app.post('/api/sync/register', async (req: Request, res: Response): Promise<any> => {
+  const r = syncService.register(req.body?.email, req.body?.password);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  try { await syncService.flush(); } catch (e) {
+    console.error('[sync] could not store new account:', (e as Error).message);
+    return res.status(503).json({ error: 'server database unavailable, try again' });
+  }
+  return res.json(r);
+});
+
+app.post('/api/sync/login', (req: Request, res: Response): any => {
+  const r = syncService.login(req.body?.email, req.body?.password);
+  return r.ok ? res.json(r) : res.status(r.status).json({ error: r.error });
+});
+
+app.post('/api/sync/push', async (req: Request, res: Response): Promise<any> => {
+  const accountId = syncAuth(req, res);
+  if (!accountId) return;
+  const r = syncService.push(accountId, String(req.body?.client_id || ''), req.body?.changes);
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  try { await syncService.flush(); } catch (e) {
+    console.error('[sync] could not store changes:', (e as Error).message);
+    return res.status(503).json({ error: 'server database unavailable, try again' });
+  }
+  return res.json(r);
+});
+
+// Live channel (long-poll): a device asks "anything newer than version V?" and the request is held open until
+// another device pushes (or 25 s pass). Plain HTTP, so it works through Cloudflare quick tunnels, which do not support SSE.
+app.get('/api/sync/wait', (req: Request, res: Response): any => {
+  const accountId = syncAuth(req, res);
+  if (!accountId) return;
+  const since = Math.max(0, Number(req.query.since) || 0);
+  const now = syncService.currentVersion(accountId);
+  if (now > since) return res.json({ changed: true, version: now });
+
+  let done = false;
+  const finish = (changed: boolean) => {
+    if (done) return;
+    done = true;
+    clearTimeout(timer);
+    unsubscribe();
+    if (!res.headersSent) res.json({ changed, version: syncService.currentVersion(accountId) });
+  };
+  const unsubscribe = syncService.subscribe(accountId, () => finish(true));
+  const timer = setTimeout(() => finish(false), 25000);
+  req.on('close', () => { done = true; clearTimeout(timer); unsubscribe(); });
+});
+
+app.get('/api/sync/pull', (req: Request, res: Response): any => {
+  const accountId = syncAuth(req, res);
+  if (!accountId) return;
+  const since = Math.max(0, Number(req.query.since) || 0);
+  return res.json(syncService.pull(accountId, since));
+});
 
 // ---------------------------------------------------------------------------
 // Graph RAG API Endpoints
@@ -1766,8 +1839,34 @@ wss.on('connection', async (clientWs: WebSocket) => {
 // ---------------------------------------------------------------------------
 // 4. Vite Mounting and Server Start
 // ---------------------------------------------------------------------------
+// Production mode = serve the pre-built app from dist/ (fast, one small bundle). Works on Windows too:  npm run serve
+const PROD = process.env.NODE_ENV === 'production' || process.argv.includes('--prod');
+
 async function startServer() {
-  if (process.env.NODE_ENV !== 'production') {
+  try {
+    const mode = await syncService.init();
+    console.log(`[sync] storage: ${mode === 'postgres' ? 'PostgreSQL' : 'JSON file (.data/sync-db.json) — set DATABASE_URL to use Postgres'}`);
+  } catch (e) {
+    const msg = String((e as any)?.message || e);
+    const code = String((e as any)?.code || '');
+    console.error('');
+    console.error('==========================================================================');
+    console.error(`[sync] DATABASE_URL is set but Postgres cannot be used: ${msg}`);
+    if (/ENOTFOUND|ENETUNREACH|ETIMEDOUT|EHOSTUNREACH|EAI_AGAIN/.test(code + msg)) {
+      console.error('[sync] HINT: Supabase "Direct connection" hosts (db.<project>.supabase.co) are IPv6-only.');
+      console.error('[sync]       Use the "Session pooler" string from Supabase > Connect instead (host ends in pooler.supabase.com,');
+      console.error('[sync]       user is postgres.<project-ref>).');
+    } else if (/password authentication|SASL|authentication/i.test(msg)) {
+      console.error('[sync] HINT: wrong database password. Encode special characters in it (@ = %40, # = %23, / = %2F).');
+    } else if (/"pg" package/.test(msg)) {
+      console.error('[sync] HINT: run  npm install');
+    }
+    console.error('[sync] The server is NOT starting, so accounts are never silently saved to a different place.');
+    console.error('[sync] Fix DATABASE_URL in .env (check with: npm run check:db), or empty it to use the JSON file.');
+    console.error('==========================================================================');
+    process.exit(1);
+  }
+  if (!PROD) {
     const vite = await createViteServer({
       server: { middlewareMode: true, hmr: false },
       appType: 'spa',
