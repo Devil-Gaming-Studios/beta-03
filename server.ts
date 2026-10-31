@@ -1388,7 +1388,20 @@ app.post('/api/chat/stream', async (req: Request, res: Response): Promise<any> =
 // ---------------------------------------------------------------------------
 // 3. Server-Side Live API: WebSocket Server on /live
 // ---------------------------------------------------------------------------
-const wss = new WebSocketServer({ server, path: '/live' });
+const wss = new WebSocketServer({ noServer: true });
+
+server.on('upgrade', (req, socket, head) => {
+  try {
+    const pathname = (req.url || '').split('?')[0];
+    if (pathname === '/live') {
+      wss.handleUpgrade(req, socket, head, (clientWs) => {
+        wss.emit('connection', clientWs, req);
+      });
+    }
+  } catch (err) {
+    console.error('Error during websocket upgrade:', err);
+  }
+});
 
 wss.on('connection', async (clientWs: WebSocket) => {
   console.log('Client connected to /live WebSocket');
@@ -1452,7 +1465,7 @@ wss.on('connection', async (clientWs: WebSocket) => {
 async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { middlewareMode: true, hmr: false },
       appType: 'spa',
     });
     app.use(vite.middlewares);

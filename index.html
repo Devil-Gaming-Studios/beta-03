@@ -19,6 +19,21 @@
     <meta name="apple-mobile-web-app-title" content="KitchenSync" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <script>
+      // Gracefully handle dev WebSocket / HMR closures in cloud iFrame proxy
+      window.addEventListener('error', function (event) {
+        if (event && event.message && (event.message.includes('WebSocket') || event.message.includes('closed without opened'))) {
+          event.stopImmediatePropagation();
+          event.preventDefault();
+        }
+      }, true);
+      window.addEventListener('unhandledrejection', function (event) {
+        if (event && event.reason && String(event.reason).includes('WebSocket')) {
+          event.stopImmediatePropagation();
+          event.preventDefault();
+        }
+      }, true);
+    </script>
   </head>
   <body>
     <div id="root"></div>
