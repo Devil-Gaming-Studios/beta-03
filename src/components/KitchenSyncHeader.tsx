@@ -51,30 +51,30 @@ export const KitchenSyncHeader: React.FC<KitchenSyncHeaderProps> = ({
           </div>
         </div>
 
-        {/* Right: AI Scan, Omnirush Voice Mic, Sync Status and User Profile */}
+        {/* Right: Smart Scan, Omnirush Voice Mic, Sync Status and User Profile */}
         <div className="flex items-center gap-1 sm:gap-2 shrink-0">
-          {/* AI Scan Header Action Button: Always accessible across all screens */}
+          {/* Smart Scan Header Action Button: Always accessible across all screens */}
           {onOpenScan && (
             <button
-              aria-label="Scan Receipt or Fridge with Vision AI"
+              aria-label="Scan a Bill or Your Fridge"
               className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-[#1A3826] text-white hover:bg-[#132a1d] active:scale-95 transition-all text-xs font-semibold cursor-pointer shadow-xs shrink-0"
               type="button"
               onClick={() => onOpenScan('receipt')}
-              title={isHindi ? 'AI रसीद व फ्रिज स्कैनर' : 'Scan Receipt or Fridge with Vision AI'}
+              title={isHindi ? 'AI रसीद व फ्रिज स्कैनर' : 'Scan a Bill or Your Fridge'}
             >
               <span className="material-symbols-outlined text-[17px] text-[#c8ebd1]">document_scanner</span>
-              <span>{isHindi ? 'स्कैन' : 'AI Scan'}</span>
+              <span>{isHindi ? 'स्कैन' : 'Smart Scan'}</span>
             </button>
           )}
 
           {/* Download App Action Button (Only shown in Web Browser, hidden in native Android app) */}
           {!isNative && (
             <button
-              aria-label="Download and Install Web App"
+              aria-label="Install the App"
               className="hidden xs:flex items-center gap-1 px-2 py-1.5 rounded-full bg-[#1A3826]/10 text-[#1A3826] hover:bg-[#1A3826]/15 active:scale-95 transition-all text-xs font-semibold cursor-pointer border border-[#1A3826]/20 shrink-0"
               type="button"
               onClick={onOpenDownload}
-              title="Download or install Mast Meals web app on home screen"
+              title="Add Mast Meals to your home screen"
             >
               <span className="material-symbols-outlined text-[16px]">download</span>
               <span>{isHindi ? 'ऐप' : 'App'}</span>
@@ -83,11 +83,11 @@ export const KitchenSyncHeader: React.FC<KitchenSyncHeaderProps> = ({
 
           {/* Header Mic Action Button */}
           <button
-            aria-label="Omnirush Voice Assistant (Shruti & Cactus Whisper)"
+            aria-label="Omnirush Voice Assistant"
             className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-full bg-[#1A3826] text-white flex items-center justify-center hover:bg-[#132a1d] active:scale-95 transition-all shadow-xs cursor-pointer shrink-0"
             type="button"
             onClick={onOpenVoice}
-            title="Omnirush Voice Assistant (Shruti & Cactus Whisper STT)"
+            title="Omnirush Voice Assistant"
           >
             <span className="material-symbols-outlined text-[18px]">mic</span>
           </button>

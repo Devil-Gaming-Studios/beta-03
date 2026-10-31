@@ -138,12 +138,12 @@ export const RecipesScreen: React.FC<RecipesScreenProps> = ({
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-[24px] font-bold text-[#1a1c1a] tracking-tight leading-tight">
-              {isHindi ? 'रेसिपी ज्ञान ग्राफ (Graph RAG)' : 'Recipe Knowledge Graph'}
+              {isHindi ? 'रेसिपी ज्ञान ग्राफ (Graph RAG)' : 'Recipe Collection'}
             </h1>
             <p className="text-[12px] text-[#424843]">
               {isHindi
                 ? '6,800+ प्रामाणिक भारतीय व्यंजन और घटक संबंध'
-                : '6,800+ authentic Indian recipes & ingredient graph relations'}
+                : '6,800+ authentic Indian recipes'}
             </p>
           </div>
           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#E8F0EC] text-[#1E4620] text-[11px] font-semibold border border-[#D1E2D7]">
@@ -261,7 +261,7 @@ export const RecipesScreen: React.FC<RecipesScreenProps> = ({
         {loading ? (
           <div className="p-8 text-center text-[#424843] flex flex-col items-center justify-center gap-2">
             <span className="w-6 h-6 border-2 border-[#1A3826] border-t-transparent rounded-full animate-spin"></span>
-            <span className="text-[13px]">{isHindi ? 'ग्राफ डेटाबेस से रेसिपी लोड हो रही हैं...' : 'Traversing recipe graph...'}</span>
+            <span className="text-[13px]">{isHindi ? 'ग्राफ डेटाबेस से रेसिपी लोड हो रही हैं...' : 'Finding recipes...'}</span>
           </div>
         ) : recipes.length === 0 ? (
           <div className="bg-white rounded-2xl p-6 text-center border border-[#E6E4DD] text-[#424843]">

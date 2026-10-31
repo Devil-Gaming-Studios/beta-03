@@ -54,7 +54,7 @@ export const DownloadAppModal: React.FC<DownloadAppModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-[#b7e9c3] mt-0.5">
-                {isHindi ? 'किचनसिंक हाउसहोल्ड ओएस - वेब व नेटिव ऐप्स' : 'KitchenSync Household OS • Web & Native Apps'}
+                {isHindi ? 'किचनसिंक हाउसहोल्ड ओएस - वेब व नेटिव ऐप्स' : 'KitchenSync • Web & Android Apps'}
               </p>
             </div>
           </div>
@@ -77,7 +77,7 @@ export const DownloadAppModal: React.FC<DownloadAppModalProps> = ({
               <span className="font-medium">
                 {isHindi
                   ? 'वेब ऐप आपके डिवाइस पर पहले से इंस्टॉल है।'
-                  : 'Web App (PWA) is already installed on this device.'}
+                  : 'The app is already installed on this device.'}
               </span>
             </div>
           )}
@@ -101,7 +101,7 @@ export const DownloadAppModal: React.FC<DownloadAppModalProps> = ({
                 <p className="text-[11.5px] text-[#424843] leading-relaxed">
                   {isHindi
                     ? 'ब्राउज़र से 1-टैप में होम स्क्रीन पर जोड़ें। क्रोम, सफारी, एज में 100% ऑफलाइन काम करता है।'
-                    : '1-tap install on Chrome, Safari, Edge, or mobile browsers. Offline ready, zero store fees.'}
+                    : 'Install in one tap from Chrome, Safari, Edge or your phone browser. Works without internet.'}
                 </p>
                 <ul className="text-[11px] text-[#727972] space-y-1 pt-1">
                   <li className="flex items-center gap-1.5">
@@ -148,7 +148,7 @@ export const DownloadAppModal: React.FC<DownloadAppModalProps> = ({
                 <p className="text-[11.5px] text-[#424843] leading-relaxed">
                   {isHindi
                     ? 'एंड्रॉयड APK जिसमें WhatsApp और Telegram से शॉप चैट लिसनर, रूम डेटाबेस और बैकग्राउंड सिंक शामिल है।'
-                    : 'Native Android app featuring Shop Chat Listener (WhatsApp & Telegram), offline Room queue & WebBridge.'}
+                    : 'Android app that reads messages from your shopkeeper on WhatsApp & Telegram, and works without internet.'}
                 </p>
                 <ul className="text-[11px] text-[#727972] space-y-1 pt-1">
                   <li className="flex items-center gap-1.5">
@@ -161,7 +161,7 @@ export const DownloadAppModal: React.FC<DownloadAppModalProps> = ({
                   </li>
                   <li className="flex items-center gap-1.5">
                     <span className="material-symbols-outlined text-[14px] text-[#15803D]">check</span>
-                    <span>Offline Room SQLite Queue</span>
+                    <span>Saves Your Changes Offline</span>
                   </li>
                 </ul>
               </div>

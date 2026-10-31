@@ -20,7 +20,7 @@ export const Header: React.FC<HeaderProps> = ({ household, role, onOpenSettings 
         id="who"
         className="pill ok"
         onClick={onOpenSettings}
-        title="Household Profile and Settings"
+        title="Profile and Settings"
       >
         <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent)' }}></span>
         <span>{household.name} · {role}</span>

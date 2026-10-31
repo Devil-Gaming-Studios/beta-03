@@ -121,12 +121,12 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
   const [regError, setRegError] = useState<string | null>(null);
   const [regBusy, setRegBusy] = useState(false);
-  const [diag, setDiag] = useState('checking server…');
+  const [diag, setDiag] = useState('checking connection…');
   useEffect(() => {
     let alive = true;
     syncClient.health().then((h) => {
       if (!alive) return;
-      setDiag(h ? `app ${CLIENT_BUILD} · server ${h.build} · storage ${h.storage} · ${h.accounts} account(s)` : `app ${CLIENT_BUILD} · server unreachable or running old code`);
+      setDiag(h ? `App ${CLIENT_BUILD} · connected · ${h.accounts} account(s)` : `App ${CLIENT_BUILD} · can’t connect right now`);
     });
     return () => { alive = false; };
   }, []);
@@ -150,7 +150,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
       else if (linked.error && /no sync account/i.test(linked.error)) {
         setLoginError(isHindi
           ? 'यह खाता सर्वर पर अभी नहीं है। जिस फ़ोन पर बनाया था वहाँ लॉग आउट करके पासवर्ड से दोबारा लॉग इन करें (बैज "सिंक हो गया" दिखे), फिर यहाँ कोशिश करें।'
-          : 'This account is not on the server yet. On the phone where you created it, log out and log in again with the password (the badge must say "Synced"), then try here.');
+          : 'This account isn’t saved online yet. On the phone where you created it, log out and log in again with your password (the badge must say "Saved"), then try here.');
         return;
       } else if (linked.error) {
         setLoginError(linked.error);
@@ -295,7 +295,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
           acct.exists
             ? (isHindi ? 'इस ईमेल/मोबाइल से खाता पहले से है। कृपया लॉग इन करें।' : 'An account with this email/mobile already exists. Please log in instead.')
             : acct.network
-              ? (isHindi ? 'सर्वर से कनेक्ट नहीं हो पा रहा। खाता सभी डिवाइस पर चले इसके लिए इंटरनेट चाहिए — दोबारा कोशिश करें।' : 'Cannot reach the server. Accounts are created online so they work on every device — check your connection and try again.')
+              ? (isHindi ? 'सर्वर से कनेक्ट नहीं हो पा रहा। खाता सभी डिवाइस पर चले इसके लिए इंटरनेट चाहिए — दोबारा कोशिश करें।' : 'Can’t connect right now. Accounts are created online so they work on every device — check your internet and try again.')
               : (acct.error || (isHindi ? 'पंजीकरण विफल रहा' : 'Registration failed'))
         );
         return;
@@ -394,7 +394,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
               <p className="text-[12.5px] text-[#424843] mt-1">
                 {isHindi
                   ? 'अपने घर, हॉस्टल या फूड बिज़नेस के स्टॉक और मील प्लान तक पहुँचने के लिए लॉग इन करें।'
-                  : 'Sign in to access your kitchen inventory, meal planner, and household recipes.'}
+                  : 'Sign in to see your kitchen stock, meal planner, and family recipes.'}
               </p>
             </div>
 
@@ -570,7 +570,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
               <p className="text-[12px] text-[#424843] mt-1">
                 {isHindi
                   ? 'अपनी आहार शैली, उपकरण, स्वास्थ्य लक्ष्य और साप्ताहिक शेड्यूल को एक ही बार में सेट करें।'
-                  : 'Configure every detail of your household, dietary limits, appliances, and schedule.'}
+                  : 'Set up your family’s details, food preferences, appliances, and schedule.'}
               </p>
             </div>
 
@@ -639,7 +639,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
 
               <div>
                 <label className="block text-[11px] font-semibold text-[#424843] mb-1">
-                  {isHindi ? 'किचन या घर का नाम' : 'Kitchen or Household Name'}
+                  {isHindi ? 'किचन या घर का नाम' : 'Kitchen or Family Name'}
                 </label>
                 <input
                   type="text"
@@ -699,7 +699,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
                     <span className="material-symbols-outlined text-[20px] text-[#1A3826] mt-0.5">restaurant</span>
                     <div>
                       <div className="text-[13px] font-bold">Food Business Mode 🍳</div>
-                      <div className="text-[11px] opacity-75">Cook to order & announced batches, portion yield, stock reservations & KDS</div>
+                      <div className="text-[11px] opacity-75">Cook to order or in bulk, track portions and stock, and see live orders on a kitchen screen</div>
                     </div>
                   </button>
                 </div>

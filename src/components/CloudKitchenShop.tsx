@@ -65,7 +65,7 @@ export const CloudKitchenShop: React.FC<CloudKitchenShopProps> = ({ isHindi }) =
     }));
 
     store.receiveGoods(activeList.id, itemsToReceive, householdId);
-    showToast(isHindi ? 'माल प्राप्त हुआ! स्टॉक और लेजर अपडेट हो गए।' : 'Goods received! Stock and audit ledger updated.');
+    showToast(isHindi ? 'माल प्राप्त हुआ! स्टॉक और लेजर अपडेट हो गए।' : 'Delivery received! Stock and records updated.');
     setShowGoodsReceiveModal(false);
     setRefreshKey((k) => k + 1);
   };
@@ -166,7 +166,7 @@ export const CloudKitchenShop: React.FC<CloudKitchenShopProps> = ({ isHindi }) =
       showToast(
         isHindi
           ? `नया सप्लायर "${newSup.name}" सफलतापूर्वक जोड़ा गया`
-          : `New contractor "${newSup.name}" added to supplier directory`
+          : `New supplier "${newSup.name}" added to your list`
       );
       setShowSupplierModal(false);
       setRefreshKey((k) => k + 1);
@@ -181,7 +181,7 @@ export const CloudKitchenShop: React.FC<CloudKitchenShopProps> = ({ isHindi }) =
       showToast(
         isHindi
           ? `सप्लायर "${name}" को डायरेक्टरी से हटा दिया गया`
-          : `Supplier "${name}" removed from directory`
+          : `Supplier "${name}" removed from your list`
       );
       setSupplierToDelete(null);
       setRefreshKey((k) => k + 1);
@@ -229,13 +229,13 @@ export const CloudKitchenShop: React.FC<CloudKitchenShopProps> = ({ isHindi }) =
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-[24px] text-[#1A3826]">local_shipping</span>
             <h1 className="text-[20px] font-bold text-[#1a1c1a]">
-              {isHindi ? 'सप्लायर खरीदारी और खरीद ऑर्डर' : 'Commercial Procurement & Goods Received'}
+              {isHindi ? 'सप्लायर खरीदारी और खरीद ऑर्डर' : 'Buying & Deliveries'}
             </h1>
           </div>
           <p className="text-[12px] text-[#727972] mt-0.5">
             {isHindi
               ? 'अनुबंधित सप्लायरों के सम्पर्क, पार लेवल और आगामी ऑर्डर मांग के आधार पर खरीद प्रबंधन'
-              : 'Contracted supplier directory, contractor contacts, par levels, and purchase orders'}
+              : 'Your suppliers, their contacts, minimum stock levels, and purchase orders'}
           </p>
         </div>
 
@@ -257,7 +257,7 @@ export const CloudKitchenShop: React.FC<CloudKitchenShopProps> = ({ isHindi }) =
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-[20px] text-[#1A3826]">contacts</span>
             <h2 className="text-[15px] font-bold text-[#1a1c1a]">
-              {isHindi ? 'अनुबंधित सप्लायर्स और ठेकेदार' : 'Contracted Suppliers & Vendor Contacts'}
+              {isHindi ? 'अनुबंधित सप्लायर्स और ठेकेदार' : 'Your Suppliers & Contacts'}
             </h2>
             <span className="px-2 py-0.5 rounded-full bg-[#1A3826]/10 text-[#1A3826] text-[11px] font-bold">
               {suppliers.length}
@@ -294,8 +294,8 @@ export const CloudKitchenShop: React.FC<CloudKitchenShopProps> = ({ isHindi }) =
         {filteredSuppliers.length === 0 ? (
           <div className="p-6 text-center text-[#727972] text-[12.5px] border border-dashed border-[#E6E4DD] rounded-xl bg-[#FAF9F6]">
             {supplierSearch
-              ? (isHindi ? `"${supplierSearch}" के लिए कोई सप्लायर नहीं मिला` : `No contractors found matching "${supplierSearch}"`)
-              : (isHindi ? 'अभी कोई अनुबंधित सप्लायर नहीं है। नया सप्लायर जोड़ें।' : 'No contracted suppliers registered. Click "Add Supplier" above.')}
+              ? (isHindi ? `"${supplierSearch}" के लिए कोई सप्लायर नहीं मिला` : `No suppliers found matching "${supplierSearch}"`)
+              : (isHindi ? 'अभी कोई अनुबंधित सप्लायर नहीं है। नया सप्लायर जोड़ें।' : 'No suppliers added yet. Click "Add Supplier" above.')}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -460,7 +460,7 @@ export const CloudKitchenShop: React.FC<CloudKitchenShopProps> = ({ isHindi }) =
               <button
                 type="button"
                 onClick={() => {
-                  showToast('Purchase order dispatched to suppliers via WhatsApp');
+                  showToast('Order sent to suppliers on WhatsApp');
                 }}
                 className="px-3.5 py-1.5 rounded-xl border border-[#E6E4DD] text-[11.5px] font-bold text-[#424843] hover:bg-gray-50 flex items-center gap-1 cursor-pointer transition-colors"
               >
@@ -540,8 +540,8 @@ export const CloudKitchenShop: React.FC<CloudKitchenShopProps> = ({ isHindi }) =
                 </span>
                 <h3 className="text-[16px] font-bold text-[#1a1c1a]">
                   {editingSupplier
-                    ? (isHindi ? 'सप्लायर और कॉन्टैक्ट विवरण संपादित करें' : 'Edit Supplier & Contractor Details')
-                    : (isHindi ? 'नया अनुबंधित सप्लायर जोड़ें' : 'Add New Contracted Supplier')}
+                    ? (isHindi ? 'सप्लायर और कॉन्टैक्ट विवरण संपादित करें' : 'Edit Supplier Details')
+                    : (isHindi ? 'नया अनुबंधित सप्लायर जोड़ें' : 'Add New Supplier')}
                 </h3>
               </div>
               <button
@@ -565,7 +565,7 @@ export const CloudKitchenShop: React.FC<CloudKitchenShopProps> = ({ isHindi }) =
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-bold text-[#424843] mb-1">
-                    {isHindi ? 'सप्लायर / फर्म का नाम *' : 'Supplier / Firm Name *'}
+                    {isHindi ? 'सप्लायर / फर्म का नाम *' : 'Supplier / Shop Name *'}
                   </label>
                   <input
                     type="text"
@@ -747,7 +747,7 @@ export const CloudKitchenShop: React.FC<CloudKitchenShopProps> = ({ isHindi }) =
               <p className="text-[12px] text-[#727972] mt-1">
                 {isHindi
                   ? `क्या आप वाकई "${supplierToDelete.name}" को अपने अनुबंधित सप्लायर डायरेक्टरी से हटाना चाहते हैं?`
-                  : `Are you sure you want to remove "${supplierToDelete.name}" from your active contractor list?`}
+                  : `Are you sure you want to remove "${supplierToDelete.name}" from your supplier list?`}
               </p>
             </div>
 

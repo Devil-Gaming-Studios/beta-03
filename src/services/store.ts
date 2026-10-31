@@ -3347,6 +3347,12 @@ class StoreService {
     return newMeal;
   }
 
+  /** Recompute every planned meal's missing items and the shopping list after a plan change (e.g. servings scaled). */
+  public refreshPlanShortages() {
+    this.syncPlansAndShoppingWithStock();
+    this.persist();
+  }
+
   public removeMeal(mealId: string, weekStart?: string) {
     const hhId = this.state.currentHouseholdId;
     const plansForHh = this.state.plans[hhId] || {};

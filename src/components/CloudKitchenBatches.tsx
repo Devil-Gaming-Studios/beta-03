@@ -46,13 +46,13 @@ export const CloudKitchenBatches: React.FC<CloudKitchenBatchesProps> = ({ isHind
     );
 
     if (!res.success) {
-      showToast(res.error || 'Stock shortage! Please verify or override.');
+      showToast(res.error || 'Not enough ingredients! Please check, or continue anyway.');
       setOverrideAllowed(true);
     } else {
       showToast(
         isHindi
           ? `बैच तैयार: ${portions} पोर्शन ${selectedItem.name} का स्टॉक काट लिया गया!`
-          : `Batch announced: ${portions} portions of ${selectedItem.name} deducted from stock!`
+          : `Cooking started: ${portions} portions of ${selectedItem.name} taken from stock!`
       );
       setOverrideAllowed(false);
       setOverrideReason('');
@@ -62,7 +62,7 @@ export const CloudKitchenBatches: React.FC<CloudKitchenBatchesProps> = ({ isHind
 
   const handleCompleteBatch = (batchId: string) => {
     store.completeBatch(batchId, householdId);
-    showToast(isHindi ? 'बैच पूरा हो गया!' : 'Batch marked complete and ready!');
+    showToast(isHindi ? 'बैच पूरा हो गया!' : 'Cooking done and ready to serve!');
     setRefreshKey((k) => k + 1);
   };
 
@@ -82,13 +82,13 @@ export const CloudKitchenBatches: React.FC<CloudKitchenBatchesProps> = ({ isHind
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-[24px] text-[#1A3826]">soup_kitchen</span>
             <h1 className="text-[20px] font-bold text-[#1a1c1a]">
-              {isHindi ? 'बैच कुकिंग और उत्पादन योजना' : 'Batch Cooking & Production Queue'}
+              {isHindi ? 'बैच कुकिंग और उत्पादन योजना' : 'Bulk Cooking & Kitchen Queue'}
             </h1>
           </div>
           <p className="text-[12px] text-[#727972] mt-0.5">
             {isHindi
               ? 'फूड बिज़नेस में कोई 3 निश्चित भोजन नहीं होते — यहाँ मांग और बैच के अनुसार खाना बनता है।'
-              : 'Cook to orders and announced batches. Raw inventory follows what is actually cooked and sold.'}
+              : 'Cook to order or in bulk. Your ingredient stock updates as you cook and sell.'}
           </p>
         </div>
 
@@ -98,7 +98,7 @@ export const CloudKitchenBatches: React.FC<CloudKitchenBatchesProps> = ({ isHind
           className="px-3.5 py-2 rounded-xl bg-[#EDF2EE] hover:bg-[#dbe7df] text-[#032212] border border-[#c8ebd1] text-[12px] font-bold flex items-center gap-1.5 cursor-pointer"
         >
           <span className="material-symbols-outlined text-[17px]">mic</span>
-          <span>{isHindi ? '"40 वेज बिरयानी बना रहा हूँ"' : 'Voice Announce'}</span>
+          <span>{isHindi ? '"40 वेज बिरयानी बना रहा हूँ"' : 'Say It by Voice'}</span>
         </button>
       </div>
 
@@ -108,7 +108,7 @@ export const CloudKitchenBatches: React.FC<CloudKitchenBatchesProps> = ({ isHind
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-[20px] text-[#1A3826]">skillet</span>
             <h2 className="text-[15px] font-bold text-[#1a1c1a]">
-              {isHindi ? '1. नया बैच घोषित करें (Announce What I\'m Cooking)' : '1. Announce What I\'m Cooking (Batch Scaler)'}
+              {isHindi ? '1. नया बैच घोषित करें (Announce What I\'m Cooking)' : '1. Announce What I\'m Cooking (Quantity Planner)'}
             </h2>
           </div>
           <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[#EDF2EE] text-[#1A3826]">
@@ -174,7 +174,7 @@ export const CloudKitchenBatches: React.FC<CloudKitchenBatchesProps> = ({ isHind
               <div className="flex justify-between items-center text-[12px] font-bold">
                 <span className="text-[#1a1c1a]">Ingredient Scaling for {portions} Portions:</span>
                 <span className={feasibility.canCook ? 'text-emerald-700' : 'text-rose-700'}>
-                  {feasibility.canCook ? '✓ All Ingredients Available' : `⚠️ ${feasibility.shortages.length} Shortages Flagged`}
+                  {feasibility.canCook ? '✓ All Ingredients Available' : `⚠️ ${feasibility.shortages.length} Ingredients Missing`}
                 </span>
               </div>
 
@@ -214,7 +214,7 @@ export const CloudKitchenBatches: React.FC<CloudKitchenBatchesProps> = ({ isHind
 
           {overrideAllowed && (
             <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-[12px] text-amber-900 flex flex-col gap-1.5">
-              <span className="font-bold">⚠️ Owner Shortage Override:</span>
+              <span className="font-bold">⚠️ Owner Approval to Continue Anyway:</span>
               <p className="text-[11px]">
                 Stock is below requirement. As Owner/Head Chef, enter a reason to allow cooking anyway (e.g. fresh delivery in kitchen).
               </p>
@@ -222,7 +222,7 @@ export const CloudKitchenBatches: React.FC<CloudKitchenBatchesProps> = ({ isHind
                 type="text"
                 value={overrideReason}
                 onChange={(e) => setOverrideReason(e.target.value)}
-                placeholder="Reason e.g. Local vendor supplied 5kg paneer directly"
+                placeholder="Reason e.g. Local shop supplied 5kg paneer directly"
                 className="w-full px-3 py-1.5 rounded-lg border border-amber-300 bg-white text-[12px]"
               />
             </div>
@@ -246,7 +246,7 @@ export const CloudKitchenBatches: React.FC<CloudKitchenBatchesProps> = ({ isHind
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-[20px] text-[#1A3826]">inventory</span>
             <h2 className="text-[15px] font-bold text-[#1a1c1a]">
-              {isHindi ? '2. तैयार बैच और उपलब्ध पोर्शन पूल' : '2. Active Batches & Cooked Portions Available'}
+              {isHindi ? '2. तैयार बैच और उपलब्ध पोर्शन पूल' : '2. Cooking Now & Portions Ready'}
             </h2>
           </div>
           <span className="text-[11.5px] text-[#727972]">
