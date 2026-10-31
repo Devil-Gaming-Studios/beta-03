@@ -283,6 +283,143 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({ isHindi }) => {
         <ShopInboxConfirmCard isHindi={isHindi} onItemsApplied={refreshList} />
       </section>
 
+      {/* Quick-Commerce Benchmark Price Comparison (Spec 2.8) */}
+      <section className="flex flex-col gap-2.5">
+        <div className="flex items-center justify-between">
+          <h2 className="text-[14px] font-bold text-[#1a1c1a]">
+            Estimated Quick-Commerce Price Benchmarks
+          </h2>
+          <span className="text-[11px] text-[#727972]">
+            Regional estimates • Live scrapers disabled pending partner approval
+          </span>
+        </div>
+
+        {filteredItems.length === 0 ? (
+          <div className="bg-white rounded-2xl p-6 text-center border border-[#E6E4DD] text-[#424843]">
+            <span className="material-symbols-outlined text-[32px] text-[#137333]">check_circle</span>
+            <p className="text-[14px] font-semibold mt-2">No missing ingredients!</p>
+            <p className="text-[12px] text-[#727972] mt-0.5">Your kitchen stock covers all planned meals.</p>
+          </div>
+        ) : (
+          filteredItems.map((item) => {
+            const swiggyPrice = item.swiggy_price || (item.estimated_price || 35) + 4;
+            const blinkitPrice = item.blinkit_price || item.estimated_price || 35;
+            const zeptoPrice = item.zepto_price || (item.estimated_price || 35) + 2;
+
+            const lowestPrice = Math.min(swiggyPrice, blinkitPrice, zeptoPrice);
+
+            return (
+              <div
+                key={item.id}
+                className="bg-white rounded-2xl p-3.5 border border-[#E6E4DD] shadow-xs flex flex-col gap-2"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <span className="text-[14px] font-bold text-[#1a1c1a] block">{item.name}</span>
+                    <span className="text-[11.5px] text-[#424843]">
+                      Need: <strong>{item.qty_base} {item.base_unit}</strong>
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                    {item.in_swiggy_cart && (
+                      <span className="px-2 py-0.5 rounded-full bg-[#FFF3E0] text-[#E65100] text-[10.5px] font-bold border border-[#FFE0B2] flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#E65100]"></span>
+                        In Swiggy Cart
+                      </span>
+                    )}
+                    <span className="px-2 py-0.5 rounded-full bg-[#E8F0EC] text-[#1E4620] text-[10.5px] font-bold border border-[#D1E2D7]">
+                      Cheapest: {item.best_store || 'Blinkit'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleMarkItemBought(item)}
+                      className="px-2.5 py-1 rounded-lg bg-[#1A3826] text-white text-[11px] font-bold flex items-center gap-1 hover:bg-[#132a1d] active:scale-95 transition-all"
+                      title="Mark as bought (adds to Kitchen Stock and removes from Shop)"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">check</span>
+                      <span>Bought</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveShopItem(item)}
+                      className="p-1 rounded-lg bg-[#f4f4f0] text-[#727972] hover:text-[#9E2A2B] hover:bg-[#fdf2f2] transition-all"
+                      title="Remove from Shop list"
+                    >
+                      <span className="material-symbols-outlined text-[15px]">delete</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* 3-Store Pricing Comparison Grid */}
+                <div className="grid grid-cols-3 gap-2 pt-1">
+                  <div
+                    className={`p-2 rounded-xl border text-center transition-all ${
+                      blinkitPrice === lowestPrice
+                        ? 'bg-[#FEF9C3] border-[#FACC15]'
+                        : 'bg-[#faf9f6] border-[#E6E4DD]'
+                    }`}
+                  >
+                    <span className="text-[10px] font-bold text-[#727972] uppercase block">Blinkit</span>
+                    <span className="text-[14px] font-bold text-[#1a1c1a]">₹{blinkitPrice}</span>
+                    {blinkitPrice === lowestPrice && (
+                      <span className="block text-[9.5px] font-bold text-[#854D0E]">BEST VALUE</span>
+                    )}
+                  </div>
+
+                  <div
+                    className={`p-2 rounded-xl border text-center transition-all ${
+                      zeptoPrice === lowestPrice
+                        ? 'bg-[#FEF9C3] border-[#FACC15]'
+                        : 'bg-[#faf9f6] border-[#E6E4DD]'
+                    }`}
+                  >
+                    <span className="text-[10px] font-bold text-[#727972] uppercase block">Zepto</span>
+                    <span className="text-[14px] font-bold text-[#1a1c1a]">₹{zeptoPrice}</span>
+                    {zeptoPrice === lowestPrice && (
+                      <span className="block text-[9.5px] font-bold text-[#854D0E]">BEST VALUE</span>
+                    )}
+                  </div>
+
+                  <div
+                    className={`p-2 rounded-xl border text-center transition-all ${
+                      swiggyPrice === lowestPrice
+                        ? 'bg-[#FEF9C3] border-[#FACC15]'
+                        : 'bg-[#faf9f6] border-[#E6E4DD]'
+                    }`}
+                  >
+                    <span className="text-[10px] font-bold text-[#FC8019] uppercase block">Instamart</span>
+                    <span className="text-[14px] font-bold text-[#1a1c1a]">₹{swiggyPrice}</span>
+                    {swiggyPrice === lowestPrice && (
+                      <span className="block text-[9.5px] font-bold text-[#854D0E]">BEST VALUE</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </section>
+
+      {/* Blinkit (link only) */}
+      <a
+        href="https://blinkit.com"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="bg-white border border-[#E6E4DD] rounded-2xl p-4 shadow-xs flex items-center justify-between gap-3 hover:border-[#F8CB46] transition-all"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl text-white flex items-center justify-center font-black text-[20px] shadow-sm shrink-0" style={{ backgroundColor: '#F8CB46', color: '#1a1c1a' }}>
+            B
+          </div>
+          <h2 className="text-[15px] font-bold text-[#1a1c1a]">Blinkit</h2>
+        </div>
+        <span className="text-[12px] font-semibold text-[#424843] flex items-center gap-1">
+          Open Blinkit
+          <span className="material-symbols-outlined text-[16px]">open_in_new</span>
+        </span>
+      </a>
+
       {/* Swiggy Official Connection & Cart Integration */}
       <section className="bg-white border border-[#E6E4DD] rounded-2xl p-4 shadow-xs flex flex-col gap-3">
         <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -401,123 +538,24 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({ isHindi }) => {
         )}
       </section>
 
-      {/* Quick-Commerce Benchmark Price Comparison (Spec 2.8) */}
-      <section className="flex flex-col gap-2.5">
-        <div className="flex items-center justify-between">
-          <h2 className="text-[14px] font-bold text-[#1a1c1a]">
-            Estimated Quick-Commerce Price Benchmarks
-          </h2>
-          <span className="text-[11px] text-[#727972]">
-            Regional estimates • Live scrapers disabled pending partner approval
-          </span>
-        </div>
-
-        {filteredItems.length === 0 ? (
-          <div className="bg-white rounded-2xl p-6 text-center border border-[#E6E4DD] text-[#424843]">
-            <span className="material-symbols-outlined text-[32px] text-[#137333]">check_circle</span>
-            <p className="text-[14px] font-semibold mt-2">No missing ingredients!</p>
-            <p className="text-[12px] text-[#727972] mt-0.5">Your kitchen stock covers all planned meals.</p>
+      {/* Zepto (link only) */}
+      <a
+        href="https://www.zeptonow.com"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="bg-white border border-[#E6E4DD] rounded-2xl p-4 shadow-xs flex items-center justify-between gap-3 hover:border-[#5B21B6] transition-all"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl text-white flex items-center justify-center font-black text-[20px] shadow-sm shrink-0" style={{ backgroundColor: '#5B21B6', color: '#ffffff' }}>
+            Z
           </div>
-        ) : (
-          filteredItems.map((item) => {
-            const swiggyPrice = item.swiggy_price || (item.estimated_price || 35) + 4;
-            const blinkitPrice = item.blinkit_price || item.estimated_price || 35;
-            const zeptoPrice = item.zepto_price || (item.estimated_price || 35) + 2;
-
-            const lowestPrice = Math.min(swiggyPrice, blinkitPrice, zeptoPrice);
-
-            return (
-              <div
-                key={item.id}
-                className="bg-white rounded-2xl p-3.5 border border-[#E6E4DD] shadow-xs flex flex-col gap-2"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <span className="text-[14px] font-bold text-[#1a1c1a] block">{item.name}</span>
-                    <span className="text-[11.5px] text-[#424843]">
-                      Need: <strong>{item.qty_base} {item.base_unit}</strong>
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 flex-wrap justify-end">
-                    {item.in_swiggy_cart && (
-                      <span className="px-2 py-0.5 rounded-full bg-[#FFF3E0] text-[#E65100] text-[10.5px] font-bold border border-[#FFE0B2] flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#E65100]"></span>
-                        In Swiggy Cart
-                      </span>
-                    )}
-                    <span className="px-2 py-0.5 rounded-full bg-[#E8F0EC] text-[#1E4620] text-[10.5px] font-bold border border-[#D1E2D7]">
-                      Cheapest: {item.best_store || 'Blinkit'}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => handleMarkItemBought(item)}
-                      className="px-2.5 py-1 rounded-lg bg-[#1A3826] text-white text-[11px] font-bold flex items-center gap-1 hover:bg-[#132a1d] active:scale-95 transition-all"
-                      title="Mark as bought (adds to Kitchen Stock and removes from Shop)"
-                    >
-                      <span className="material-symbols-outlined text-[14px]">check</span>
-                      <span>Bought</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveShopItem(item)}
-                      className="p-1 rounded-lg bg-[#f4f4f0] text-[#727972] hover:text-[#9E2A2B] hover:bg-[#fdf2f2] transition-all"
-                      title="Remove from Shop list"
-                    >
-                      <span className="material-symbols-outlined text-[15px]">delete</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* 3-Store Pricing Comparison Grid */}
-                <div className="grid grid-cols-3 gap-2 pt-1">
-                  <div
-                    className={`p-2 rounded-xl border text-center transition-all ${
-                      blinkitPrice === lowestPrice
-                        ? 'bg-[#FEF9C3] border-[#FACC15]'
-                        : 'bg-[#faf9f6] border-[#E6E4DD]'
-                    }`}
-                  >
-                    <span className="text-[10px] font-bold text-[#727972] uppercase block">Blinkit</span>
-                    <span className="text-[14px] font-bold text-[#1a1c1a]">₹{blinkitPrice}</span>
-                    {blinkitPrice === lowestPrice && (
-                      <span className="block text-[9.5px] font-bold text-[#854D0E]">BEST VALUE</span>
-                    )}
-                  </div>
-
-                  <div
-                    className={`p-2 rounded-xl border text-center transition-all ${
-                      zeptoPrice === lowestPrice
-                        ? 'bg-[#FEF9C3] border-[#FACC15]'
-                        : 'bg-[#faf9f6] border-[#E6E4DD]'
-                    }`}
-                  >
-                    <span className="text-[10px] font-bold text-[#727972] uppercase block">Zepto</span>
-                    <span className="text-[14px] font-bold text-[#1a1c1a]">₹{zeptoPrice}</span>
-                    {zeptoPrice === lowestPrice && (
-                      <span className="block text-[9.5px] font-bold text-[#854D0E]">BEST VALUE</span>
-                    )}
-                  </div>
-
-                  <div
-                    className={`p-2 rounded-xl border text-center transition-all ${
-                      swiggyPrice === lowestPrice
-                        ? 'bg-[#FEF9C3] border-[#FACC15]'
-                        : 'bg-[#faf9f6] border-[#E6E4DD]'
-                    }`}
-                  >
-                    <span className="text-[10px] font-bold text-[#FC8019] uppercase block">Instamart</span>
-                    <span className="text-[14px] font-bold text-[#1a1c1a]">₹{swiggyPrice}</span>
-                    {swiggyPrice === lowestPrice && (
-                      <span className="block text-[9.5px] font-bold text-[#854D0E]">BEST VALUE</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            );
-          })
-        )}
-      </section>
+          <h2 className="text-[15px] font-bold text-[#1a1c1a]">Zepto</h2>
+        </div>
+        <span className="text-[12px] font-semibold text-[#424843] flex items-center gap-1">
+          Open Zepto
+          <span className="material-symbols-outlined text-[16px]">open_in_new</span>
+        </span>
+      </a>
 
       {/* Swiggy Instamart Modal */}
       <SwiggyModal

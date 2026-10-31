@@ -118,6 +118,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     lunch: dayMeals.find((m) => m.slot === 'lunch'),
     dinner: dayMeals.find((m) => m.slot === 'dinner'),
   };
+  const todayAllBySlot: Record<MealSlot, PlannedMeal[]> = {
+    breakfast: dayMeals.filter((m) => m.slot === 'breakfast'),
+    lunch: dayMeals.filter((m) => m.slot === 'lunch'),
+    dinner: dayMeals.filter((m) => m.slot === 'dinner'),
+  };
 
   const handleMarkMealDone = (e: React.MouseEvent, meal: PlannedMeal) => {
     e.stopPropagation();
@@ -154,7 +159,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   };
 
   // Compute real daily protein goal from today's planned & cooked meals
-  const todayMealsList = slots.map((s) => todayMealsBySlot[s]).filter(Boolean) as PlannedMeal[];
+  const todayMealsList = slots.flatMap((s) => todayAllBySlot[s]);
   const mealProteinG = todayMealsList
     .filter((m) => m.status === 'done')
     .reduce((acc, m) => acc + (m.nutrition?.protein_g || 14), 0);
@@ -324,8 +329,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           })}
         </div>
 
-        {slots.map((slot) => {
-          const meal = todayMealsBySlot[slot];
+        {slots.flatMap((slot) => (todayAllBySlot[slot].length ? todayAllBySlot[slot] : [undefined]).map((meal) => {
           const meta = SLOT_META[slot];
 
           if (!meal) {
@@ -510,7 +514,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               </div>
             </article>
           );
-        })}
+        }))}
       </section>
 
       {/* Daily Protein Goal Tracker Widget (Connected to Today's Planned & Cooked Meals) */}
@@ -551,7 +555,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           {/* Breakdown items from today's planned meals */}
           <div className="flex flex-col flex-1 gap-2">
             {slots.map((slot) => {
-              const m = todayMealsBySlot[slot];
+              const ms = todayAllBySlot[slot];
+              const m = ms.length > 0 ? { title: ms.map((x) => x.title).join(' + '), status: ms.every((x) => x.status === 'done') ? 'done' : 'planned', nutrition: { protein_g: ms.reduce((a, x) => a + (x.nutrition?.protein_g || 14), 0) } } : undefined;
               const meta = SLOT_META[slot];
               return (
                 <div key={slot} className="flex items-center justify-between text-[12px]">

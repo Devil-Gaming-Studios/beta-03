@@ -412,6 +412,9 @@ INSTRUCTIONS:
     // 24-hour deduplication check: (sender.toLowerCase() + normalized text + within 24h)
     const twentyFourHoursMs = 24 * 60 * 60 * 1000;
     const existing = this.inbox.find((item) => {
+      // Only a still-pending copy counts as a duplicate; a re-sent message after
+      // apply/dismiss must produce a fresh confirmation card.
+      if (item.status !== 'pending') return false;
       const sameSender = item.sender.trim().toLowerCase() === cleanSender.trim().toLowerCase();
       const sameText = item.rawText.trim().toLowerCase() === cleanText.trim().toLowerCase();
       const within24h = Math.abs(item.timestamp - ts) < twentyFourHoursMs;

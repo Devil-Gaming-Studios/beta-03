@@ -353,6 +353,7 @@ export interface ProposalPayload {
   plan_changes: ProposalPlanChange[];
   recipe: ProposalRecipe | null;
   recipe_modification?: ProposalRecipeModification | null;
+  restock_all_missing?: boolean;
 }
 
 export interface OmnirushResponse {
@@ -371,6 +372,7 @@ export interface OmnirushResponse {
   warnings?: string[];
   needs_clarification?: string | null;
   injection_suspected?: boolean;
+  restock_all_missing?: boolean;
   auto_applied?: boolean;
   timing?: {
     model: string;

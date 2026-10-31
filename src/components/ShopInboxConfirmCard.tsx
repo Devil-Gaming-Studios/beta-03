@@ -133,28 +133,46 @@ export const ShopInboxConfirmCard: React.FC<ShopInboxConfirmCardProps> = ({
     }
   };
 
-  const fetchInbox = useCallback(async () => {
+  const fetchInbox = useCallback(async (silent: boolean | unknown = false) => {
+    const isSilent = silent === true;
     try {
-      setLoading(true);
-      const res = await fetch('/api/shop-inbox');
+      if (!isSilent) setLoading(true);
+      const res = await fetch('/api/shop-inbox', { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         const items: ShopInboxItem[] = data.items || [];
         setInboxItems(items);
 
-        // Pre-populate editable items map
-        const initialMap: Record<string, ExtractedShopItem[]> = {};
-        for (const item of items) {
-          initialMap[item.id] = (item.extractedItems || []).map((it) => ({ ...it }));
-        }
-        setEditedItemsMap(initialMap);
+        // Pre-populate editable items map; keep in-progress edits for cards already on screen
+        setEditedItemsMap((prev) => {
+          const nextMap: Record<string, ExtractedShopItem[]> = {};
+          for (const item of items) {
+            nextMap[item.id] = prev[item.id] || (item.extractedItems || []).map((it) => ({ ...it }));
+          }
+          return nextMap;
+        });
       }
     } catch (err) {
       console.warn('Failed to fetch shop inbox:', err);
     } finally {
-      setLoading(false);
+      if (!isSilent) setLoading(false);
     }
   }, []);
+
+  // New WhatsApp/Telegram messages arrive server-side, so poll and refresh on focus
+  useEffect(() => {
+    const tick = () => {
+      if (document.visibilityState === 'visible') fetchInbox(true);
+    };
+    const timer = window.setInterval(tick, 8000);
+    document.addEventListener('visibilitychange', tick);
+    window.addEventListener('focus', tick);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', tick);
+      window.removeEventListener('focus', tick);
+    };
+  }, [fetchInbox]);
 
   useEffect(() => {
     fetchInbox();
@@ -428,7 +446,7 @@ export const ShopInboxConfirmCard: React.FC<ShopInboxConfirmCardProps> = ({
           <div className="flex items-center gap-1.5">
             <button
               type="button"
-              onClick={fetchInbox}
+              onClick={() => fetchInbox()}
               disabled={loading}
               className="p-1.5 rounded-xl border border-[#E6E4DD] text-[#424843] hover:bg-[#faf9f6] text-[12px] flex items-center gap-1"
               title="Refresh inbox"

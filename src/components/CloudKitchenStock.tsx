@@ -75,7 +75,7 @@ export const CloudKitchenStock: React.FC<CloudKitchenStockProps> = ({ isHindi })
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-[24px] text-[#1A3826]">inventory_2</span>
             <h1 className="text-[20px] font-bold text-[#1a1c1a]">
-              {isHindi ? 'क्लाउड किचन स्टॉक और ऑडिट लेजर' : 'Commercial Stock & Audit Ledger'}
+              {isHindi ? 'फूड बिज़नेस स्टॉक और ऑडिट लेजर' : 'Commercial Stock & Audit Ledger'}
             </h1>
           </div>
           <p className="text-[12px] text-[#727972] mt-0.5">

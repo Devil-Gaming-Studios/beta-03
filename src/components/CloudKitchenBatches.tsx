@@ -87,7 +87,7 @@ export const CloudKitchenBatches: React.FC<CloudKitchenBatchesProps> = ({ isHind
           </div>
           <p className="text-[12px] text-[#727972] mt-0.5">
             {isHindi
-              ? 'क्लाउड किचन में कोई 3 निश्चित भोजन नहीं होते — यहाँ मांग और बैच के अनुसार खाना बनता है।'
+              ? 'फूड बिज़नेस में कोई 3 निश्चित भोजन नहीं होते — यहाँ मांग और बैच के अनुसार खाना बनता है।'
               : 'Cook to orders and announced batches. Raw inventory follows what is actually cooked and sold.'}
           </p>
         </div>

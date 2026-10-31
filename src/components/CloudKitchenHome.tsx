@@ -198,7 +198,7 @@ export const CloudKitchenHome: React.FC<CloudKitchenHomeProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-[17px] font-bold text-[#1a1c1a] tracking-tight">
-                {me.household.name || 'Cloud Kitchen Live Ops'}
+                {me.household.name || 'Food Business Live Ops'}
               </h1>
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
                 ● LIVE
@@ -861,7 +861,7 @@ export const CloudKitchenHome: React.FC<CloudKitchenHomeProps> = ({
           <div className="bg-white rounded-2xl max-w-sm w-full p-5 flex flex-col gap-4 shadow-xl border border-[#E6E4DD] font-mono">
             <div className="text-center pb-2 border-b border-dashed border-gray-400">
               <h2 className="text-[17px] font-black uppercase tracking-wider text-[#1a1c1a]">
-                {me.household.name || 'MAST MEALS CLOUD KITCHEN'}
+                {me.household.name || 'MAST MEALS FOOD BUSINESS'}
               </h2>
               <div className="text-[11px] text-gray-600">KITCHEN ORDER TICKET (KOT)</div>
               <div className="text-[15px] font-black mt-1 text-[#1A3826]">

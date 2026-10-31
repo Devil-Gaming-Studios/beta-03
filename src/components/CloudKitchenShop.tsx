@@ -301,7 +301,7 @@ export const CloudKitchenShop: React.FC<CloudKitchenShopProps> = ({ isHindi }) =
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {filteredSuppliers.map((sup) => {
               const cleanPhone = sup.phone.replace(/[^0-9]/g, '');
-              const whatsappUrl = `https://wa.me/${cleanPhone.length === 10 ? '91' + cleanPhone : cleanPhone}?text=${encodeURIComponent(`Hello ${sup.name}, sending commercial procurement order from KitchenSync Cloud Kitchen.`)}`;
+              const whatsappUrl = `https://wa.me/${cleanPhone.length === 10 ? '91' + cleanPhone : cleanPhone}?text=${encodeURIComponent(`Hello ${sup.name}, sending commercial procurement order from KitchenSync Food Business.`)}`;
 
               return (
                 <div
