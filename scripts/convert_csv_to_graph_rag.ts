@@ -90,8 +90,45 @@ const EQUIPMENT_KEYWORDS: Record<string, string[]> = {
 // Unit normalizer to base units (g, ml, pcs)
 export function normalizeUnitAndQty(rawText: string): { name: string; qty: number; unit: 'g' | 'ml' | 'pcs' } {
   const clean = rawText.trim();
+  const lowerClean = clean.toLowerCase();
+
+  // Handle "to taste", "as needed", or "swadanusar" (e.g. "salt to taste", "namak swadanusar")
+  if (
+    lowerClean.includes('to taste') ||
+    lowerClean.includes('swadanusar') ||
+    lowerClean.includes('as needed') ||
+    lowerClean.includes('as per taste')
+  ) {
+    let name = clean
+      .replace(/to taste/gi, '')
+      .replace(/swadanusar/gi, '')
+      .replace(/as needed/gi, '')
+      .replace(/as per taste/gi, '')
+      .replace(/^[-–—:\s,]+|[-–—:\s,]+$/g, '')
+      .trim();
+    name = name.split('-')[0].replace(/\([^)]*\)/g, '').trim();
+    return {
+      name: name || 'Salt',
+      qty: 2,
+      unit: 'g',
+    };
+  }
+
+  // Handle pinch / pinches (e.g. "pinch of hing", "1 pinch turmeric", "a pinch of salt")
+  if (lowerClean.includes('pinch')) {
+    const pinchMatch = clean.match(/^([0-9\/\.\-\s]+)?\s*(?:pinch|pinches)\s*(?:of\s+)?(.*)$/i);
+    let name = pinchMatch ? pinchMatch[2] : clean.replace(/pinch(?:es)?(?:\s+of)?/gi, '');
+    name = (name || '').replace(/^[-–—:\s,]+|[-–—:\s,]+$/g, '').trim();
+    name = name.split('-')[0].replace(/\([^)]*\)/g, '').trim();
+    return {
+      name: name || 'Spice',
+      qty: 1,
+      unit: 'g',
+    };
+  }
+
   // Match patterns like: 2-1/2 cups, 500 grams, 1 teaspoon, 2 tablespoon, 1 Onion
-  const match = clean.match(/^([0-9\/\.\-\s]+)?\s*(cup|cups|tablespoon|tablespoons|tbsp|teaspoon|teaspoons|tsp|gram|grams|g|gm|gms|kg|kilogram|ml|milliliter|liter|litre|l|pinch|pinches|sprig|sprigs|clove|cloves|inch|inches|bunch|bunches|piece|pieces|slice|slices)?\s*(?:of\s+)?(.*)$/i);
+  const match = clean.match(/^([0-9\/\.\-\s]+)?\s*(cup|cups|tablespoon|tablespoons|tbsp|teaspoon|teaspoons|tsp|gram|grams|g|gm|gms|kg|kilogram|ml|milliliter|liter|litre|l|sprig|sprigs|clove|cloves|inch|inches|bunch|bunches|piece|pieces|slice|slices)?\s*(?:of\s+)?(.*)$/i);
 
   let qty = 1;
   let unit: 'g' | 'ml' | 'pcs' = 'pcs';
@@ -118,16 +155,29 @@ export function normalizeUnitAndQty(rawText: string): { name: string; qty: numbe
       }
     }
 
+    const nameLower = name.toLowerCase();
+    const isLiquid = ['oil', 'tel', 'water', 'pani', 'milk', 'doodh', 'ghee', 'curd', 'dahi'].some((k) => nameLower.includes(k));
+    const isFlour = ['flour', 'atta', 'maida', 'besan', 'sooji', 'rava'].some((k) => nameLower.includes(k));
+    const isSpice = ['salt', 'namak', 'haldi', 'turmeric', 'jeera', 'cumin', 'hing', 'mirch', 'masala', 'mustard', 'rai', 'cinnamon', 'clove', 'elaichi'].some((k) => nameLower.includes(k));
+
     if (unitStr) {
       if (['cup', 'cups'].includes(unitStr)) {
-        qty = qty * 200;
-        unit = 'g';
+        if (isLiquid) {
+          qty = qty * 240;
+          unit = 'ml';
+        } else if (isFlour) {
+          qty = qty * 120;
+          unit = 'g';
+        } else {
+          qty = qty * 200;
+          unit = 'g';
+        }
       } else if (['tablespoon', 'tablespoons', 'tbsp'].includes(unitStr)) {
-        qty = qty * 15;
-        unit = 'g';
+        qty = qty * (isLiquid ? 15 : 12);
+        unit = isLiquid ? 'ml' : 'g';
       } else if (['teaspoon', 'teaspoons', 'tsp'].includes(unitStr)) {
         qty = qty * 5;
-        unit = 'g';
+        unit = isLiquid ? 'ml' : 'g';
       } else if (['kg', 'kilogram'].includes(unitStr)) {
         qty = qty * 1000;
         unit = 'g';
@@ -138,9 +188,15 @@ export function normalizeUnitAndQty(rawText: string): { name: string; qty: numbe
         unit = 'ml';
       } else if (['ml', 'milliliter'].includes(unitStr)) {
         unit = 'ml';
+      } else if (isSpice) {
+        qty = Math.max(1, qty * 2);
+        unit = 'g';
       } else {
         unit = 'pcs';
       }
+    } else if (isSpice) {
+      qty = Math.max(1, qty * 2);
+      unit = 'g';
     }
   }
 
@@ -150,7 +206,7 @@ export function normalizeUnitAndQty(rawText: string): { name: string; qty: numbe
 
   return {
     name: canonicalName || name,
-    qty: Math.max(1, Math.round(qty * 10) / 10),
+    qty: Math.max(0.5, Math.round(qty * 10) / 10),
     unit
   };
 }

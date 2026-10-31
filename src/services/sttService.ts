@@ -32,7 +32,7 @@ export type STTEngineType = 'auto' | 'shruti' | 'cactus_whisper' | 'sarvam_saara
 
 export interface STTResult {
   transcript: string;
-  engine: 'Shruti (offline)' | 'Cactus Whisper (offline)' | 'Sarvam Saaras v3 (cloud fallback)';
+  engine: string;
   engineId: 'shruti' | 'cactus_whisper' | 'sarvam_saaras';
   modelCredit: string;
   confidence: number; // 0.0 - 1.0
@@ -246,15 +246,15 @@ export async function transcribeWithRouting(
   }
 
   const engineNameMap = {
-    shruti: 'Shruti (offline)' as const,
-    cactus_whisper: 'Cactus Whisper (offline)' as const,
-    sarvam_saaras: 'Sarvam Saaras v3 (cloud fallback)' as const,
+    shruti: 'Browser Speech Recognition (Hinglish/Hindi)',
+    cactus_whisper: 'Browser Speech Recognition (English)',
+    sarvam_saaras: 'Sarvam Saaras v3 (Cloud Fallback)',
   };
 
   const modelCreditMap = {
-    shruti: 'Udgam Labs Shruti (29.5 MB Open-Weights Bilingual Hindi/Hinglish)',
-    cactus_whisper: 'Cactus Compute Whistle (16.9 MB CQ2bit On-Device English)',
-    sarvam_saaras: 'Sarvam AI Saaras v3 Code-Mix Model',
+    shruti: 'Web Speech Recognition with Indian Kitchen Vocabulary Grounding',
+    cactus_whisper: 'Web Speech Recognition with English Culinary Vocabulary Grounding',
+    sarvam_saaras: 'Sarvam AI Saaras v3 Cloud Speech Model',
   };
 
   const finalCheck = calculateTranscriptConfidence(finalTranscript, finalEngine, finalConfidence);
@@ -266,7 +266,7 @@ export async function transcribeWithRouting(
     modelCredit: modelCreditMap[finalEngine],
     confidence: finalCheck.confidence,
     language: lang,
-    isOffline: finalEngine !== 'sarvam_saaras',
+    isOffline: false,
     lowConfidence: finalCheck.lowConfidence,
     fallbackTriggered,
     matchedIngredients: finalCheck.matchedIngredients,

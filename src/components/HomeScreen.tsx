@@ -281,7 +281,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               <div className="flex items-center gap-1.5">
                 <span className="text-[14px] font-bold">Omnirush Voice Assistant</span>
                 <span className="text-[10px] bg-white/20 text-[#c8ebd1] font-semibold px-2 py-0.2 rounded-full">
-                  Offline STT
+                  Voice STT
                 </span>
               </div>
               <span className="text-[11px] text-white/80">

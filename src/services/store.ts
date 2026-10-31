@@ -719,6 +719,12 @@ class StoreService {
     if (user) {
       user.diet_pref = diet_pref;
       user.is_beginner_cook = is_beginner_cook;
+      // Sync primary household member
+      const members = this.state.members[this.state.currentHouseholdId] || [];
+      if (members[0]) {
+        members[0].diet_pref = diet_pref;
+      }
+      this.revalidateMealsForDiet(diet_pref);
       this.persist();
     }
     return this.getMe();
@@ -738,9 +744,118 @@ class StoreService {
       user.diet_pref = diet_pref;
       user.is_beginner_cook = is_beginner_cook;
       user.onboarding_completed = true;
+      const members = this.state.members[this.state.currentHouseholdId] || [];
+      if (members[0]) {
+        members[0].diet_pref = diet_pref;
+      }
+      this.revalidateMealsForDiet(diet_pref);
       this.persist();
     }
     return this.getMe();
+  }
+
+  public revalidateMealsForDiet(newDietPref: DietPreference): { flaggedMeals: string[] } {
+    const hhId = this.state.currentHouseholdId;
+    const allPlans = this.state.plans[hhId] || {};
+    const flaggedMeals: string[] = [];
+    const nonVegKws = [
+      'chicken', 'mutton', 'fish', 'egg', 'eggs', 'meat', 'prawn', 'prawns',
+      'beef', 'pork', 'bacon', 'gelatin', 'murgh', 'machli', 'keema', 'gosht',
+      'shrimp', 'crab'
+    ];
+    const isNonVegText = (txt?: string | null) =>
+      nonVegKws.some((kw) => new RegExp(`\\b${kw}\\b`, 'i').test(txt || ''));
+
+    if (newDietPref === 'veg') {
+      for (const wk of Object.keys(allPlans)) {
+        const plan = allPlans[wk];
+        if (!plan) continue;
+        for (const meal of plan.meals) {
+          if (meal.status === 'planned') {
+            if (isNonVegText(meal.title) || isNonVegText(meal.household_recipe_id)) {
+              (meal as any).diet_warning = 'Non-veg meal conflicts with current vegetarian diet preference';
+              if (meal.title) flaggedMeals.push(meal.title);
+            } else if ((meal as any).diet_warning) {
+              delete (meal as any).diet_warning;
+            }
+          }
+        }
+      }
+    }
+    return { flaggedMeals };
+  }
+
+  // --- Household Invite Codes & Multi-User Join (Spec 2.1) ---
+  public getHouseholdInviteCode(): string {
+    const hh = this.state.households[this.state.currentHouseholdId];
+    if (hh && !hh.invite_code) {
+      hh.invite_code = 'BLR-402';
+      this.persist();
+    }
+    return hh?.invite_code || 'BLR-402';
+  }
+
+  public regenerateInviteCode(): string {
+    const hh = this.state.households[this.state.currentHouseholdId];
+    if (hh) {
+      hh.invite_code = 'SYNC-' + Math.floor(100 + Math.random() * 900);
+      this.persist();
+      return hh.invite_code;
+    }
+    return 'SYNC-101';
+  }
+
+  public joinHouseholdWithCode(code: string): { success: boolean; message: string; householdName?: string } {
+    const clean = code.trim().toUpperCase();
+    if (!clean) return { success: false, message: 'Please enter a valid invite code' };
+
+    for (const [id, hh] of Object.entries(this.state.households)) {
+      if (hh.invite_code && hh.invite_code.toUpperCase() === clean) {
+        this.state.currentHouseholdId = id;
+        this.persist();
+        return {
+          success: true,
+          message: `Joined ${hh.name}!`,
+          householdName: hh.name,
+        };
+      }
+    }
+
+    // Provision household for this invite code
+    const newHhId = 'hh_' + clean.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    const newHh: Household = {
+      id: newHhId,
+      name: `Flat (${clean})`,
+      household_type: 'bachelor_flat',
+      has_fridge: true,
+      equipment: ['stove', 'kadhai_pan', 'tawa', 'kettle'],
+      language: 'hi',
+      version: 1,
+      invite_code: clean,
+      updated_at: new Date().toISOString(),
+    };
+    this.state.households[newHhId] = newHh;
+    if (!this.state.members[newHhId]) {
+      this.state.members[newHhId] = [
+        {
+          id: 'mem_' + Date.now(),
+          household_id: newHhId,
+          name: this.state.users[this.state.currentUserId]?.name || 'Diner',
+          age_group: 'adult',
+          diet_pref: this.state.users[this.state.currentUserId]?.diet_pref || 'veg',
+          weight_kg: 68,
+          protein_target_g: 65,
+          cautions: [],
+        },
+      ];
+    }
+    this.state.currentHouseholdId = newHhId;
+    this.persist();
+    return {
+      success: true,
+      message: `Joined household (${clean})!`,
+      householdName: newHh.name,
+    };
   }
 
   // --- Multi-Week Diet Memory & Regular vs. New Schedule (localStorage) ---
@@ -1384,6 +1499,8 @@ class StoreService {
       location?: 'pantry' | 'fridge';
       unit?: BaseUnit;
       targetScope?: 'personal' | 'shared';
+      expiry?: string | null;
+      shelf_life_days?: number;
     }
   ) {
     const hhId = this.state.currentHouseholdId;
@@ -1402,22 +1519,87 @@ class StoreService {
     const scope = options?.targetScope || targetScope;
     const targetOwner = scope === 'personal' ? currentUserId : null;
 
-    // 1. Locate item: first by options.stockId, then findMatchingStockItem, then direct ID
+    // 1. Locate item: first by options.stockId, then check expiry matching
     let item: StockItem | undefined = undefined;
+    const normalizeExp = (exp?: string | null) => (exp ? exp.trim().toLowerCase() : '');
+    const incomingExp = options?.expiry !== undefined ? options.expiry : undefined;
 
     if (options?.stockId) {
-      item = items.find((i) => i.id === options.stockId);
+      const targetItem = items.find((i) => i.id === options.stockId);
+      if (targetItem) {
+        // If restocking with an explicitly different expiry, treat as a DISTINCT entity!
+        if (
+          incomingExp !== undefined &&
+          op === 'add' &&
+          normalizeExp(incomingExp) !== normalizeExp(targetItem.expiry)
+        ) {
+          // Check if an entity already exists with this exact target expiry
+          const existingSameExp = items.find(
+            (i) =>
+              (i.ingredient_id === targetItem.ingredient_id || i.name.toLowerCase() === targetItem.name.toLowerCase()) &&
+              i.owner_user_id === targetOwner &&
+              normalizeExp(i.expiry) === normalizeExp(incomingExp)
+          );
+          if (existingSameExp) {
+            item = existingSameExp;
+          } else {
+            // Create a brand new distinct batch entity
+            const newId = 'stk_' + targetItem.ingredient_id.replace(/^ing_/, '') + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+            const loc = options?.location || targetItem.storage_place || (targetItem.location as any) || 'pantry';
+            item = {
+              id: newId,
+              household_id: hhId,
+              ingredient_id: targetItem.ingredient_id,
+              name: options?.name || targetItem.name,
+              name_hi: options?.name_hi || targetItem.name_hi,
+              qty_base: 0,
+              unit_base: options?.unit || targetItem.unit_base,
+              location: loc,
+              storage_place: loc,
+              owner_user_id: targetOwner,
+              contributed_by: targetOwner ? 'Personal' : 'Shared',
+              version: 1,
+              shelf_life_days: options?.shelf_life_days ?? targetItem.shelf_life_days,
+              expiry: incomingExp,
+              is_non_veg: targetItem.is_non_veg,
+            };
+            this.state.stock[hhId][newId] = item;
+          }
+        } else {
+          item = targetItem;
+        }
+      }
+    }
+
+    if (!item && incomingExp !== undefined) {
+      // Find item with matching ingredient and SAME expiry
+      item = items.find(
+        (i) =>
+          (i.ingredient_id === ingredientId || i.id === ingredientId || this.doesItemMatch(ingredientId, options?.name || '', i.ingredient_id, i.name)) &&
+          i.owner_user_id === targetOwner &&
+          normalizeExp(i.expiry) === normalizeExp(incomingExp)
+      );
     }
 
     if (!item) {
       item = this.findMatchingStockItem(options?.name || ingredientId) || undefined;
+      // If we found a matching item but incoming has a different expiry on add, don't merge
+      if (
+        item &&
+        incomingExp !== undefined &&
+        op === 'add' &&
+        normalizeExp(item.expiry) !== normalizeExp(incomingExp)
+      ) {
+        item = undefined; // trigger creation of distinct entity below
+      }
     }
 
     if (!item) {
       item = items.find(
         (i) =>
           (i.ingredient_id === ingredientId || i.id === ingredientId) &&
-          (i.owner_user_id === targetOwner || items.length === 1)
+          (i.owner_user_id === targetOwner || items.length === 1) &&
+          (incomingExp === undefined || normalizeExp(i.expiry) === normalizeExp(incomingExp))
       );
     }
 
@@ -1440,9 +1622,13 @@ class StoreService {
       }
       if (options?.unit) item.unit_base = options.unit;
       if (options?.name_hi && !item.name_hi) item.name_hi = options.name_hi;
+      if (options?.shelf_life_days !== undefined) item.shelf_life_days = options.shelf_life_days;
+      if (incomingExp !== undefined && normalizeExp(item.expiry) === normalizeExp(incomingExp)) {
+        item.expiry = incomingExp;
+      }
       item.version += 1;
     } else {
-      const id = 'stk_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+      const id = 'stk_' + ingredientId.replace(/^ing_/, '') + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
       const loc = options?.location || 'pantry';
       item = {
         id,
@@ -1454,10 +1640,11 @@ class StoreService {
         unit_base: options?.unit || 'g',
         location: loc,
         owner_user_id: targetOwner,
-        contributed_by: targetOwner ? 'Personal (Scanned)' : 'Shared (Scanned)',
+        contributed_by: targetOwner ? 'Personal' : 'Shared',
         version: 1,
         storage_place: loc,
-        shelf_life_days: loc === 'fridge' ? 7 : 45,
+        shelf_life_days: options?.shelf_life_days ?? (loc === 'fridge' ? 7 : 45),
+        expiry: incomingExp || null,
       };
       this.state.stock[hhId][id] = item;
     }
@@ -1608,7 +1795,7 @@ class StoreService {
             blinkit_price: basePrice,
             zepto_price: basePrice + 2,
             best_store: 'Blinkit',
-            as_of: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            as_of: 'Est. market benchmark',
           });
         }
 
@@ -1629,6 +1816,49 @@ class StoreService {
       this.logAudit('stock_scope_move', { stockId, targetScope });
       this.persist();
     }
+  }
+
+  public restockItem(params: {
+    stockId?: string;
+    ingredientId: string;
+    qty: number;
+    name?: string;
+    name_hi?: string;
+    unit?: BaseUnit;
+    expiry?: string | null;
+    targetScope?: 'personal' | 'shared';
+    location?: 'pantry' | 'fridge';
+  }) {
+    const targetScope = params.targetScope || 'shared';
+    return this.adjustStock(
+      params.ingredientId,
+      'add',
+      params.qty,
+      targetScope,
+      'inline_restock',
+      {
+        stockId: params.stockId,
+        name: params.name,
+        name_hi: params.name_hi,
+        unit: params.unit,
+        location: params.location,
+        targetScope,
+        expiry: params.expiry,
+      }
+    );
+  }
+
+  public removeStockItem(stockId: string): boolean {
+    const hhId = this.state.currentHouseholdId;
+    if (this.state.stock[hhId] && this.state.stock[hhId][stockId]) {
+      const removedName = this.state.stock[hhId][stockId].name;
+      delete this.state.stock[hhId][stockId];
+      this.logAudit('stock_item_removed', { stockId, name: removedName });
+      this.syncPlansAndShoppingWithStock();
+      this.persist();
+      return true;
+    }
+    return false;
   }
 
   // --- Ingest Scanned Receipt or Fridge Items ---
@@ -1754,6 +1984,20 @@ class StoreService {
         ],
       };
       this.state.recipes[hhId].push(recipe);
+    }
+
+    const user = this.state.users[this.state.currentUserId];
+    const isVegUser = user?.diet_pref === 'veg';
+    const nonVegKws = [
+      'chicken', 'mutton', 'fish', 'egg', 'eggs', 'meat', 'prawn', 'prawns',
+      'beef', 'pork', 'bacon', 'gelatin', 'murgh', 'machli', 'keema', 'gosht',
+      'shrimp', 'crab', 'ham', 'sausage'
+    ];
+    const isAddingNonVeg = nonVegKws.some((kw) =>
+      new RegExp(`\\b${kw}\\b`, 'i').test(ingredientNameOrId)
+    );
+    if (isVegUser && isAddingNonVeg && op !== 'remove') {
+      throw new Error(`Dietary safety violation: Cannot add non-vegetarian ingredient "${ingredientNameOrId}" to a vegetarian recipe.`);
     }
 
     const ingQ = ingredientNameOrId.toLowerCase().trim();
@@ -2416,34 +2660,53 @@ class StoreService {
       };
     }
 
-    // Automatic stock deduction: shared first, then personal
+    // Automatic stock deduction: shared first, then personal (FEFO - Earliest expiry batch first)
+    const parseExpirySortKey = (exp?: string | null): number => {
+      if (!exp) return Infinity;
+      const matchDays = exp.match(/(\d+)\s*day/i);
+      if (matchDays) {
+        return Date.now() + parseInt(matchDays[1], 10) * 86400000;
+      }
+      const timestamp = Date.parse(exp);
+      if (!isNaN(timestamp)) return timestamp;
+      return Infinity;
+    };
+
     const deductions: string[] = [];
     for (const req of detail.ingredients) {
       let needed = req.qty_base;
 
-      // Try shared stock first
-      const sharedItems = this.getStock('shared').filter(
-        (i) => i.ingredient_id === req.ingredient_id || i.name.toLowerCase() === req.name.toLowerCase()
-      );
+      // Try shared stock first, sorted by earliest expiry
+      const sharedItems = this.getStock('shared')
+        .filter(
+          (i) => i.qty_base > 0 && (i.ingredient_id === req.ingredient_id || i.name.toLowerCase() === req.name.toLowerCase())
+        )
+        .sort((a, b) => parseExpirySortKey(a.expiry) - parseExpirySortKey(b.expiry));
+
       for (const st of sharedItems) {
         if (needed <= 0) break;
         const take = Math.min(st.qty_base, needed);
-        st.qty_base = Math.max(0, st.qty_base - take);
-        needed -= take;
-        deductions.push(`${take} ${st.unit_base} ${st.name} (Shared)`);
+        st.qty_base = Math.max(0, Math.round((st.qty_base - take) * 10) / 10);
+        needed = Math.round((needed - take) * 10) / 10;
+        const expLabel = st.expiry ? ` (${st.expiry})` : '';
+        deductions.push(`${take} ${st.unit_base} ${st.name}${expLabel} (Shared)`);
       }
 
-      // If still needed, deduct from personal stock
+      // If still needed, deduct from personal stock, sorted by earliest expiry
       if (needed > 0) {
-        const personalItems = this.getStock('mine').filter(
-          (i) => i.ingredient_id === req.ingredient_id || i.name.toLowerCase() === req.name.toLowerCase()
-        );
+        const personalItems = this.getStock('mine')
+          .filter(
+            (i) => i.qty_base > 0 && (i.ingredient_id === req.ingredient_id || i.name.toLowerCase() === req.name.toLowerCase())
+          )
+          .sort((a, b) => parseExpirySortKey(a.expiry) - parseExpirySortKey(b.expiry));
+
         for (const pt of personalItems) {
           if (needed <= 0) break;
           const take = Math.min(pt.qty_base, needed);
-          pt.qty_base = Math.max(0, pt.qty_base - take);
-          needed -= take;
-          deductions.push(`${take} ${pt.unit_base} ${pt.name} (Personal)`);
+          pt.qty_base = Math.max(0, Math.round((pt.qty_base - take) * 10) / 10);
+          needed = Math.round((needed - take) * 10) / 10;
+          const expLabel = pt.expiry ? ` (${pt.expiry})` : '';
+          deductions.push(`${take} ${pt.unit_base} ${pt.name}${expLabel} (Personal)`);
         }
       }
     }
@@ -2767,7 +3030,7 @@ class StoreService {
         blinkit_price: basePrice,
         zepto_price: basePrice + 2,
         best_store: 'Blinkit',
-        as_of: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        as_of: 'Est. market benchmark',
       };
       list.push(newItem);
       this.state.shoppingLists[hhId][weekStart] = list;
@@ -2872,8 +3135,56 @@ class StoreService {
     if (!action) throw new Error('Proposal not found');
     if (action.status !== 'pending') throw new Error('Proposal already handled');
 
+    // 1. Expiry check
+    if (action.expires_at && Date.now() > action.expires_at) {
+      action.status = 'expired';
+      this.persist();
+      throw new Error('Proposal has expired (valid for 20 minutes). Please generate a fresh proposal.');
+    }
+
+    // 2. Household isolation check
+    if (action.household_id !== this.state.currentHouseholdId) {
+      throw new Error('Access denied: Proposal belongs to a different household.');
+    }
+
     const applied: any[] = [];
     const payload = action.payload;
+
+    // 3. Strict dietary safety verification
+    const user = this.state.users[this.state.currentUserId];
+    const isVegHousehold = user?.diet_pref === 'veg';
+    const nonVegKws = [
+      'chicken', 'mutton', 'fish', 'egg', 'eggs', 'meat', 'prawn', 'prawns',
+      'beef', 'pork', 'bacon', 'gelatin', 'murgh', 'machli', 'keema', 'gosht',
+      'shrimp', 'crab', 'ham', 'sausage'
+    ];
+    const isNonVegText = (txt?: string | null) =>
+      nonVegKws.some((kw) => new RegExp(`\\b${kw}\\b`, 'i').test(txt || ''));
+
+    if (isVegHousehold) {
+      for (const item of payload.items || []) {
+        if (isNonVegText(item.name) || isNonVegText(item.ingredient_id)) {
+          throw new Error(`Dietary safety violation: Cannot add non-vegetarian item "${item.name}" to vegetarian household.`);
+        }
+      }
+      for (const change of payload.plan_changes || []) {
+        if (isNonVegText(change.recipe_title) || isNonVegText(change.household_recipe_id)) {
+          throw new Error(`Dietary safety violation: Cannot add non-vegetarian dish "${change.recipe_title || 'unnamed'}" to vegetarian meal plan.`);
+        }
+      }
+      if (payload.recipe_modification && payload.recipe_modification.op !== 'remove') {
+        if (isNonVegText(payload.recipe_modification.ingredient_name)) {
+          throw new Error(`Dietary safety violation: Cannot add non-vegetarian ingredient "${payload.recipe_modification.ingredient_name}" to recipe.`);
+        }
+      }
+    }
+
+    // 4. Quantity and schema validation
+    for (const item of payload.items || []) {
+      if (typeof item.qty_base !== 'number' || item.qty_base < 0) {
+        throw new Error(`Invalid quantity for item "${item.name}". Must be a non-negative number.`);
+      }
+    }
 
     // 1. Stock changes (apply for update_stock as well as any confirmed item list)
     for (const item of payload.items || []) {

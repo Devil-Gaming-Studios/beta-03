@@ -85,8 +85,8 @@ export class GraphRAGService {
 
     let results = this.graph.recipes;
 
-    // Strict dietary filter
-    if (options.diet_pref === 'veg') {
+    // Strict dietary filter - fails closed: only allow non-veg when explicitly nonveg
+    if (options.diet_pref !== 'nonveg') {
       results = results.filter((r) => !r.isNonVeg);
     }
 
@@ -171,7 +171,7 @@ export class GraphRAGService {
     );
 
     let candidates = this.graph.recipes;
-    if (options.diet_pref === 'veg') {
+    if (options.diet_pref !== 'nonveg') {
       candidates = candidates.filter((r) => !r.isNonVeg);
     }
     if (options.is_beginner) {

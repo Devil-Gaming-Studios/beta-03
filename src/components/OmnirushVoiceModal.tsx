@@ -617,7 +617,7 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
               <span className="w-3 h-3 rounded-full bg-[#ba1a1a] animate-ping shrink-0"></span>
               <div className="flex flex-col min-w-0">
                 <span className="text-[12px] font-bold text-[#ba1a1a]">
-                  Listening ({selectedEngine === 'cactus_whisper' ? 'Cactus Whisper' : 'Udgam Labs Shruti'})...
+                  Listening ({selectedEngine === 'cactus_whisper' ? 'English Speech' : 'Hinglish / Hindi Speech'})...
                 </span>
                 <span className="text-[11px] text-[#727972] truncate">
                   {interimText ? `"${interimText}"` : 'Speak your kitchen command now'}
