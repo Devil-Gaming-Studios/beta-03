@@ -2,7 +2,8 @@
  * Cross-device sync client. Keeps this browser/app's local state (store.ts) and the server
  * account store (server/syncService.ts) in step:
  *   - every local change is debounced, diffed against the last-synced snapshot and pushed;
- *   - every 15 s, on focus and when the network returns, remote changes are pulled and applied;
+ *   - a long-poll (/api/sync/wait) tells this device the instant another device pushes, and it
+ *     pulls straight away (plain HTTP, so it also works through Cloudflare quick tunnels); as a safety net it also polls every 15 s, on focus and when the network returns;
  *   - documents changed locally but not yet pushed are never overwritten by a pull.
  * Works offline: failed pushes are simply retried on the next cycle.
  */
@@ -27,6 +28,23 @@ const get = (k: string) => { try { return ls()?.getItem(k) ?? null; } catch { re
 const set = (k: string, v: string) => { try { ls()?.setItem(k, v); } catch { /* quota */ } };
 const del = (k: string) => { try { ls()?.removeItem(k); } catch { /* ignore */ } };
 
+/**
+ * One person must map to ONE sync account on every phone, however they type their login:
+ * emails are lower-cased; mobile numbers are reduced to the last 10 digits so "+91 98765 43210",
+ * "09876543210" and "9876543210" all land on the same account.
+ */
+export const CLIENT_BUILD = 'r5';
+
+export function canonicalSyncEmail(identifier: string): string | null {
+  const v = String(identifier || '').trim().toLowerCase();
+  if (!v) return null;
+  const mobile = v.match(/^(\d+)@mobile\.mastmeals$/);
+  if (v.includes('@') && !mobile) return v;
+  const digits = (mobile ? mobile[1] : v.replace(/[^0-9]/g, ''));
+  if (digits.length < 7) return null;
+  return `${digits.length > 10 ? digits.slice(-10) : digits}@mobile.mastmeals`;
+}
+
 class SyncClient {
   private status: SyncStatus = get(K.token) ? 'idle' : 'off';
   private lastError = '';
@@ -37,6 +55,9 @@ class SyncClient {
   private listeners = new Set<() => void>();
   private started = false;
   private streamAbort: AbortController | null = null;
+  private held = false; // true between createAccount() and release(): the local profile does not exist yet
+  private streamRetry = 1000;
+  private streamAlive = false;
 
   // ---- state for the UI ----
   getInfo() {
@@ -55,17 +76,21 @@ class SyncClient {
 
   /** Email used as the sync account id for whatever the user typed (email or mobile). */
   accountEmailFor(identifier: string): string | null {
-    const v = identifier.trim().toLowerCase();
-    if (v.includes('@')) return v;
-    const digits = v.replace(/[^0-9]/g, '');
-    return digits.length >= 7 ? `${digits}@mobile.mastmeals` : null;
+    return canonicalSyncEmail(identifier);
   }
 
   // ---- account ----
   /** Sign in to the sync account, creating it if allowed and it does not exist yet. */
-  async connect(email: string, password: string, allowCreate: boolean): Promise<{ ok: boolean; error?: string }> {
+  async connect(emailRaw: string, password: string, allowCreate: boolean): Promise<{ ok: boolean; error?: string }> {
+    const email = canonicalSyncEmail(emailRaw) || emailRaw.trim().toLowerCase();
     try {
       let r = await this.post('/api/sync/login', { email, password });
+      // Accounts created before numbers were normalised may be stored under the raw email: try that too.
+      const legacy = emailRaw.trim().toLowerCase();
+      if (r.status === 404 && legacy !== email) {
+        const r2 = await this.post('/api/sync/login', { email: legacy, password });
+        if (r2.status !== 404) r = r2;
+      }
       if (r.status === 404 && allowCreate) r = await this.post('/api/sync/register', { email, password });
       const body = await r.json().catch(() => ({}));
       if (!r.ok) return { ok: false, error: body.error || `sync login failed (${r.status})` };
@@ -73,7 +98,8 @@ class SyncClient {
       set(K.token, body.token);
       set(K.account, email);
       this.start();
-      this.openStream();
+      this.stopStream();       // token may have changed (different account)
+      this.ensureStream();
       await this.syncNow();
       return { ok: true };
     } catch (e: any) {
@@ -81,10 +107,49 @@ class SyncClient {
     }
   }
 
+  /**
+   * Create the account on the server FIRST (registration), so it exists on every device from the start.
+   * Never silently falls back: the caller learns whether it was created, already exists, or the server is unreachable.
+   */
+  async createAccount(emailRaw: string, password: string): Promise<{ ok: boolean; exists?: boolean; network?: boolean; error?: string }> {
+    const email = canonicalSyncEmail(emailRaw) || emailRaw.trim().toLowerCase();
+    try {
+      const r = await this.post('/api/sync/register', { email, password });
+      const body = await r.json().catch(() => ({}));
+      if (r.status === 409) return { ok: false, exists: true, error: body.error };
+      if (!r.ok) return { ok: false, error: body.error || `registration failed (${r.status})` };
+      this.held = true; // do not sync until the new profile exists locally (else the placeholder demo user would upload)
+      if (get(K.account) !== email) { del(K.snapshot); del(K.version); }
+      set(K.token, body.token);
+      set(K.account, email);
+      this.start();
+      return { ok: true };
+    } catch (e: any) {
+      return { ok: false, network: true, error: e?.message };
+    }
+  }
+
+  /** Call once the new local profile has been created: starts live sync for the fresh account. */
+  release() {
+    this.held = false;
+    this.stopStream();
+    this.ensureStream();
+    void this.syncNow();
+  }
+
+  /** What the server says about itself (null = unreachable). */
+  async health(): Promise<{ build: string; storage: string; accounts: number } | null> {
+    try {
+      const r = await fetch('/api/sync/health', { cache: 'no-store' });
+      if (!r.ok) return null;
+      const j = await r.json();
+      return j && typeof j.build === 'string' ? j : null;
+    } catch { return null; }
+  }
+
   /** Forget the account on this device (local data stays). Call on logout. */
   unlink() {
-    this.streamAbort?.abort();
-    this.streamAbort = null;
+    this.stopStream();
     [K.token, K.account, K.version, K.snapshot].forEach(del);
     this.setStatus('off');
   }
@@ -93,41 +158,67 @@ class SyncClient {
   start() {
     if (this.started || typeof window === 'undefined') return;
     this.started = true;
-    store.setPersistListener(() => this.schedule(1500));
-    setInterval(() => this.syncNow(), Number((globalThis as any).__SYNC_POLL_MS) || 8000); // safety net; the live stream below normally delivers changes instantly
-    window.addEventListener('online', () => this.syncNow());
-    window.addEventListener('focus', () => this.syncNow());
-    document.addEventListener('visibilitychange', () => { if (!document.hidden) this.syncNow(); });
-    if (this.isLinked()) { this.syncNow(); this.openStream(); }
+    store.setPersistListener(() => this.schedule(400));
+    setInterval(() => { this.syncNow(); this.ensureStream(); }, 15000);
+    const wake = () => { this.ensureStream(); this.syncNow(); };
+    window.addEventListener('online', wake);
+    window.addEventListener('focus', wake);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) wake(); });
+    if (this.isLinked()) { this.ensureStream(); this.syncNow(); }
   }
 
-  /** Live channel: the server tells us the moment another device pushes, and we pull right away. */
-  private openStream() {
-    if (this.streamAbort || !get(K.token) || typeof fetch === 'undefined') return;
-    const ctrl = new AbortController();
-    this.streamAbort = ctrl;
-    (async () => {
-      while (!ctrl.signal.aborted) {
-        try {
-          const token = get(K.token);
-          if (!token) break;
-          const r = await fetch('/api/sync/stream', { headers: { Authorization: `Bearer ${token}` }, signal: ctrl.signal });
-          if (r.status === 401) break;
-          if (!r.ok || !r.body) throw new Error('stream failed');
-          const reader = r.body.getReader();
-          const dec = new TextDecoder();
-          for (;;) {
-            const { value, done } = await reader.read();
-            if (done) break;
-            if (dec.decode(value, { stream: true }).includes('event: changed')) this.syncNow();
-          }
-        } catch {
-          // network drop: retry below
+  // ---- live channel ----
+  /** Start the live long-poll if this device is linked and it is not already running. */
+  private ensureStream() {
+    if (typeof window === 'undefined' || !get(K.token) || this.streamAbort) return;
+    void this.runStream();
+  }
+
+  private stopStream() {
+    this.streamAbort?.abort();
+    this.streamAbort = null;
+    this.streamAlive = false;
+  }
+
+  /** Long-poll loop: the server holds each request open until another device changes something, then we pull at once. */
+  private async runStream() {
+    const token = get(K.token);
+    if (!token) return;
+    const ctl = new AbortController();
+    this.streamAbort = ctl;
+    let calm = true;
+    try {
+      while (!ctl.signal.aborted && get(K.token) === token) {
+        const since = Number(get(K.version) || 0);
+        const r = await fetch(`/api/sync/wait?since=${since}`, { headers: { Authorization: `Bearer ${token}` }, signal: ctl.signal });
+        if (r.status === 401) { this.setStatus('error', 'Sync session expired — log in again to resume sync'); return; }
+        if (!r.ok) throw new Error(`wait failed (${r.status})`);
+        this.streamAlive = true;
+        this.streamRetry = 1000;
+        const body = await r.json().catch(() => ({}));
+        if (body.changed) {
+          await this.syncNow(); // pull + apply
+          // If the pull did not move our cursor (e.g. a push still in flight), do not spin.
+          if (Number(get(K.version) || 0) <= since) await new Promise((res) => setTimeout(res, 2000));
         }
-        if (!ctrl.signal.aborted) await new Promise((res) => setTimeout(res, 3000));
+        calm = true;
       }
-      if (this.streamAbort === ctrl) this.streamAbort = null;
-    })();
+    } catch (e: any) {
+      calm = false;
+      if (e?.name === 'AbortError') return;
+    } finally {
+      this.streamAlive = false;
+      if (this.streamAbort === ctl) {
+        this.streamAbort = null;
+        if (get(K.token) && !calm) {
+          const wait = this.streamRetry;
+          this.streamRetry = Math.min(this.streamRetry * 2, 30000);
+          setTimeout(() => this.ensureStream(), wait);
+        } else if (get(K.token)) {
+          setTimeout(() => this.ensureStream(), 1000);
+        }
+      }
+    }
   }
 
   private schedule(ms: number) {
@@ -139,7 +230,7 @@ class SyncClient {
   // ---- the sync cycle ----
   /** Run one sync cycle. If one is already running, wait for it (callers can rely on the data being applied). */
   syncNow(): Promise<void> {
-    if (!get(K.token)) return Promise.resolve();
+    if (!get(K.token) || this.held) return Promise.resolve();
     if (this.inflight) { this.again = true; return this.inflight; }
     this.inflight = this.cycle().finally(() => {
       this.inflight = null;
@@ -172,14 +263,6 @@ class SyncClient {
       store.applySyncDocs(changes);
       for (const d of docs) { if (d.deleted) delete snap[d.key]; else snap[d.key] = hashDoc(d.value); }
     });
-    // 1b. This device may have created its own local user before linking; use the account's user instead.
-    const email = (get(K.account) || '').toLowerCase();
-    const docs = store.getSyncDocs();
-    const accountUserId = Object.keys(snap)
-      .filter((k) => k.startsWith('users/'))
-      .map((k) => k.slice('users/'.length))
-      .find((id) => String(docs[`users/${id}`]?.email || '').toLowerCase() === email);
-    if (accountUserId && store.getSyncScope().userId !== accountUserId) store.adoptSyncedUser(accountUserId);
     // 2. Documents that only exist here: upload the ones that belong to the signed-in user,
     //    remember (but do not upload) the rest so another user's leftovers never leak.
     const scope = store.getSyncScope();

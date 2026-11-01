@@ -92,7 +92,7 @@ export const StockScreen: React.FC<StockScreenProps> = ({ isHindi, onOpenVoice, 
       setRestockingStockId(null);
     }
     refreshStock();
-    setToastMessage(`Removed batch of ${name} from stock`);
+    setToastMessage(`Removed one lot of ${name} from stock`);
     setTimeout(() => setToastMessage(null), 2500);
   };
 
@@ -142,7 +142,7 @@ export const StockScreen: React.FC<StockScreenProps> = ({ isHindi, onOpenVoice, 
 
     if (isDifferentExpiry) {
       setToastMessage(
-        `Restocked ${item.name} (+${restockQty} ${restockUnit}) as a distinct batch expiring ${restockExpiry}!`
+        `Restocked ${item.name} (+${restockQty} ${restockUnit}) as a separate lot expiring ${restockExpiry}!`
       );
     } else {
       setToastMessage(`Restocked ${item.name} (+${restockQty} ${restockUnit})!`);
@@ -213,25 +213,25 @@ export const StockScreen: React.FC<StockScreenProps> = ({ isHindi, onOpenVoice, 
               {isHindi ? 'रसोई का स्टॉक' : 'Kitchen Stock'}
             </h1>
             <p className="text-[11.5px] sm:text-[12px] text-[#424843] truncate">
-              {isHindi ? 'मल्टी-बैच एक्सपायरी और इनलाइन रीस्टॉक' : 'Multi-batch expiry & instant restocking'}
+              {isHindi ? 'मल्टी-बैच एक्सपायरी और इनलाइन रीस्टॉक' : 'Track expiry dates & restock instantly'}
             </p>
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
-            {/* Primary AI Scan Button: high priority, never pushed off-screen */}
+            {/* Primary Smart Scan Button: high priority, never pushed off-screen */}
             <button
               className="px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-full bg-[#1A3826] text-white text-[11.5px] sm:text-[12px] font-semibold flex items-center gap-1 sm:gap-1.5 shadow-xs active:scale-95 transition-all hover:bg-[#132a1d] cursor-pointer shrink-0"
               onClick={() => handleOpenScan('receipt')}
-              title={isHindi ? 'AI रसीद व फ्रिज स्कैनर' : 'Scan Receipt or Fridge with Vision AI'}
+              title={isHindi ? 'AI रसीद व फ्रिज स्कैनर' : 'Scan a Bill or Your Fridge'}
             >
               <span className="material-symbols-outlined text-[17px] text-[#c8ebd1]">document_scanner</span>
-              <span>{isHindi ? 'स्कैन करें' : 'AI Scan'}</span>
+              <span>{isHindi ? 'स्कैन करें' : 'Smart Scan'}</span>
             </button>
 
             <button
               className="w-8.5 h-8.5 sm:w-9 sm:h-9 rounded-full bg-[#1A3826] text-white flex items-center justify-center shadow-xs active:scale-95 transition-all hover:bg-[#132a1d] cursor-pointer shrink-0"
               onClick={onOpenVoice}
-              title="Voice Update Stock (Shruti / Cactus Whisper)"
+              title="Update Stock by Voice"
             >
               <span className="material-symbols-outlined text-[18px]">mic</span>
             </button>
@@ -246,7 +246,7 @@ export const StockScreen: React.FC<StockScreenProps> = ({ isHindi, onOpenVoice, 
           </div>
         </div>
 
-        {/* Dedicated Prominent AI Scan Quick-Action Banner: Always 100% visible on any screen proportion */}
+        {/* Dedicated Prominent Smart Scan Quick-Action Banner: Always 100% visible on any screen proportion */}
         <div
           onClick={() => handleOpenScan('receipt')}
           className="p-3 rounded-2xl bg-gradient-to-r from-[#1A3826] to-[#254d35] text-white flex items-center justify-between gap-3 shadow-xs cursor-pointer hover:opacity-95 active:scale-[0.99] transition-all"
@@ -258,7 +258,7 @@ export const StockScreen: React.FC<StockScreenProps> = ({ isHindi, onOpenVoice, 
             <div className="flex flex-col min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="text-[13px] font-bold">
-                  {isHindi ? 'AI रसीद व फ्रिज स्कैनर' : 'Gemini AI Vision Scanner'}
+                  {isHindi ? 'AI रसीद व फ्रिज स्कैनर' : 'Smart Scanner'}
                 </span>
                 <span className="text-[9.5px] bg-[#c8ebd1] text-[#032212] font-extrabold px-1.5 py-0.2 rounded-full">
                   AI OCR
@@ -701,7 +701,7 @@ export const StockScreen: React.FC<StockScreenProps> = ({ isHindi, onOpenVoice, 
                       <div className="flex items-center justify-between mb-1">
                         <label className="text-[11px] font-bold text-[#424843] uppercase flex items-center gap-1">
                           <span className="material-symbols-outlined text-[14px] text-[#B45309]">event</span>
-                          <span>Batch Expiry Date</span>
+                          <span>Expiry Date</span>
                         </label>
                         <span className="text-[10px] text-[#727972]">
                           Diff expiry = separate entity
@@ -743,7 +743,7 @@ export const StockScreen: React.FC<StockScreenProps> = ({ isHindi, onOpenVoice, 
                             type="button"
                             onClick={() => setRestockExpiry(item.expiry || '')}
                             className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-[#E8F0EC] border border-[#A7D7B5] text-[#1E4620]"
-                            title="Add to current batch entity"
+                            title="Add to the existing lot"
                           >
                             Keep Current ({item.expiry})
                           </button>
@@ -771,11 +771,11 @@ export const StockScreen: React.FC<StockScreenProps> = ({ isHindi, onOpenVoice, 
                         <span>
                           {willBeSeparateEntity ? (
                             <>
-                              <strong>New Batch Entity:</strong> Expiry date differs from current batch ({item.expiry || 'none'}). This will be created as a <strong>distinct entity</strong> in the stock list with separate expiry tracking.
+                              <strong>New Lot:</strong> Expiry date differs from current batch ({item.expiry || 'none'}). This will be created as a <strong>tracked separately</strong> in the stock list with separate expiry tracking.
                             </>
                           ) : (
                             <>
-                              <strong>Same Batch:</strong> Will add +{restockQty} {restockUnit} to this existing batch entity.
+                              <strong>Same Lot:</strong> Will add +{restockQty} {restockUnit} to this existing batch entity.
                             </>
                           )}
                         </span>
@@ -840,21 +840,21 @@ export const StockScreen: React.FC<StockScreenProps> = ({ isHindi, onOpenVoice, 
                     <button
                       className="px-2.5 py-1 rounded-lg bg-[#f4f4f0] text-[#1a1c1a] text-[11px] font-bold active:scale-95 transition-all hover:bg-[#e8e8e5] cursor-pointer"
                       onClick={() => handleAdjust(item.id, -250, item.unit_base)}
-                      title="Deduct 250 from this batch"
+                      title="Remove 250 from this lot"
                     >
                       -250
                     </button>
                     <button
                       className="px-2.5 py-1 rounded-lg bg-[#f4f4f0] text-[#1a1c1a] text-[11px] font-bold active:scale-95 transition-all hover:bg-[#e8e8e5] cursor-pointer"
                       onClick={() => handleAdjust(item.id, 250, item.unit_base)}
-                      title="Add 250 to this batch"
+                      title="Add 250 to this lot"
                     >
                       +250
                     </button>
                     <button
                       className="px-2.5 py-1 rounded-lg bg-[#f4f4f0] text-[#1a1c1a] text-[11px] font-bold active:scale-95 transition-all hover:bg-[#e8e8e5] cursor-pointer"
                       onClick={() => handleAdjust(item.id, 500, item.unit_base)}
-                      title="Add 500 to this batch"
+                      title="Add 500 to this lot"
                     >
                       +500
                     </button>
@@ -875,7 +875,7 @@ export const StockScreen: React.FC<StockScreenProps> = ({ isHindi, onOpenVoice, 
                     <button
                       type="button"
                       onClick={() => handleDeleteBatch(item.id, item.name)}
-                      title="Delete this batch from stock"
+                      title="Delete this lot from stock"
                       className="text-[#93a0b4] hover:text-[#dc2626] p-1 rounded-lg hover:bg-[#FEE2E2] transition-colors cursor-pointer"
                     >
                       <span className="material-symbols-outlined text-[16px]">delete_outline</span>

@@ -126,6 +126,7 @@ function finalizeResponse(
       plan_changes: parsed.plan_changes || [],
       recipe: parsed.recipe || null,
       recipe_modification: parsed.recipe_modification || null,
+      restock_all_missing: parsed.restock_all_missing || false,
     };
     const pending = store.createPendingAction(payload.intent, transcript, payload);
     proposalId = pending.id;
@@ -198,8 +199,17 @@ function parseLocally(
     lower.includes('empty the store') ||
     lower.includes('clear shopping list')
   ) {
-    const restockRes = store.restockAllMissingItems();
-    const applied = restockRes.appliedItems || [];
+    // Preview only: nothing is moved into stock until the user confirms the card
+    const applied: any[] = store.getShoppingList().map((sh: any) => ({
+      ingredient_id: sh.ingredient_id,
+      name: sh.name,
+      qty_base: sh.qty_base,
+      unit_base: sh.base_unit || 'g',
+      op: 'add',
+      before: 0,
+      after: sh.qty_base,
+      target_section: 'Kitchen Stock',
+    }));
 
     if (applied.length === 0) {
       return {
@@ -223,13 +233,13 @@ function parseLocally(
 
     return {
       mode: 'chat',
-      message: `✅ Moved all ${applied.length} item(s) from your Shop Tab / Missing List directly into your Kitchen Inventory: ${itemSummaryList}.\n🛒 Your Shop Tab is now completely emptied (0 items remaining) and all planned meals are marked "In Stock"!`,
+      message: `✅ Ready to move all ${applied.length} item(s) from your Shop Tab / Missing List into your Kitchen Inventory (tap Confirm): ${itemSummaryList}.\n🛒 Your Shop Tab is now completely emptied (0 items remaining) and all planned meals are marked "In Stock"!`,
       intent: 'update_stock',
       classification_badge: 'Shop Emptied & Inventory Updated',
       update_type_label: 'Full Offline Purchase Sync (Shop → Inventory)',
       target_section: 'Kitchen Stock (Added) + Shop Tab (Emptied)',
       items: applied,
-      auto_applied: true,
+      restock_all_missing: true,
       warnings: [],
       unmatched: [],
     };
@@ -487,14 +497,13 @@ function parseLocally(
       recipe_title: matchedRecipe.title,
     };
 
-    // Directly update the unified meal plan database table so Home & Calendar stay in sync immediately
-    store.setMealSlot(dateStr, slot, matchedRecipe.id, servingsCount);
+    // Proposal only: the meal plan is written when the user confirms the card
 
     const targetSection = `Meal Planner → ${slot.toUpperCase()} (${dateStr === todayLocalStr ? 'Today' : dateStr})`;
 
     return {
       mode: 'plan',
-      message: `Updated Meal Plan: Scheduled "${matchedRecipe.title}" (${servingsCount} servings) for ${dateStr === todayLocalStr ? 'Today' : dateStr} (${slot.toUpperCase()}). Synced across Home & Calendar!`,
+      message: `Proposed Meal Plan change: Schedule "${matchedRecipe.title}" (${servingsCount} servings) for ${dateStr === todayLocalStr ? 'Today' : dateStr} (${slot.toUpperCase()}). Synced across Home & Calendar!`,
       intent: 'edit_plan',
       classification_badge: 'Meal Slot Updated',
       update_type_label: 'Meal Slot Scheduled (Live Synced)',
@@ -503,7 +512,7 @@ function parseLocally(
       items: [],
       warnings: [],
       unmatched: [],
-      auto_applied: true,
+      auto_applied: false,
     };
   }
 
@@ -653,25 +662,35 @@ function parseLocally(
     }
 
     if (targetName) {
-      const shopRes = store.updateShoppingListFromChat(targetName, shopOp, parsedQty, parsedUnit);
+      // Preview only: the Shop Tab is changed when the user confirms the card
+      const before = matchedShopItem?.qty_base || 0;
+      const foundForRemove = shopOp === 'remove' && Boolean(matchedShopItem);
+      const notFound = shopOp === 'remove' && !matchedShopItem;
+      const shopRes = {
+        itemName: matchedShopItem?.name || targetName,
+        qty: parsedQty,
+        unit: parsedUnit,
+        action: notFound ? 'not_found' : shopOp === 'remove' ? 'removed' : shopOp === 'bought' ? 'bought' : matchedShopItem ? 'updated' : 'added',
+      };
       const statusMsg =
         shopRes.action === 'removed'
-          ? `✅ Removed "${shopRes.itemName}" from your Shop Tab! (${shopRes.shoppingList.length} item(s) remaining in Shop Tab)`
-          : shopRes.action === 'removed_and_stocked'
-          ? `✅ Added ${shopRes.qty}${shopRes.unit} of "${shopRes.itemName}" to Kitchen Stock and removed it from the Shop Tab!`
+          ? `Remove "${shopRes.itemName}" from your Shop Tab? Tap Confirm to apply.`
+          : shopRes.action === 'bought'
+          ? `Mark "${shopRes.itemName}" as bought (add to Kitchen Stock and remove from Shop Tab)? Tap Confirm to apply.`
           : shopRes.action === 'updated'
-          ? `✅ Updated "${shopRes.itemName}" in your Shop Tab to ${shopRes.qty} ${shopRes.unit}!`
+          ? `Update "${shopRes.itemName}" in your Shop Tab to ${shopRes.qty} ${shopRes.unit}? Tap Confirm to apply.`
           : shopRes.action === 'added'
-          ? `✅ Added "${shopRes.itemName}" (${shopRes.qty} ${shopRes.unit}) to your Shop Tab!`
+          ? `Add "${shopRes.itemName}" (${shopRes.qty} ${shopRes.unit}) to your Shop Tab? Tap Confirm to apply.`
           : `Could not find "${targetName}" in the Shop Tab.`;
+      void foundForRemove;
 
       return {
         mode: 'cart',
         message: statusMsg,
         intent: 'add_to_cart',
-        classification_badge: 'Shop Tab Updated',
-        update_type_label: 'Direct Shopping List Update',
-        target_section: 'Shop Tab → Smart Shopping List',
+        classification_badge: 'Shop Tab Change (Needs Confirm)',
+        update_type_label: 'Shopping List Update',
+        target_section: 'Shop Tab',
         items:
           shopRes.action === 'not_found'
             ? []
@@ -682,13 +701,14 @@ function parseLocally(
                   qty_base: shopRes.qty,
                   unit_base: (shopRes.unit as any) || 'g',
                   op: shopOp === 'remove' ? 'remove' : 'add',
-                  before: matchedShopItem?.qty_base || 0,
-                  after: shopRes.qty,
+                  before,
+                  after: shopOp === 'remove' ? 0 : shopRes.qty,
                   is_existing: Boolean(matchedShopItem),
                   target_section: 'Shop Tab',
+                  note: shopOp,
                 },
               ],
-        auto_applied: true,
+        auto_applied: false,
         warnings: [],
         unmatched: [],
       };
@@ -1022,60 +1042,22 @@ function parseLocally(
     }
   }
 
-  // Apply stock changes immediately & check/remove satisfied Shop Tab listings!
+  // Proposal only: stock is changed when the user confirms the card
   if (items.length > 0) {
-    const allRemovedFromShop: string[] = [];
-    const allUpdatedInShop: string[] = [];
-
-    for (const it of items) {
-      const res = store.adjustStock(
-        it.ingredient_id,
-        it.op || 'add',
-        it.qty_base,
-        it.target_scope || 'shared',
-        'chat_command',
-        {
-          stockId: it.stock_id || undefined,
-          name: it.name,
-          location: it.location,
-          unit: it.unit_base,
-          targetScope: it.target_scope,
-        }
-      );
-      it.before = res.before;
-      it.after = res.after;
-      if (res.removedFromShop?.length) {
-        allRemovedFromShop.push(...res.removedFromShop);
-      }
-      if (res.updatedInShop?.length) {
-        for (const u of res.updatedInShop) {
-          allUpdatedInShop.push(`${u.name} (${u.qty_base}${u.base_unit} left)`);
-        }
-      }
-    }
-
     const stockSummaries = items.map(
       (it) =>
-        `"${it.name}" (${it.before}${it.unit_base} → ${it.op === 'remove' ? '-' : '+'}${it.qty_base}${it.unit_base} = ${it.after}${it.unit_base})`
+        `"${it.name}" (${it.before ?? 0}${it.unit_base} -> ${it.op === 'remove' ? '-' : '+'}${it.qty_base}${it.unit_base} = ${it.after ?? it.qty_base}${it.unit_base})`
     );
-
-    const uniqueRemoved = Array.from(new Set(allRemovedFromShop));
-    let shopNote = '';
-    if (uniqueRemoved.length > 0) {
-      shopNote = `\n🛒 Shop Tab Updated: Removed ${uniqueRemoved.map((n) => `"${n}"`).join(', ')} from the Shop Tab because enough stock was added!`;
-    } else if (allUpdatedInShop.length > 0) {
-      shopNote = `\n🛒 Shop Tab Updated: Reduced shortfall for ${allUpdatedInShop.join(', ')}.`;
-    }
 
     return {
       mode: 'chat',
-      message: `✅ Updated Kitchen Stock: ${stockSummaries.join(', ')}.${shopNote}`,
+      message: `Proposed Kitchen Stock update: ${stockSummaries.join(', ')}. Tap Confirm to apply.`,
       intent: 'update_stock',
-      classification_badge: uniqueRemoved.length > 0 ? 'Stock Added & Shop Cleared' : 'Stock Updated',
-      update_type_label: 'Inventory & Shop Tab Sync',
+      classification_badge: 'Stock Change (Needs Confirm)',
+      update_type_label: 'Inventory Update',
       target_section: 'Kitchen Stock & Shop Tab',
       items,
-      auto_applied: true,
+      auto_applied: false,
       warnings,
       unmatched,
     };

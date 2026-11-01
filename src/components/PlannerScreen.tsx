@@ -42,6 +42,7 @@ export const PlannerScreen: React.FC<PlannerScreenProps> = ({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerDate, setPickerDate] = useState<string>('');
   const [pickerSlot, setPickerSlot] = useState<MealSlot>('dinner');
+  const [pickerReplaceId, setPickerReplaceId] = useState<string | null>(null);
   const [pickerServings, setPickerServings] = useState<number>(2);
   const [pickerSearch, setPickerSearch] = useState<string>('');
   const [pickerFilter, setPickerFilter] = useState<'all' | 'regular' | 'new' | 'stock'>('all');
@@ -121,7 +122,8 @@ export const PlannerScreen: React.FC<PlannerScreenProps> = ({
     };
   }, [pickerOpen, pickerSearch, dietMemory.diet_goals]);
 
-  const openSlotPicker = (dateStr: string, slot: MealSlot, defaultServings = 2) => {
+  const openSlotPicker = (dateStr: string, slot: MealSlot, defaultServings = 2, replaceMealId: string | null = null) => {
+    setPickerReplaceId(replaceMealId);
     setPickerDate(dateStr);
     setPickerSlot(slot);
     setPickerServings(defaultServings);
@@ -155,7 +157,9 @@ export const PlannerScreen: React.FC<PlannerScreenProps> = ({
         vType === 'new'
           ? `Added as a ✨ New Discovery dish (${item.cuisine || 'Indian'}) for ${pickerSlot}.`
           : `Added to your ${pickerSlot} schedule (${item.cuisine || 'Indian'}).`,
-    });
+    }, pickerReplaceId ? { replaceMealId: pickerReplaceId } : { append: true });
+    store.refreshPlanShortages();
+    setPickerReplaceId(null);
     setPickerOpen(false);
     refreshPlan();
 
@@ -178,7 +182,7 @@ export const PlannerScreen: React.FC<PlannerScreenProps> = ({
     showToast(
       `${dayKey} marked as ${
         next === 'new'
-          ? '✨ New Food Day (Graph RAG will pick novel dishes)'
+          ? '✨ New Food Day (AI will pick new dishes)'
           : 'Regular Food Day (AI will plan from your past habitual diet)'
       }`
     );
@@ -237,17 +241,17 @@ export const PlannerScreen: React.FC<PlannerScreenProps> = ({
         refreshPlan();
         setAiSummary(
           data.summary ||
-            `Gemini AI + Graph RAG planned ${data.meals.length} meals across Regular & New Discovery days!`
+            `AI planned ${data.meals.length} meals across Regular & New Food days!`
         );
         showToast(
           isHindi
             ? 'Gemini AI और Graph RAG द्वारा पूरे सप्ताह का भोजन प्लान तैयार किया गया!'
-            : `AI Auto-Planned ${data.meals.length} meals for the week using inventory, ${mergedGoals.join('/')} profile & Graph RAG!`
+            : `AI Auto-Planned ${data.meals.length} meals for the week using your stock, ${mergedGoals.join('/')} profile & our recipe collection!`
         );
       } else {
         store.autoFillWeekPlan(weekStart);
         refreshPlan();
-        showToast('7-day meal plan populated from Graph RAG & your diet history.');
+        showToast('7-day meal plan created from our recipe collection & your diet history.');
       }
     } catch (err) {
       console.warn('AI Auto-Plan error, using local Graph RAG fallback:', err);
@@ -266,7 +270,7 @@ export const PlannerScreen: React.FC<PlannerScreenProps> = ({
       showToast(
         isHindi
           ? `${meal.title} पक गया! स्टॉक अपडेट किया गया और नियमित आहार इतिहास में सहेजा गया।`
-          : `Cooked ${meal.title}! Deducted: ${res.deductions} (+${res.proteinPerDiner}g protein logged)`
+          : `Cooked ${meal.title}! Used from stock: ${res.deductions} (+${res.proteinPerDiner}g protein added)`
       );
     } catch (err: any) {
       showToast(err.message || 'Could not mark meal done');
@@ -339,7 +343,7 @@ export const PlannerScreen: React.FC<PlannerScreenProps> = ({
           protein_g: r.nutrientsEstimated?.protein_g || 13,
           kcal: r.nutrientsEstimated?.kcal || 320,
           variety_type: (isHabit ? 'regular' : 'new') as 'regular' | 'new',
-          badge: isHabit ? 'Regular Diet Match' : '✨ New Graph RAG Dish',
+          badge: isHabit ? 'Regular Diet Match' : '✨ New Dish',
           matchedStock: matched,
           totalIngs: r.ingredients.length,
         };
@@ -429,7 +433,7 @@ export const PlannerScreen: React.FC<PlannerScreenProps> = ({
           <div className="flex items-start gap-2">
             <span className="material-symbols-outlined text-[18px] mt-0.5">psychology</span>
             <div>
-              <span className="font-bold block">Gemini LLM + Graph RAG Weekly Plan Ready</span>
+              <span className="font-bold block">Your AI Weekly Plan is Ready</span>
               <span className="text-[12px] text-[#1E4620] leading-snug">{aiSummary}</span>
             </div>
           </div>
@@ -515,8 +519,8 @@ export const PlannerScreen: React.FC<PlannerScreenProps> = ({
             </div>
             <div className="text-[11px] opacity-85 truncate">
               {selectedDay.varietyMode === 'new'
-                ? 'AI & Graph RAG pick novel regional dishes not in your regular diet history'
-                : 'AI plans familiar meals from your past multi-week diet history & stock'}
+                ? 'AI picks new regional dishes you don’t usually eat'
+                : 'AI plans familiar meals from what you usually eat & your stock'}
             </div>
           </div>
         </div>
@@ -532,9 +536,13 @@ export const PlannerScreen: React.FC<PlannerScreenProps> = ({
       {/* Meal Slots for Selected Day */}
       <div className="flex flex-col gap-3">
         {slotsConfig.map((sc) => {
-          const meal = dayMeals.find((m) => m.slot === sc.slot);
-          const isCooked = meal?.status === 'done';
-          const missingCount = meal?.missing?.length || 0;
+          const slotMeals = dayMeals.filter((m) => m.slot === sc.slot);
+          const meal = slotMeals[0];
+          const isCooked = slotMeals.length > 0 && slotMeals.every((m) => m.status === 'done');
+          const missingCount = slotMeals.reduce(
+            (acc, m) => acc + (m.status === 'done' ? 0 : m.missing?.length || 0),
+            0
+          );
           const isNewVariety =
             (meal?.variety_type || selectedDay.varietyMode) === 'new';
 
@@ -579,6 +587,14 @@ export const PlannerScreen: React.FC<PlannerScreenProps> = ({
                         Short {missingCount} item{missingCount > 1 ? 's' : ''}
                       </span>
                     )}
+                    <button
+                      onClick={() => openSlotPicker(selectedDateStr, sc.slot, 2)}
+                      className="px-2 py-0.5 rounded-full bg-[#1A3826] text-white text-[10.5px] font-bold flex items-center gap-0.5 active:scale-95 transition-all"
+                      title="Add another item to this meal"
+                    >
+                      <span className="material-symbols-outlined text-[13px]">add</span>
+                      {isHindi ? 'और जोड़ें' : 'Add item'}
+                    </button>
                   </div>
                 ) : (
                   <button
@@ -592,8 +608,16 @@ export const PlannerScreen: React.FC<PlannerScreenProps> = ({
               </div>
 
               {/* Meal Content */}
-              {meal ? (
-                <div className="flex flex-col gap-2.5">
+              {slotMeals.length > 0 ? (
+                <div className="flex flex-col gap-3">
+                {slotMeals.map((meal, mealIdx) => {
+                  const isCooked = meal.status === 'done';
+                  const missingCount = meal.missing?.length || 0;
+                  return (
+                <div
+                  key={meal.id}
+                  className={`flex flex-col gap-2.5 ${mealIdx > 0 ? 'pt-3 border-t border-[#E6E4DD]/60' : ''}`}
+                >
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
@@ -624,7 +648,7 @@ export const PlannerScreen: React.FC<PlannerScreenProps> = ({
                         {isHindi ? 'मात्रा' : 'Scale'}
                       </button>
                       <button
-                        onClick={() => openSlotPicker(selectedDateStr, sc.slot, meal.servings)}
+                        onClick={() => openSlotPicker(selectedDateStr, sc.slot, meal.servings, meal.id)}
                         className="px-2.5 py-1.5 rounded-xl bg-[#EDF2EE] hover:bg-[#d8e6db] text-[11.5px] font-semibold text-[#1A3826] flex items-center gap-1"
                         title="Change recipe for this slot"
                       >
@@ -689,10 +713,13 @@ export const PlannerScreen: React.FC<PlannerScreenProps> = ({
                         <span className="material-symbols-outlined text-[16px]">soup_kitchen</span>
                         {isHindi
                           ? 'पकाया गया (स्टॉक घटाएं और प्रोटीन जोड़ें)'
-                          : 'Mark Cooked (Deduct Stock & Log Protein)'}
+                          : 'Mark Cooked (Use Stock & Track Protein)'}
                       </button>
                     </div>
                   )}
+                </div>
+                  );
+                })}
                 </div>
               ) : (
                 <div className="py-4 text-center text-[#727972] text-[12.5px] flex flex-col items-center gap-2">
@@ -822,7 +849,7 @@ export const PlannerScreen: React.FC<PlannerScreenProps> = ({
             {/* Filter Pills: All, Regular History, New Discovery, Stock Match */}
             <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
               {[
-                { id: 'all', label: 'All Graph RAG' },
+                { id: 'all', label: 'All New Dishes' },
                 { id: 'regular', label: 'My Regular Diet' },
                 { id: 'new', label: '✨ New Discoveries' },
                 { id: 'stock', label: 'In Kitchen Stock' },
@@ -847,7 +874,7 @@ export const PlannerScreen: React.FC<PlannerScreenProps> = ({
               {pickerLoading ? (
                 <div className="py-8 text-center text-[12.5px] text-[#727972] flex flex-col items-center gap-2">
                   <span className="w-5 h-5 border-2 border-[#1A3826] border-t-transparent rounded-full animate-spin" />
-                  <span>Searching Recipe Knowledge Graph...</span>
+                  <span>Searching recipes...</span>
                 </div>
               ) : pickerItems.length === 0 ? (
                 <div className="py-6 text-center text-[12.5px] text-[#727972]">

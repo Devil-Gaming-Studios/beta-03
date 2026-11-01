@@ -891,7 +891,7 @@ function initializeState(): DBState {
     users: { usr_alpha: user1, usr_beta: user2 },
     households: { hh_alpha: hh1 },
     members: { hh_alpha: members1 },
-    stock: { hh_alpha: {} },
+    stock: { hh_alpha: seedStock1 },
     recipes: {
       hh_alpha: initialRecipes,
     },
@@ -1186,11 +1186,8 @@ class StoreService {
       return false;
     }
     try {
-      if (typeof window !== 'undefined') {
-        const session = localStorage.getItem('mastmeals_auth_session_v1');
-        if (session === 'logged_out' || !session) {
-          return false;
-        }
+      if (typeof window !== 'undefined' && localStorage.getItem('mastmeals_auth_session_v1') === 'logged_out') {
+        return false;
       }
     } catch {
       // Ignore
@@ -1258,7 +1255,7 @@ class StoreService {
 
     try {
       if (typeof window !== 'undefined') {
-        localStorage.setItem('mastmeals_auth_session_v1', 'logged_in');
+        localStorage.removeItem('mastmeals_auth_session_v1');
       }
     } catch {}
 
@@ -1276,7 +1273,7 @@ class StoreService {
     }
     try {
       if (typeof window !== 'undefined') {
-        localStorage.setItem('mastmeals_auth_session_v1', 'logged_in');
+        localStorage.removeItem('mastmeals_auth_session_v1');
       }
     } catch {}
     this.persist();
@@ -1380,8 +1377,161 @@ class StoreService {
       }
     } catch {}
 
-    // 5. Kitchen stock starts completely empty for new users
-    this.state.stock[hhId] = {};
+    // 5. Seed kitchen stock
+    const seedStock: Record<string, StockItem> = {
+      [`stk_${Date.now()}_1`]: {
+        id: `stk_${Date.now()}_1`,
+        household_id: hhId,
+        ingredient_id: 'ing_atta',
+        name: 'Whole Wheat Atta',
+        name_hi: 'आशीर्वाद गेहूं आटा',
+        qty_base: 4000,
+        unit_base: 'g',
+        location: 'pantry',
+        owner_user_id: null,
+        contributed_by: `${data.name} (Shared)`,
+        version: 1,
+        storage_place: 'pantry',
+        shelf_life_days: 60,
+        is_non_veg: false,
+      },
+      [`stk_${Date.now()}_2`]: {
+        id: `stk_${Date.now()}_2`,
+        household_id: hhId,
+        ingredient_id: 'ing_dal',
+        name: 'Toor Dal (Yellow Lentils)',
+        name_hi: 'अरहर दाल',
+        qty_base: 1500,
+        unit_base: 'g',
+        location: 'pantry',
+        owner_user_id: null,
+        contributed_by: `${data.name} (Shared)`,
+        version: 1,
+        storage_place: 'pantry',
+        shelf_life_days: 90,
+        is_non_veg: false,
+      },
+      [`stk_${Date.now()}_3`]: {
+        id: `stk_${Date.now()}_3`,
+        household_id: hhId,
+        ingredient_id: 'ing_chawal',
+        name: 'Basmati Rice',
+        name_hi: 'बासमती चावल',
+        qty_base: 2500,
+        unit_base: 'g',
+        location: 'pantry',
+        owner_user_id: null,
+        contributed_by: `${data.name} (Shared)`,
+        version: 1,
+        storage_place: 'pantry',
+        shelf_life_days: 90,
+        is_non_veg: false,
+      },
+      [`stk_${Date.now()}_4`]: {
+        id: `stk_${Date.now()}_4`,
+        household_id: hhId,
+        ingredient_id: 'ing_aloo',
+        name: 'Potatoes (Aloo)',
+        name_hi: 'आलू',
+        qty_base: 2000,
+        unit_base: 'g',
+        location: 'pantry',
+        owner_user_id: null,
+        contributed_by: `${data.name} (Shared)`,
+        version: 1,
+        storage_place: 'pantry',
+        shelf_life_days: 30,
+        is_non_veg: false,
+      },
+      [`stk_${Date.now()}_5`]: {
+        id: `stk_${Date.now()}_5`,
+        household_id: hhId,
+        ingredient_id: 'ing_pyaz',
+        name: 'Onions (Pyaz)',
+        name_hi: 'प्याज',
+        qty_base: 2000,
+        unit_base: 'g',
+        location: 'pantry',
+        owner_user_id: null,
+        contributed_by: `${data.name} (Shared)`,
+        version: 1,
+        storage_place: 'pantry',
+        shelf_life_days: 30,
+        is_non_veg: false,
+      },
+    };
+
+    if (data.has_fridge) {
+      seedStock[`stk_${Date.now()}_6`] = {
+        id: `stk_${Date.now()}_6`,
+        household_id: hhId,
+        ingredient_id: 'ing_tamatar',
+        name: 'Fresh Tomatoes',
+        name_hi: 'ताज़ा टमाटर',
+        qty_base: 1000,
+        unit_base: 'g',
+        location: 'fridge',
+        owner_user_id: null,
+        contributed_by: `${data.name} (Shared)`,
+        version: 1,
+        storage_place: 'fridge',
+        shelf_life_days: 7,
+        is_non_veg: false,
+      };
+      seedStock[`stk_${Date.now()}_7`] = {
+        id: `stk_${Date.now()}_7`,
+        household_id: hhId,
+        ingredient_id: 'ing_dahi',
+        name: 'Fresh Dahi / Curd',
+        name_hi: 'अमूल ताज़ा दही',
+        qty_base: 500,
+        unit_base: 'ml',
+        location: 'fridge',
+        owner_user_id: null,
+        contributed_by: `${data.name} (Shared)`,
+        version: 1,
+        storage_place: 'fridge',
+        shelf_life_days: 5,
+        is_non_veg: false,
+      };
+      if (data.diet_pref === 'veg') {
+        seedStock[`stk_${Date.now()}_8`] = {
+          id: `stk_${Date.now()}_8`,
+          household_id: hhId,
+          ingredient_id: 'ing_paneer',
+          name: 'Malai Paneer',
+          name_hi: 'ताज़ा मलाई पनीर',
+          qty_base: 400,
+          unit_base: 'g',
+          location: 'fridge',
+          owner_user_id: null,
+          contributed_by: `${data.name} (Shared)`,
+          version: 1,
+          storage_place: 'fridge',
+          shelf_life_days: 4,
+          is_non_veg: false,
+        };
+      } else {
+        seedStock[`stk_${Date.now()}_8`] = {
+          id: `stk_${Date.now()}_8`,
+          household_id: hhId,
+          ingredient_id: 'ing_anda',
+          name: 'Farm Fresh Eggs',
+          name_hi: 'अंडे (Eggs)',
+          qty_base: 6,
+          unit_base: 'pcs',
+          location: 'fridge',
+          owner_user_id: null,
+          contributed_by: `${data.name} (Shared)`,
+          version: 1,
+          storage_place: 'fridge',
+          shelf_life_days: 14,
+          is_non_veg: true,
+        };
+      }
+    }
+
+    this.state.stock[hhId] = seedStock;
     this.state.recipes[hhId] = (this.state.recipes['hh_alpha'] || []).map((r) => ({
       ...r,
       household_id: hhId,
@@ -1394,7 +1544,7 @@ class StoreService {
 
     try {
       if (typeof window !== 'undefined') {
-        localStorage.setItem('mastmeals_auth_session_v1', 'logged_in');
+        localStorage.removeItem('mastmeals_auth_session_v1');
       }
     } catch {}
 

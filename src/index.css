@@ -1,1 +1,113 @@
 @import "tailwindcss";
+
+@theme {
+  --color-surface: #faf9f6;
+  --color-surface-dim: #dadad7;
+  --color-surface-bright: #faf9f6;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f4f4f0;
+  --color-surface-container: #eeeeea;
+  --color-surface-container-high: #e8e8e5;
+  --color-surface-container-highest: #e2e3df;
+  --color-on-surface: #1a1c1a;
+  --color-on-surface-variant: #424843;
+  --color-outline: #727972;
+  --color-outline-variant: #c2c8c1;
+  --color-surface-tint: #466550;
+  --color-primary: #032212;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #1a3826;
+  --color-on-primary-container: #81a28a;
+  --color-primary-fixed: #c8ebd1;
+  --color-primary-fixed-dim: #adcfb5;
+  --color-secondary: #3b684a;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #b7e9c3;
+  --color-on-secondary-container: #3d6a4c;
+  --color-secondary-fixed: #bceec8;
+  --color-secondary-fixed-dim: #a1d2ad;
+  --color-canvas-base: #FBFBF9;
+  --color-canvas-subtle: #F5F4EF;
+  --color-surface-card: #FFFFFF;
+  --color-border-subtle: #E6E4DD;
+  --color-border-strong: #D5D2C7;
+  --color-sage-muted: #6E8879;
+  --color-sage-wash: #EDF2EE;
+  --color-terracotta-soft: #FBF1ED;
+  --color-accent-cider: #B45309;
+  --color-dietary-veg: #137333;
+  --color-dietary-nonveg: #9E2A2B;
+  --color-dietary-egg: #D97706;
+
+  --font-headline: 'Noto Sans', sans-serif;
+  --font-body: 'Noto Sans', sans-serif;
+}
+
+:root {
+  --bg: #faf9f6;
+  --card: #ffffff;
+  --line: #E6E4DD;
+  --text: #1a1c1a;
+  --dim: #424843;
+  --accent: #1a3826;
+  --warn: #B45309;
+  --bad: #9E2A2B;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background-color: #faf9f6;
+  color: #1a1c1a;
+  font-family: 'Noto Sans', system-ui, -apple-system, sans-serif;
+  overscroll-behavior-y: auto;
+  -webkit-overflow-scrolling: touch;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 20px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-smoothing: antialiased;
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}

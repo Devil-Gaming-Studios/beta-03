@@ -125,8 +125,49 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
       protein_g: Math.round((detail.nutrition?.protein_g || 14) / Math.max(servings, 1)),
       kcal: Math.round((detail.nutrition?.kcal || 320) / Math.max(servings, 1)),
     });
+    store.refreshPlanShortages();
     setActionNotice(`Added "${detail.title}" to ${planDate} (${planSlot})!`);
     setShowPlanForm(false);
+    if (onPlanUpdated) onPlanUpdated();
+    setTimeout(() => setActionNotice(null), 3500);
+  };
+
+  // When opened from the weekly plan, find the planned meal so scaled servings can be saved back to it.
+  const plannedMeal =
+    recipeId && initialDate && initialSlot
+      ? store
+          .getPlan(getMonday(initialDate))
+          .meals.find(
+            (m) =>
+              m.meal_date === initialDate &&
+              m.slot === initialSlot &&
+              m.household_recipe_id === recipeId
+          )
+      : undefined;
+  const canApplyScale =
+    !!plannedMeal && plannedMeal.status === 'planned' && servings !== plannedMeal.servings;
+
+  const handleApplyScale = () => {
+    if (!recipeId || !detail || !plannedMeal) return;
+    store.addMeal(
+      plannedMeal.meal_date,
+      plannedMeal.slot,
+      recipeId,
+      servings,
+      plannedMeal.diner_member_ids,
+      {
+        title: plannedMeal.title,
+        variety_type: plannedMeal.variety_type,
+        cuisine: plannedMeal.cuisine,
+        ai_reason: plannedMeal.ai_reason,
+        diet_tags: plannedMeal.diet_tags,
+        protein_g: Math.round((detail.nutrition?.protein_g || 14) / Math.max(servings, 1)),
+        kcal: Math.round((detail.nutrition?.kcal || 320) / Math.max(servings, 1)),
+      },
+      { replaceMealId: plannedMeal.id }
+    );
+    store.refreshPlanShortages();
+    setActionNotice(`Updated \"${plannedMeal.title}\" to ${servings} servings in your plan!`);
     if (onPlanUpdated) onPlanUpdated();
     setTimeout(() => setActionNotice(null), 3500);
   };
@@ -151,7 +192,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
     setActionNotice(
       result.alreadyDone
         ? `"${detail.title}" is already marked as Done!`
-        : `Cooked ${detail.title}! Deducted: ${result.deductions}`
+        : `Cooked ${detail.title}! Used from stock: ${result.deductions}`
     );
     if (onPlanUpdated) onPlanUpdated();
     setTimeout(() => setActionNotice(null), 4000);
@@ -159,7 +200,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
 
   const handleRestockRecipeMissing = () => {
     store.restockAllMissingItems();
-    setActionNotice(`Restocked all missing ingredients into Kitchen Stock!`);
+    setActionNotice(`Added all missing ingredients to Kitchen Stock!`);
     if (onPlanUpdated) onPlanUpdated();
     setTimeout(() => setActionNotice(null), 3500);
   };
@@ -406,7 +447,7 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
               </span>
               <span>
                 {!hasFridge
-                  ? 'No Fridge Household Notice: Buy perishable ingredients (paneer, milk, curd) in exact 1-meal quantities to cook immediately without storage.'
+                  ? 'No-Fridge Notice: Buy perishable ingredients (paneer, milk, curd) in exact 1-meal quantities to cook immediately without storage.'
                   : 'Storage & Freshness Tip: Keep paneer immersed in water in the fridge; store greens wrapped in cloth/paper.'}
               </span>
             </div>
@@ -617,6 +658,17 @@ export const RecipeModal: React.FC<RecipeModalProps> = ({
         )}
 
         {/* Actions Bar */}
+        {canApplyScale && (
+          <button
+            type="button"
+            className="w-full py-2.5 px-3 rounded-xl bg-[#EDF2EE] text-[#1A3826] border border-[#1A3826]/20 text-[13px] font-semibold active:scale-95 transition-all flex items-center justify-center gap-1.5 hover:bg-[#d8e6db]"
+            onClick={handleApplyScale}
+          >
+            <span className="material-symbols-outlined text-[18px]">check_circle</span>
+            Apply Changes ({plannedMeal!.servings} → {servings} servings)
+          </button>
+        )}
+
         <div className="flex items-center gap-2 pt-2 border-t border-[#E6E4DD]">
           <button
             className="flex-1 py-2.5 px-3 rounded-xl bg-[#1A3826] text-white text-[13px] font-semibold active:scale-95 transition-all flex items-center justify-center gap-1.5 hover:bg-[#132a1d]"
