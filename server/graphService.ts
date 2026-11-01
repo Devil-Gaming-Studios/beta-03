@@ -15,7 +15,12 @@ export class GraphRAGService {
   }
 
   public init() {
-    const jsonPath = path.resolve(__dirname, '..', 'public', 'data', 'graph_rag.json');
+    // Prebuilt graph: .data/ (written at deploy build time, not shipped to browsers) or public/data/ (local dev).
+    const prebuilt = [
+      path.resolve(__dirname, '..', '.data', 'graph_rag.json'),
+      path.resolve(__dirname, '..', 'public', 'data', 'graph_rag.json'),
+    ];
+    const jsonPath = prebuilt.find((p) => fs.existsSync(p)) || prebuilt[1];
     const seedPath = path.resolve(__dirname, '..', 'src', 'data', 'graph_rag_seed.json');
     const csvPath = path.resolve(__dirname, '..', 'public', 'assets', 'aistudio', 'IndianFoodDatasetCSV_273f8d45.csv');
 
@@ -26,15 +31,18 @@ export class GraphRAGService {
         this.graph = JSON.parse(data);
         this.isLoaded = true;
         console.log(`Graph RAG loaded with ${this.graph?.stats.totalRecipes} recipes!`);
+      } else if (fs.existsSync(csvPath)) {
+        // Deployments have no prebuilt graph_rag.json. Build the FULL dataset (~6,900 recipes, ~8 s) from the
+        // committed CSV instead of falling back to the 300-recipe client seed.
+        console.log(`Building full Graph RAG from ${csvPath}...`);
+        const csvRaw = fs.readFileSync(csvPath, 'utf-8');
+        this.graph = buildGraphRAG(csvRaw);
+        this.isLoaded = true;
+        console.log(`Graph RAG built with ${this.graph.recipes.length} recipes!`);
       } else if (fs.existsSync(seedPath)) {
-        console.log(`Loading Graph RAG from seed ${seedPath}...`);
+        console.warn(`Dataset CSV missing; falling back to the small client seed ${seedPath} (300 recipes).`);
         const data = fs.readFileSync(seedPath, 'utf-8');
         this.graph = JSON.parse(data);
-        this.isLoaded = true;
-      } else if (fs.existsSync(csvPath)) {
-        console.log(`Building Graph RAG from ${csvPath}...`);
-        const csvRaw = fs.readFileSync(csvPath, 'utf-8');
-        this.graph = buildGraphRAG(csvRaw, 1000);
         this.isLoaded = true;
       }
     } catch (err) {
