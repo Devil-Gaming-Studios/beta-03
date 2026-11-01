@@ -1176,6 +1176,11 @@ class StoreService {
     return !!user && user.onboarding_completed === true;
   }
 
+  public getCurrentEmail(): string {
+    const u: any = this.getMe().user;
+    return u?.email || '';
+  }
+
   public isLoggedIn(): boolean {
     if (this.isExplicitlyLoggedOut) {
       return false;
