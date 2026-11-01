@@ -26,8 +26,12 @@ export const DownloadAppModal: React.FC<DownloadAppModalProps> = ({
       }, 1500);
     } else if (result === 'manual_ios') {
       setInstallStatus('ios_steps');
+    } else if (result === 'manual_android') {
+      setInstallStatus('android_steps');
     } else if (result === 'manual_desktop') {
       setInstallStatus('desktop_steps');
+    } else if (result === 'dismissed') {
+      setInstallStatus(null);
     }
   };
 
@@ -211,6 +215,26 @@ export const DownloadAppModal: React.FC<DownloadAppModalProps> = ({
                   {isHindi ? 'ऊपरी दाएं कोने में "Add" पर टैप करें' : 'Tap "Add" in top-right corner to finish'}
                 </li>
               </ol>
+            </div>
+          )}
+
+          {/* Android Chrome Instructions (shown when the browser did not offer a one-tap prompt) */}
+          {installStatus === 'android_steps' && (
+            <div className="p-3.5 rounded-2xl bg-[#f4f7f4] border border-[#cfe2d2] space-y-2">
+              <div className="flex items-center gap-2 text-[#1A3826] font-semibold text-xs">
+                <span className="material-symbols-outlined text-[18px]">android</span>
+                <span>{isHindi ? 'एंड्रॉयड (Chrome) पर इंस्टॉल करें:' : 'Install on Android (Chrome):'}</span>
+              </div>
+              <ol className="text-xs text-[#424843] space-y-1.5 list-decimal list-inside pl-1">
+                <li>{isHindi ? 'Chrome में ऊपर दाईं ओर मेनू (⋮) खोलें' : 'Open the Chrome menu (⋮) at the top right'}</li>
+                <li>{isHindi ? '"Install app" या "Add to Home screen" चुनें' : 'Tap "Install app" or "Add to Home screen"'}</li>
+                <li>{isHindi ? '"Install" दबाकर पुष्टि करें' : 'Tap "Install" to confirm'}</li>
+              </ol>
+              <p className="text-[11px] text-[#727972]">
+                {isHindi
+                  ? 'अगर यह विकल्प नहीं दिखे, तो साइट को Chrome में खोलें (WhatsApp/Instagram के अंदर नहीं) या नीचे से APK डाउनलोड करें।'
+                  : 'No such option? Open the site in Chrome itself (not inside WhatsApp/Instagram), or download the APK below.'}
+              </p>
             </div>
           )}
 
