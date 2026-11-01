@@ -80,7 +80,7 @@ export default defineConfig({
   server: {
     host: '0.0.0.0',
     port: 3000,
-    allowedHosts: ['sake-loved-southeast-bacteria.trycloudflare.com'],
+    allowedHosts: ['beta-03-fhk0.onrender.com', '.onrender.com'],
     hmr: false,
   },
 });

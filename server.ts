@@ -36,6 +36,8 @@ const server = http.createServer(app);
 const PORT = Number(process.env.PORT) || 3000;
 const HOST = '0.0.0.0';
 
+app.set('trust proxy', 1);
+app.get('/healthz', (_req, res) => { res.json({ ok: true }); });
 app.use(express.json({ limit: '25mb' }));
 
 function getApiKey(): string {
