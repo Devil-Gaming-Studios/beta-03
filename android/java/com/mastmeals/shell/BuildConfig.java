@@ -15,5 +15,5 @@ public final class BuildConfig {
      * Express server URL loaded by WebView.
      * Default: the Cloudflare tunnel (HTTPS, so mic/camera work). Change it here or in the in-app settings.
      */
-    public static final String SERVER_URL = "https://sake-loved-southeast-bacteria.trycloudflare.com/";
+    public static final String SERVER_URL = "https://beta-03-fhk0.onrender.com/";
 }

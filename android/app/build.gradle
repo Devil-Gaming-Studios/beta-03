@@ -14,7 +14,7 @@ android {
         versionName "0.1-test"
 
         // Default: loads Express server over adb reverse tcp:3000 tcp:3000
-        buildConfigField "String", "SERVER_URL", "\"http://localhost:3000\""
+        buildConfigField "String", "SERVER_URL", "\"https://beta-03-fhk0.onrender.com/\""
     }
 
     buildFeatures {
