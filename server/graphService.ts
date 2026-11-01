@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import zlib from 'zlib';
 import { fileURLToPath } from 'url';
 import { GraphRAGOutput, GraphRecipeNode, buildGraphRAG } from '../scripts/convert_csv_to_graph_rag';
 
@@ -25,14 +26,20 @@ export class GraphRAGService {
     const csvPath = path.resolve(__dirname, '..', 'public', 'assets', 'aistudio', 'IndianFoodDatasetCSV_273f8d45.csv');
 
     try {
+      const packedPath = path.resolve(__dirname, 'data', 'graph_rag.json.gz'); // committed, gzipped full graph
       if (fs.existsSync(jsonPath)) {
         console.log(`Loading Graph RAG from ${jsonPath}...`);
         const data = fs.readFileSync(jsonPath, 'utf-8');
         this.graph = JSON.parse(data);
         this.isLoaded = true;
         console.log(`Graph RAG loaded with ${this.graph?.stats.totalRecipes} recipes!`);
-      } else if (fs.existsSync(csvPath)) {
-        // Deployments have no prebuilt graph_rag.json. Build the FULL dataset (~6,900 recipes, ~8 s) from the
+      } else if (fs.existsSync(packedPath)) {
+        console.log(`Loading packed Graph RAG from ${packedPath}...`);
+        this.graph = JSON.parse(zlib.gunzipSync(fs.readFileSync(packedPath)).toString('utf-8'));
+        this.isLoaded = true;
+        console.log(`Graph RAG loaded with ${this.graph?.recipes.length} recipes!`);
+      } else if (fs.existsSync(csvPath) && !process.env.RENDER && !process.env.GRAPH_NO_RUNTIME_BUILD) {
+        // Local/dev only (needs ~1 GB RAM while building; small hosts such as Render's free plan run out of memory and crash). Deployments have no prebuilt graph_rag.json. Build the FULL dataset (~6,900 recipes, ~8 s) from the
         // committed CSV instead of falling back to the 300-recipe client seed.
         console.log(`Building full Graph RAG from ${csvPath}...`);
         const csvRaw = fs.readFileSync(csvPath, 'utf-8');
@@ -40,7 +47,7 @@ export class GraphRAGService {
         this.isLoaded = true;
         console.log(`Graph RAG built with ${this.graph.recipes.length} recipes!`);
       } else if (fs.existsSync(seedPath)) {
-        console.warn(`Dataset CSV missing; falling back to the small client seed ${seedPath} (300 recipes).`);
+        console.warn(`No prebuilt graph found (server/data/graph_rag.json.gz); using the small 300-recipe client seed. Run \`npm run graph:pack\` to regenerate it.`);
         const data = fs.readFileSync(seedPath, 'utf-8');
         this.graph = JSON.parse(data);
         this.isLoaded = true;
