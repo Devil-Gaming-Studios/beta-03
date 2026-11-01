@@ -3,7 +3,8 @@ services:
     name: beta-03
     runtime: node
     plan: free
-    buildCommand: npm install && npm run build
+    # graph:prebuild writes the full ~6,900-recipe graph once at build time; building it at boot needs ~1 GB RAM (free plan has 512 MB)
+    buildCommand: npm install && npm run build && npm run graph:prebuild
     startCommand: npm start
     healthCheckPath: /healthz
     envVars:
