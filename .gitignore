@@ -1,11 +1,55 @@
-node_modules/
-build/
-dist/
-coverage/
-.DS_Store
-*.log
-.env*
+# Secrets and local environment. Never commit filled env files.
+.env
+.env.*
 !.env.example
+env/*.env
+!env/*.env.example
 
-.data/
+# Node / Web
+node_modules/
+dist/
+dist-ssr/
+.cache/
+.aistudio/
+*.local
+.DS_Store
+*.tsbuildinfo
+
+
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Flutter / Dart
+.dart_tool/
+build/
+.flutter-plugins
+*.iml
+
+# Uploads / local artifacts
+uploads/
+*.log
+logs/
+
+# Android build output and signed test artifacts
+android/build/
+android/keystore/
+*.apk
+
+# Python bytecode in the test backend
+backend/__pycache__/
+
+# Generated graph data (rebuild with backend/graph/build_graph_data.py)
+data/graph/
+
+# SQLite / Local Databases
+*.db
+*.sqlite3
+backend/*.db
 backend/mastmeals.db
+.data/
+

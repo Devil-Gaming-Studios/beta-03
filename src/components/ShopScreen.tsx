@@ -45,6 +45,8 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({ isHindi }) => {
   };
 
   useEffect(() => {
+    // Auto-update: bring shortages and the list in line with the current meal plan every time Shop opens
+    store.refreshPlanShortages();
     refreshList();
     checkSwiggyStatus();
 
@@ -72,7 +74,7 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({ isHindi }) => {
         setTimeout(() => setNotice(null), 5000);
       } else if (event.data?.type === 'SWIGGY_AUTH_ERROR') {
         setSwiggyConnecting(false);
-        setNotice(`⚠️ Swiggy authorization error: ${event.data.error || 'Failed'}`);
+        setNotice(`⚠️ Swiggy sign-in error: ${event.data.error || 'Failed'}`);
         setTimeout(() => setNotice(null), 5000);
       }
     };
@@ -147,7 +149,7 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({ isHindi }) => {
       setNotice(
         generated.length === 0
           ? 'All planned meal ingredients are in stock! Zero missing items.'
-          : `Computed ${generated.length} shortfall item(s) from weekly meal plan!`
+          : `Found ${generated.length} item(s) you need for this week’s meals!`
       );
       setTimeout(() => setNotice(null), 3500);
     } finally {
@@ -159,7 +161,7 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({ isHindi }) => {
     const res = store.restockAllMissingItems();
     setItems([...res.shoppingList]);
     setNotice(
-      `Restocked ${res.appliedItems.length} item(s) into Kitchen Stock! Missing items cleared.`
+      `Added ${res.appliedItems.length} item(s) to Kitchen Stock! Shopping list cleared.`
     );
     setTimeout(() => setNotice(null), 4000);
   };
@@ -214,7 +216,7 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({ isHindi }) => {
               {isHindi ? 'खरीदारी सूची' : 'Shopping List & Deals'}
             </h1>
             <p className="text-[12px] text-[#424843]">
-              {isHindi ? 'प्लान की कमी से स्वचालित सूची और मूल्य तुलना' : 'Auto-computed from meal plan shortfalls'}
+              {isHindi ? 'प्लान की कमी से स्वचालित सूची और मूल्य तुलना' : 'Made automatically from your meal plan'}
             </p>
           </div>
 
@@ -238,7 +240,7 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({ isHindi }) => {
               <span className={`material-symbols-outlined text-[18px] ${loading ? 'animate-spin' : ''}`}>
                 refresh
               </span>
-              <span>{isHindi ? 'अपडेट करें' : 'Compute Plan'}</span>
+              <span>{isHindi ? 'अपडेट करें' : 'Update List'}</span>
             </button>
           </div>
         </div>
@@ -281,124 +283,6 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({ isHindi }) => {
       {/* WhatsApp & Telegram Shop Chat Inbox (Confirm & Apply to Stock) */}
       <section>
         <ShopInboxConfirmCard isHindi={isHindi} onItemsApplied={refreshList} />
-      </section>
-
-      {/* Swiggy Official Connection & Cart Integration */}
-      <section className="bg-white border border-[#E6E4DD] rounded-2xl p-4 shadow-xs flex flex-col gap-3">
-        <div className="flex items-start justify-between gap-3 flex-wrap">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#FC8019] text-white flex items-center justify-center font-black text-[20px] shadow-sm shrink-0">
-              S
-            </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-[15px] font-bold text-[#1a1c1a]">
-                  Swiggy Instamart & MCP
-                </h2>
-                {swiggyConnection.isConnected ? (
-                  <span className="px-2.5 py-0.5 rounded-full bg-[#E8F5E9] text-[#2E7D32] text-[11px] font-bold border border-[#C8E6C9] flex items-center gap-1">
-                    <span className="material-symbols-outlined text-[14px]">check_circle</span>
-                    <span>Swiggy Connected</span>
-                  </span>
-                ) : (
-                  <span className="px-2.5 py-0.5 rounded-full bg-[#FFF3E0] text-[#E65100] text-[11px] font-bold border border-[#FFE0B2] flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#E65100]"></span>
-                    <span>Not Connected</span>
-                  </span>
-                )}
-              </div>
-              <p className="text-[12px] text-[#424843] mt-0.5">
-                {swiggyConnection.isConnected
-                  ? `Authenticated as ${swiggyConnection.userProfile?.name || 'Swiggy User'} • ${swiggyConnection.availableTools?.length || 0} MCP tools active`
-                  : 'Official Swiggy OAuth 2.1 + PKCE connection using your registered phone number & OTP'}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {!swiggyConnection.isConnected ? (
-              <button
-                type="button"
-                onClick={handleConnectSwiggy}
-                disabled={swiggyConnecting}
-                className="py-2.5 px-4 rounded-xl bg-[#FC8019] text-white text-[13px] font-bold shadow-sm active:scale-95 transition-all flex items-center gap-2 hover:bg-[#e06d0c] disabled:opacity-60"
-              >
-                {swiggyConnecting ? (
-                  <>
-                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                    <span>Connecting...</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="material-symbols-outlined text-[17px]">login</span>
-                    <span>Connect Swiggy</span>
-                  </>
-                )}
-              </button>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={() => setIsSwiggyModalOpen(true)}
-                  className="py-2 px-3.5 rounded-xl bg-[#FC8019] text-white text-[12px] font-bold shadow-sm active:scale-95 transition-all flex items-center gap-1.5 hover:bg-[#e06d0c]"
-                >
-                  <span className="material-symbols-outlined text-[16px]">shopping_cart</span>
-                  <span>Swiggy Cart</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDisconnectSwiggy}
-                  className="py-2 px-2.5 rounded-xl bg-[#FEE2E2] text-[#B91C1C] text-[12px] font-semibold hover:bg-[#fca5a5] transition-all"
-                  title="Disconnect Swiggy account"
-                >
-                  Disconnect
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* 6-Step Visual Flow Guide when Disconnected */}
-        {!swiggyConnection.isConnected && (
-          <div className="bg-[#FAF9F6] border border-[#E6E4DD] rounded-xl p-3 text-[11.5px] text-[#424843] flex flex-col gap-2">
-            <div className="font-bold text-[#1a1c1a] flex items-center justify-between">
-              <span>Official Connection Flow:</span>
-              <button
-                type="button"
-                onClick={() => setIsSwiggyModalOpen(true)}
-                className="text-[#FC8019] hover:underline font-semibold"
-              >
-                More Details & MCP Tools &rarr;
-              </button>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              <div className="flex items-start gap-1.5">
-                <span className="w-4 h-4 rounded-full bg-[#FC8019] text-white font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">1</span>
-                <span>Click <strong>Connect Swiggy</strong></span>
-              </div>
-              <div className="flex items-start gap-1.5">
-                <span className="w-4 h-4 rounded-full bg-[#FC8019] text-white font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">2</span>
-                <span>Enter registered phone number</span>
-              </div>
-              <div className="flex items-start gap-1.5">
-                <span className="w-4 h-4 rounded-full bg-[#FC8019] text-white font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">3</span>
-                <span>Verify OTP sent by Swiggy</span>
-              </div>
-              <div className="flex items-start gap-1.5">
-                <span className="w-4 h-4 rounded-full bg-[#FC8019] text-white font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">4</span>
-                <span>Authorize KitchenSync</span>
-              </div>
-              <div className="flex items-start gap-1.5">
-                <span className="w-4 h-4 rounded-full bg-[#FC8019] text-white font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">5</span>
-                <span>Automatic return redirect</span>
-              </div>
-              <div className="flex items-start gap-1.5">
-                <span className="w-4 h-4 rounded-full bg-[#16A34A] text-white font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">6</span>
-                <span className="text-[#15803D] font-bold">Swiggy Connected!</span>
-              </div>
-            </div>
-          </div>
-        )}
       </section>
 
       {/* Quick-Commerce Benchmark Price Comparison (Spec 2.8) */}
@@ -518,6 +402,162 @@ export const ShopScreen: React.FC<ShopScreenProps> = ({ isHindi }) => {
           })
         )}
       </section>
+
+      {/* Blinkit (link only) */}
+      <a
+        href="https://blinkit.com"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="bg-white border border-[#E6E4DD] rounded-2xl p-4 shadow-xs flex items-center justify-between gap-3 hover:border-[#F8CB46] transition-all"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl text-white flex items-center justify-center font-black text-[20px] shadow-sm shrink-0" style={{ backgroundColor: '#F8CB46', color: '#1a1c1a' }}>
+            B
+          </div>
+          <h2 className="text-[15px] font-bold text-[#1a1c1a]">Blinkit</h2>
+        </div>
+        <span className="text-[12px] font-semibold text-[#424843] flex items-center gap-1">
+          Open Blinkit
+          <span className="material-symbols-outlined text-[16px]">open_in_new</span>
+        </span>
+      </a>
+
+      {/* Swiggy Official Connection & Cart Integration */}
+      <section className="bg-white border border-[#E6E4DD] rounded-2xl p-4 shadow-xs flex flex-col gap-3">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-[#FC8019] text-white flex items-center justify-center font-black text-[20px] shadow-sm shrink-0">
+              S
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-[15px] font-bold text-[#1a1c1a]">
+                  Swiggy Instamart & MCP
+                </h2>
+                {swiggyConnection.isConnected ? (
+                  <span className="px-2.5 py-0.5 rounded-full bg-[#E8F5E9] text-[#2E7D32] text-[11px] font-bold border border-[#C8E6C9] flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                    <span>Swiggy Connected</span>
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-0.5 rounded-full bg-[#FFF3E0] text-[#E65100] text-[11px] font-bold border border-[#FFE0B2] flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#E65100]"></span>
+                    <span>Not Connected</span>
+                  </span>
+                )}
+              </div>
+              <p className="text-[12px] text-[#424843] mt-0.5">
+                {swiggyConnection.isConnected
+                  ? `Signed in as ${swiggyConnection.userProfile?.name || 'Swiggy User'} • Ready to use`
+                  : 'Secure Swiggy sign-in using your registered phone number & OTP'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {!swiggyConnection.isConnected ? (
+              <button
+                type="button"
+                onClick={handleConnectSwiggy}
+                disabled={swiggyConnecting}
+                className="py-2.5 px-4 rounded-xl bg-[#FC8019] text-white text-[13px] font-bold shadow-sm active:scale-95 transition-all flex items-center gap-2 hover:bg-[#e06d0c] disabled:opacity-60"
+              >
+                {swiggyConnecting ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                    <span>Connecting...</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-[17px]">login</span>
+                    <span>Connect Swiggy</span>
+                  </>
+                )}
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setIsSwiggyModalOpen(true)}
+                  className="py-2 px-3.5 rounded-xl bg-[#FC8019] text-white text-[12px] font-bold shadow-sm active:scale-95 transition-all flex items-center gap-1.5 hover:bg-[#e06d0c]"
+                >
+                  <span className="material-symbols-outlined text-[16px]">shopping_cart</span>
+                  <span>Swiggy Cart</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDisconnectSwiggy}
+                  className="py-2 px-2.5 rounded-xl bg-[#FEE2E2] text-[#B91C1C] text-[12px] font-semibold hover:bg-[#fca5a5] transition-all"
+                  title="Disconnect Swiggy account"
+                >
+                  Disconnect
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* 6-Step Visual Flow Guide when Disconnected */}
+        {!swiggyConnection.isConnected && (
+          <div className="bg-[#FAF9F6] border border-[#E6E4DD] rounded-xl p-3 text-[11.5px] text-[#424843] flex flex-col gap-2">
+            <div className="font-bold text-[#1a1c1a] flex items-center justify-between">
+              <span>How to Connect:</span>
+              <button
+                type="button"
+                onClick={() => setIsSwiggyModalOpen(true)}
+                className="text-[#FC8019] hover:underline font-semibold"
+              >
+                More Details & MCP Tools &rarr;
+              </button>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              <div className="flex items-start gap-1.5">
+                <span className="w-4 h-4 rounded-full bg-[#FC8019] text-white font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">1</span>
+                <span>Click <strong>Connect Swiggy</strong></span>
+              </div>
+              <div className="flex items-start gap-1.5">
+                <span className="w-4 h-4 rounded-full bg-[#FC8019] text-white font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">2</span>
+                <span>Enter registered phone number</span>
+              </div>
+              <div className="flex items-start gap-1.5">
+                <span className="w-4 h-4 rounded-full bg-[#FC8019] text-white font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">3</span>
+                <span>Verify OTP sent by Swiggy</span>
+              </div>
+              <div className="flex items-start gap-1.5">
+                <span className="w-4 h-4 rounded-full bg-[#FC8019] text-white font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">4</span>
+                <span>Allow KitchenSync</span>
+              </div>
+              <div className="flex items-start gap-1.5">
+                <span className="w-4 h-4 rounded-full bg-[#FC8019] text-white font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">5</span>
+                <span>You’ll come back here automatically</span>
+              </div>
+              <div className="flex items-start gap-1.5">
+                <span className="w-4 h-4 rounded-full bg-[#16A34A] text-white font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">6</span>
+                <span className="text-[#15803D] font-bold">Swiggy Connected!</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* Zepto (link only) */}
+      <a
+        href="https://www.zeptonow.com"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="bg-white border border-[#E6E4DD] rounded-2xl p-4 shadow-xs flex items-center justify-between gap-3 hover:border-[#5B21B6] transition-all"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl text-white flex items-center justify-center font-black text-[20px] shadow-sm shrink-0" style={{ backgroundColor: '#5B21B6', color: '#ffffff' }}>
+            Z
+          </div>
+          <h2 className="text-[15px] font-bold text-[#1a1c1a]">Zepto</h2>
+        </div>
+        <span className="text-[12px] font-semibold text-[#424843] flex items-center gap-1">
+          Open Zepto
+          <span className="material-symbols-outlined text-[16px]">open_in_new</span>
+        </span>
+      </a>
 
       {/* Swiggy Instamart Modal */}
       <SwiggyModal

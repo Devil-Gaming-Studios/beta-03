@@ -25,13 +25,13 @@ export const SyncLinkBanner: React.FC<{ isHindi?: boolean }> = ({ isHindi }) => 
     setError('');
     const r = await syncClient.connect(email, password || 'password123', true);
     setBusy(false);
-    if (!r.ok) setError(r.error || 'Could not turn on sync');
+    if (!r.ok) setError(r.error || 'Couldn’t connect your devices');
   };
 
   return (
     <form onSubmit={submit} className="mx-3 mt-20 -mb-14 relative z-30 rounded-2xl border border-[#E6E4DD] bg-white p-3 shadow-sm">
       <p className="text-[12.5px] font-bold text-[#1A3826]">
-        {isHindi ? 'सभी डिवाइस पर सिंक चालू करें' : 'Turn on sync across your devices'}
+        {isHindi ? 'सभी डिवाइस पर सिंक चालू करें' : 'Use your account on all your devices'}
       </p>
       <p className="text-[11.5px] text-[#727972] mb-2">
         {isHindi ? `खाता: ${email} — पासवर्ड डालें` : `Account ${email} — enter your password once.`}

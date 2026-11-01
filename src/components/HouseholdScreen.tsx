@@ -120,8 +120,8 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi, onLog
     refresh();
     showToast(
       isHindi
-        ? `किचन मोड बदलकर ${type === 'cloud_kitchen' ? 'क्लाउड किचन' : type === 'family' ? 'पारिवारिक घर' : 'हॉस्टल / शेयर्ड फ्लैट'} किया गया`
-        : `Kitchen mode changed to ${type === 'cloud_kitchen' ? 'Cloud Kitchen' : type === 'family' ? 'Family Home Kitchen' : 'Hostel / Shared Flat'}`
+        ? `किचन मोड बदलकर ${type === 'cloud_kitchen' ? 'फूड बिज़नेस' : type === 'family' ? 'पारिवारिक घर' : 'हॉस्टल / शेयर्ड फ्लैट'} किया गया`
+        : `Kitchen mode changed to ${type === 'cloud_kitchen' ? 'Food Business' : type === 'family' ? 'Family Home Kitchen' : 'Hostel / Shared Flat'}`
     );
   };
 
@@ -189,7 +189,7 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi, onLog
     showToast(
       `${dayKey} set to ${
         next === 'new'
-          ? '✨ New Food (Graph RAG Discovery)'
+          ? '✨ New Food (Discover Something New)'
           : 'Regular Food (From Past Diet History)'
       }`
     );
@@ -252,7 +252,7 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi, onLog
     setHabitTitle('');
     setHabitIngredients('');
     setShowAddHabitModal(false);
-    showToast(`Added "${habitTitle.trim()}" to your Regular Diet History in localStorage!`);
+    showToast(`Added "${habitTitle.trim()}" to your Regular Diet History on this device!`);
   };
 
   const handleRemoveHabitualDish = (idOrTitle: string) => {
@@ -367,7 +367,7 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi, onLog
         </button>
       </div>
 
-      {/* Kitchen Mode Selector (Home / Hostel / Cloud Kitchen) */}
+      {/* Kitchen Mode Selector (Home / Hostel / Food Business) */}
       <div className="bg-white rounded-2xl p-4 border border-[#E6E4DD] shadow-xs flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
@@ -378,7 +378,7 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi, onLog
           </div>
           <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-[#EDF2EE] text-[#1A3826]">
             {me.household.household_type === 'cloud_kitchen'
-              ? 'Cloud Kitchen'
+              ? 'Food Business'
               : me.household.household_type === 'family'
               ? 'Family Home'
               : 'Hostel Flat'}
@@ -429,9 +429,9 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi, onLog
           >
             <div className="flex items-center gap-1.5 font-bold text-[12.5px]">
               <span className="material-symbols-outlined text-[16px]">restaurant</span>
-              <span>Cloud Kitchen 🍳</span>
+              <span>Food Business 🍳</span>
             </div>
-            <div className="text-[10px] opacity-75">Orders, batches &amp; KDS</div>
+            <div className="text-[10px] opacity-75">Orders, bulk cooking &amp; kitchen screen</div>
           </button>
         </div>
       </div>
@@ -439,13 +439,13 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi, onLog
       {/* CLOUD KITCHEN SPECIFIC SETTINGS & PERFORMANCE REPORT */}
       {me.household.household_type === 'cloud_kitchen' && (
         <>
-          {/* Cloud Kitchen Staff Roles Card */}
+          {/* Food Business Staff Roles Card */}
           <div className="bg-white rounded-2xl p-4 border border-[#E6E4DD] shadow-xs flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
                 <span className="material-symbols-outlined text-[19px] text-[#1A3826]">badge</span>
                 <h2 className="text-[14px] font-bold text-[#1a1c1a]">
-                  {isHindi ? 'स्टाफ रोल और अनुमतियां' : 'Cloud Kitchen Staff Roles & Permissions'}
+                  {isHindi ? 'स्टाफ रोल और अनुमतियां' : 'Staff Roles & Access'}
                 </h2>
               </div>
               <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-[#1A3826] text-white">
@@ -456,7 +456,7 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi, onLog
             <p className="text-[11.5px] text-[#727972]">
               {isHindi
                 ? 'मालिक मेन्यू और मूल्य बदल सकता है; शेफ बैच और प्रेप मार्क कर सकते हैं; पैकर KDS में डिस्पैच कर सकते हैं।'
-                : 'Owner manages menu, prices & stock par rules. Cooks announce batches & prep. Helpers mark dispatch.'}
+                : 'Owner manages menu, prices & minimum stock levels. Cooks announce batches & prep. Helpers mark dispatch.'}
             </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -477,7 +477,7 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi, onLog
                   <span className="material-symbols-outlined text-[15px]">admin_panel_settings</span>
                   <span>Owner (मालिक)</span>
                 </div>
-                <div className="text-[10px] text-[#727972]">Menu, pricing, stock rules, P&amp;L</div>
+                <div className="text-[10px] text-[#727972]">Menu, pricing, stock levels, profit &amp; loss</div>
               </button>
 
               <button
@@ -497,7 +497,7 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi, onLog
                   <span className="material-symbols-outlined text-[15px]">cooking</span>
                   <span>Cook / Chef (शेफ)</span>
                 </div>
-                <div className="text-[10px] text-[#727972]">Announce batches, mark prep &amp; ready</div>
+                <div className="text-[10px] text-[#727972]">Start bulk cooking, mark prep &amp; ready</div>
               </button>
 
               <button
@@ -517,7 +517,7 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi, onLog
                   <span className="material-symbols-outlined text-[15px]">package_2</span>
                   <span>Packer / Helper</span>
                 </div>
-                <div className="text-[10px] text-[#727972]">Mark delivered, pack orders, KOT</div>
+                <div className="text-[10px] text-[#727972]">Mark delivered, pack orders, kitchen slips</div>
               </button>
             </div>
 
@@ -530,7 +530,7 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi, onLog
                 <span className="text-[10.5px] text-[#727972]">
                   {isHindi
                     ? 'सभी नॉन-वेज आइटम और सामग्री को मेन्यू और स्टॉक से छिपाएं'
-                    : 'Hides all non-veg dishes & ingredients across menu, orders and procurement'}
+                    : 'Hides all non-veg dishes & ingredients across menu, orders and purchasing'}
                 </span>
               </div>
               <input
@@ -555,7 +555,7 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi, onLog
               const url = URL.createObjectURL(blob);
               const a = document.createElement('a');
               a.href = url;
-              a.download = `CloudKitchen_DailyReport_${report.date}.csv`;
+              a.download = `FoodBusiness_DailyReport_${report.date}.csv`;
               document.body.appendChild(a);
               a.click();
               document.body.removeChild(a);
@@ -569,7 +569,7 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi, onLog
                     <span className="material-symbols-outlined text-[20px] text-[#1A3826]">analytics</span>
                     <div>
                       <h2 className="text-[15px] font-bold text-[#1a1c1a]">
-                        {isHindi ? 'दैनिक बिक्री व मुनाफा रिपोर्ट' : 'Daily End-of-Day P&L Performance Report'}
+                        {isHindi ? 'दैनिक बिक्री व मुनाफा रिपोर्ट' : 'Daily Profit & Loss Report'}
                       </h2>
                       <span className="text-[10.5px] text-[#727972]">As of {report.date}</span>
                     </div>
@@ -588,7 +588,7 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi, onLog
                 {/* Key Numbers */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   <div className="p-2.5 rounded-xl bg-[#FAF9F6] border border-[#E6E4DD]">
-                    <span className="text-[10px] text-[#727972] block">Gross Revenue</span>
+                    <span className="text-[10px] text-[#727972] block">Total Sales</span>
                     <strong className="text-[17px] font-extrabold text-[#1a1c1a]">₹{report.gross_revenue_inr}</strong>
                   </div>
                   <div className="p-2.5 rounded-xl bg-[#FAF9F6] border border-[#E6E4DD]">
@@ -596,7 +596,7 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi, onLog
                     <strong className="text-[17px] font-extrabold text-[#5A605B]">₹{report.estimated_food_cost_inr}</strong>
                   </div>
                   <div className="p-2.5 rounded-xl bg-[#FAF9F6] border border-[#E6E4DD]">
-                    <span className="text-[10px] text-[#727972] block">Gross Profit Margin</span>
+                    <span className="text-[10px] text-[#727972] block">Profit Margin</span>
                     <strong className="text-[17px] font-extrabold text-emerald-700">{report.gross_profit_margin_percent}%</strong>
                   </div>
                   <div className="p-2.5 rounded-xl bg-[#FAF9F6] border border-[#E6E4DD]">
@@ -652,7 +652,7 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi, onLog
             <p className="text-[11.5px] text-[#727972]">
               {isHindi
                 ? 'Gemini AI और Graph RAG इन लक्ष्यों के अनुसार ही व्यंजन चुनेंगे'
-                : 'Gemini LLM & Graph RAG strictly enforce these on both Regular and New Food days'}
+                : 'Our AI follows these strictly on both Regular and New Food days'}
             </p>
           </div>
           <span className="px-2 py-0.5 rounded-full bg-[#EDF2EE] text-[#137333] text-[10.5px] font-bold border border-[#c8ebd1]">
@@ -750,7 +750,7 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi, onLog
         <div className="flex flex-col gap-2 pt-2 border-t border-[#E6E4DD]">
           <div className="flex items-center justify-between">
             <label className="text-[12px] font-bold text-[#424843] uppercase tracking-wider">
-              {isHindi ? 'पसंदीदा क्षेत्रीय व्यंजन (Graph RAG क्षेत्र):' : 'Preferred Regional Cuisines (Graph RAG):'}
+              {isHindi ? 'पसंदीदा क्षेत्रीय व्यंजन (Graph RAG क्षेत्र):' : 'Preferred Regional Cuisines:'}
             </label>
             <span className="text-[11px] text-[#727972]">
               {dietMemory.preferred_regions.length} selected
@@ -905,7 +905,7 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi, onLog
               <span className="material-symbols-outlined text-[19px] text-[#1A3826]">psychology</span>
               {isHindi
                 ? 'नियमित आहार इतिहास (Past Weeks Diet Memory)'
-                : 'Past Weeks Common Diet (LocalStorage)'}
+                : 'What You Usually Eat (Saved on This Device)'}
             </h2>
             <p className="text-[11.5px] text-[#727972]">
               Used on <strong>Regular</strong> days &amp; excluded on <strong>✨ New Food</strong> days ({dietMemory.weeks_tracked} weeks tracked)
@@ -987,7 +987,7 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi, onLog
 
         {/* Staple Ingredients & Regions Summary */}
         <div className="flex flex-wrap items-center gap-1.5 bg-[#FAF9F6] p-2.5 rounded-xl border border-[#E6E4DD] text-[11px]">
-          <span className="font-bold text-[#424843]">Habitual Staple Ingredients:</span>
+          <span className="font-bold text-[#424843]">Everyday Ingredients:</span>
           {dietMemory.common_ingredients.map((ing) => (
             <span
               key={ing}
@@ -1026,7 +1026,7 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi, onLog
                 type="button"
                 onClick={() => handleRemoveHabitualDish(dish.recipe_id || dish.title)}
                 className="w-7 h-7 rounded-full hover:bg-[#fee2e2] text-[#727972] hover:text-[#9E2A2B] flex items-center justify-center shrink-0"
-                title="Remove from habitual diet"
+                title="Remove from regular diet"
               >
                 <span className="material-symbols-outlined text-[16px]">delete</span>
               </button>
@@ -1262,7 +1262,7 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi, onLog
           <div className="flex items-center gap-2">
             <span className="material-symbols-outlined text-[#1A3826] text-[20px]">share</span>
             <h2 className="text-[15px] font-bold text-[#1a1c1a]">
-              {isHindi ? 'घर का इनवाइट कोड और शेयरिंग' : 'Household Invite Code & Join'}
+              {isHindi ? 'घर का इनवाइट कोड और शेयरिंग' : 'Invite Code & Join'}
             </h2>
           </div>
           <span className="text-[11px] text-[#727972]">Roommates &amp; Family</span>
@@ -1303,7 +1303,7 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi, onLog
         {/* Join another household */}
         <form onSubmit={handleJoinHousehold} className="pt-2 border-t border-[#E6E4DD] flex flex-col gap-2">
           <label className="text-[12px] font-bold text-[#424843]">
-            {isHindi ? 'दूसरा घर जॉइन करें (Enter Code):' : 'Join Existing Household with Code:'}
+            {isHindi ? 'दूसरा घर जॉइन करें (Enter Code):' : 'Join an Existing Home with a Code:'}
           </label>
           <div className="flex gap-2">
             <input
@@ -1331,7 +1331,7 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi, onLog
               install_mobile
             </span>
             <h2 className="text-[13px] font-bold text-[#1a1c1a]">
-              {isHindi ? 'वेब ऐप इंस्टॉल करें / डाउनलोड' : 'Download Web App (PWA)'}
+              {isHindi ? 'वेब ऐप इंस्टॉल करें / डाउनलोड' : 'Install the App'}
             </h2>
           </div>
           <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#e8f5e9] text-[#1b5e20] font-semibold">
@@ -1342,7 +1342,7 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi, onLog
         <p className="text-[11.5px] text-[#424843]">
           {isHindi
             ? 'मस्त मील्स को अपने मोबाइल या डेस्कटॉप होम स्क्रीन पर जोड़ें। यह बिना इंटरनेट के भी सुपरफ़ास्ट चलेगा।'
-            : 'Add Mast Meals to your home screen or desktop. Works offline, launches in full-screen standalone mode with zero browser address bars.'}
+            : 'Add Mast Meals to your home screen or desktop. Works without internet and opens full-screen like a regular app.'}
         </p>
 
         <div className="flex items-center gap-2 pt-1">
@@ -1352,6 +1352,12 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi, onLog
               const res = await install();
               if (res === 'accepted') {
                 setNotice(isHindi ? 'ऐप इंस्टॉल हो गया!' : 'App installed successfully!');
+              } else if (res === 'manual_android') {
+                setNotice(
+                  isHindi
+                    ? 'Chrome मेनू (⋮) → "Install app" / "Add to Home screen" चुनें'
+                    : 'In Chrome tap menu (⋮) -> "Install app" / "Add to Home screen"'
+                );
               } else if (res === 'manual_ios') {
                 setNotice(
                   isHindi
@@ -1384,7 +1390,7 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi, onLog
             href="/MastMeals-test.zip"
             download="MastMeals-package.zip"
             className="py-2.5 px-3 rounded-xl bg-[#eeeeea] hover:bg-[#e4e4df] text-[#1a1c1a] text-[12px] font-medium flex items-center gap-1 transition-colors cursor-pointer"
-            title="Download standalone offline zip"
+            title="Download offline version (ZIP)"
           >
             <span className="material-symbols-outlined text-[16px]">folder_zip</span>
             <span>ZIP</span>
@@ -1399,7 +1405,7 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi, onLog
             {isHindi ? 'सत्र समाप्त और लॉग आउट' : 'Sign Out of KitchenSync'}
           </h3>
           <p className="text-[11px] text-[#727972]">
-            {isHindi ? 'लॉग इन स्क्रीन पर वापस जाएँ या दूसरा खाता बदलें' : 'Log out of current session and return to sign in screen'}
+            {isHindi ? 'लॉग इन स्क्रीन पर वापस जाएँ या दूसरा खाता बदलें' : 'Log out and return to the sign-in screen'}
           </p>
         </div>
         <button

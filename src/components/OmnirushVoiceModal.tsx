@@ -48,7 +48,7 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
     {
       id: 'msg_welcome',
       sender: 'assistant',
-      text: 'Namaste! Main Omnirush hoon. Main aapki kitchen inventory update kar sakta hoon, saare missing items restock kar sakta hoon ("I bought everything required"), aur poore hafte ka schedule plan kar sakta hoon.',
+      text: 'Namaste! Main Omnirush hoon. Main aapki kitchen stock update kar sakta hoon, saare missing items restock kar sakta hoon ("I bought everything required"), aur poore hafte ka schedule plan kar sakta hoon.',
       time: 'Just now',
     },
   ]);
@@ -114,7 +114,7 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
         },
       });
     } catch (e: any) {
-      setError(e.message || 'Error initializing audio capture');
+      setError(e.message || 'Couldn’t start the microphone');
       setIsRecording(false);
       setRecordingStatus('idle');
     }
@@ -166,7 +166,7 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
       setInput(result.transcript);
       setSttMeta(result);
     } catch (err: any) {
-      setMicNotice(err.message || 'Could not transcribe audio file.');
+      setMicNotice(err.message || 'Couldn’t understand the audio file.');
     } finally {
       setRecordingStatus('idle');
     }
@@ -218,7 +218,7 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
         setTimeout(() => setConfirmStatus(null), 4000);
       }
     } catch (err: any) {
-      setError(err.message || 'Error communicating with Omnirush');
+      setError(err.message || 'Couldn’t reach Omnirush. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -228,17 +228,17 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
     if (!reply.proposal_id) return;
     try {
       const res = store.confirmProposal(reply.proposal_id);
-      let successText = 'Changes successfully confirmed and saved to your offline database!';
+      let successText = 'Changes saved on your device!';
 
       if (res.recipe_modification) {
-        successText = `✅ Offline Recipe Saved: ${res.recipe_modification.ingredient_name} in "${res.recipe_modification.recipe_title}" updated from ${res.recipe_modification.old_qty}${res.recipe_modification.unit} to ${res.recipe_modification.new_qty}${res.recipe_modification.unit}!`;
+        successText = `✅ Recipe Updated: ${res.recipe_modification.ingredient_name} in "${res.recipe_modification.recipe_title}" updated from ${res.recipe_modification.old_qty}${res.recipe_modification.unit} to ${res.recipe_modification.new_qty}${res.recipe_modification.unit}!`;
       } else if (reply.intent === 'edit_schedule') {
         successText = `✅ Full Weekly Schedule Saved: ${reply.plan_changes?.length || 7} meal slots updated in your planner!`;
       } else if (reply.intent === 'edit_plan') {
         const first = reply.plan_changes?.[0];
         successText = `✅ Meal Plan Updated: ${first?.slot?.toUpperCase()} on ${first?.meal_date} changed to "${first?.recipe_title}"!`;
       } else if (reply.intent === 'update_stock') {
-        successText = `✅ Inventory Ledger Updated: ${reply.items?.length || 1} stock items adjusted!`;
+        successText = `✅ Stock Updated: ${reply.items?.length || 1} items changed!`;
       }
 
       setConfirmStatus(successText);
@@ -330,7 +330,7 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
                   ? 'bg-[#1A3826] text-white shadow-xs'
                   : 'text-[#424843] hover:text-[#1a1c1a]'
               }`}
-              title="Udgam Labs Shruti: 29.5MB offline Hindi/Hinglish model"
+              title="Hindi/Hinglish voice (29.5MB, works offline)"
             >
               Shruti (Hindi/Hinglish)
             </button>
@@ -342,7 +342,7 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
                   ? 'bg-[#1A3826] text-white shadow-xs'
                   : 'text-[#424843] hover:text-[#1a1c1a]'
               }`}
-              title="Cactus Compute Whistle: 16.9MB quantized English offline model"
+              title="English voice (16.9MB, works offline)"
             >
               Cactus (English)
             </button>
@@ -390,12 +390,12 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
                         <span className="uppercase tracking-wider">
                           {m.reply.classification_badge ||
                             (m.reply.intent === 'modify_recipe'
-                              ? 'Recipe Modification'
+                              ? 'Recipe Change'
                               : m.reply.intent === 'edit_schedule'
                               ? '7-Day Schedule'
                               : m.reply.intent === 'edit_plan'
-                              ? 'Menu Slot Change'
-                              : 'Inventory Stock Update')}
+                              ? 'Meal Change'
+                              : 'Stock Update')}
                         </span>
                       </div>
                       <span className="text-[10px] font-bold bg-[#E8F0EC] text-[#137333] px-2 py-0.5 rounded-full border border-[#137333]/20">
@@ -412,7 +412,7 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
                       </div>
                     )}
 
-                    {/* 1. Recipe Modification Card (e.g. increase sugar in Kheer to 150g) */}
+                    {/* 1. Recipe Change Card (e.g. increase sugar in Kheer to 150g) */}
                     {m.reply.recipe_modification && (
                       <div className="flex flex-col gap-1.5 bg-[#f8f9f7] p-2.5 rounded-xl border border-[#E6E4DD]">
                         <div className="flex items-center justify-between">
@@ -447,7 +447,7 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
                     {m.reply.plan_changes && m.reply.plan_changes.length > 0 && (
                       <div className="flex flex-col gap-1.5 bg-[#f8f9f7] p-2.5 rounded-xl border border-[#E6E4DD] max-h-36 overflow-y-auto">
                         <span className="text-[11px] font-bold text-[#727972] uppercase tracking-wider">
-                          {m.reply.intent === 'edit_schedule' ? 'Weekly Schedule Slots:' : 'Proposed Meal Slot:'}
+                          {m.reply.intent === 'edit_schedule' ? 'Weekly Meals:' : 'Suggested Meal:'}
                         </span>
                         <div className="flex flex-col gap-1">
                           {m.reply.plan_changes.map((pc, idx) => (
@@ -534,7 +534,7 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
                         onClick={() => handleConfirmMessageProposal(m.id, m.reply!)}
                       >
                         <span className="material-symbols-outlined text-[16px]">check</span>
-                        <span>Confirm &amp; Apply</span>
+                        <span>Confirm &amp; Save</span>
                       </button>
                       <button
                         className="px-3 py-1.5 rounded-xl bg-white border border-[#E6E4DD] text-[#727972] text-[12px] font-semibold hover:bg-[#f4f4f0] cursor-pointer"
@@ -569,8 +569,8 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
                       <span className="material-symbols-outlined text-[15px]">check_circle</span>
                       <span>
                         {m.reply?.auto_applied
-                          ? 'Auto-Applied to Kitchen Stock & Cleared Missing Items!'
-                          : 'Applied to offline database!'}
+                          ? 'Added to Kitchen Stock & cleared from your Shop list!'
+                          : 'Saved on your device!'}
                       </span>
                     </div>
                   </div>
@@ -724,7 +724,7 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
                 className="px-2.5 py-1 rounded-lg bg-[#1A3826] text-white text-[11px] font-bold flex items-center gap-1 hover:bg-[#132a1d] no-underline"
               >
                 <span className="material-symbols-outlined text-[14px]">open_in_new</span>
-                <span>Open in New Tab (Direct Mic Access)</span>
+                <span>Open in New Tab (for Microphone Access)</span>
               </a>
               <label className="px-2.5 py-1 rounded-lg bg-white border border-[#B06000]/40 text-[#1a1c1a] text-[11px] font-bold flex items-center gap-1 cursor-pointer hover:bg-[#f4f4f0]">
                 <span className="material-symbols-outlined text-[14px]">upload_file</span>
@@ -768,7 +768,7 @@ export const OmnirushVoiceModal: React.FC<OmnirushVoiceModalProps> = ({
           {/* Upload / Record Audio File Button (works inside restricted iframes) */}
           <label
             className="w-10 h-10 rounded-full bg-[#f4f4f0] border border-[#E6E4DD] text-[#1A3826] hover:bg-[#e8e8e5] flex items-center justify-center shrink-0 cursor-pointer transition-all"
-            title="Upload or capture a voice audio file for Gemini STT transcription"
+            title="Upload or record a voice file and Omnirush will understand it"
           >
             <span className="material-symbols-outlined text-[19px]">audio_file</span>
             <input
