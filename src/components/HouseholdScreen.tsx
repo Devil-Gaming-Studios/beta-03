@@ -1352,6 +1352,12 @@ export const HouseholdScreen: React.FC<HouseholdScreenProps> = ({ isHindi, onLog
               const res = await install();
               if (res === 'accepted') {
                 setNotice(isHindi ? 'ऐप इंस्टॉल हो गया!' : 'App installed successfully!');
+              } else if (res === 'manual_android') {
+                setNotice(
+                  isHindi
+                    ? 'Chrome मेनू (⋮) → "Install app" / "Add to Home screen" चुनें'
+                    : 'In Chrome tap menu (⋮) -> "Install app" / "Add to Home screen"'
+                );
               } else if (res === 'manual_ios') {
                 setNotice(
                   isHindi
