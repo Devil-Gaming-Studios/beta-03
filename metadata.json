@@ -1,12 +1,9 @@
 {
   "name": "Mast Meals - KitchenSync",
   "description": "Household meal planner, recipe graph RAG, and kitchen stock assistant for Indian households, powered by Omnirush AI.",
-  "permissions": [
+  "requestFramePermissions": [
     "microphone",
     "camera"
-  ],
-  "capabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
   ],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

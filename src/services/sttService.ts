@@ -336,8 +336,6 @@ export class STTController {
   private maxVolumeDetected = 0;
   private micPermissionDenied = false;
   private iframePolicyBlocked = false;
-  private volumeTimer: any = null;
-  private lastSpeechAt = 0;
 
   constructor() {
     this.initSpeechRecognition();
@@ -383,7 +381,7 @@ export class STTController {
     onError: (error: string) => void;
     onStatusChange?: (status: 'listening' | 'processing' | 'idle') => void;
     onVolumeChange?: (volume: number) => void;
-  }, forceRecorderFallback = false) {
+  }) {
     if (this.isListening) {
       await this.stop(options);
       return;
@@ -407,11 +405,6 @@ export class STTController {
     this.iframePolicyBlocked = false;
     onStatusChange?.('listening');
 
-    // Browser speech recognition is the first preference. It runs alone (no second mic stream), because
-    // opening getUserMedia in parallel can starve the recognizer on phones. The recorder + server STT is
-    // only used when speech recognition is unavailable or fails.
-    const speechFirst = !!this.recognition && !forceRecorderFallback;
-
     let streamObtained = false;
     let recorderStarted = false;
     let microphoneErrorMessage = '';
@@ -420,13 +413,13 @@ export class STTController {
 
     // 1. Request real microphone access via MediaDevices with optimal speech filters
     try {
-      if (!speechFirst && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
         try {
           this.mediaStream = await navigator.mediaDevices.getUserMedia({
             audio: {
               echoCancellation: true,
               noiseSuppression: true,
-              autoGainControl: false,
+              autoGainControl: true,
             },
           });
         } catch {
@@ -531,7 +524,7 @@ export class STTController {
 
     // 2. Start Web Speech Recognition if available (client-side real-time transcript)
     let recognitionStarted = false;
-    if (speechFirst) {
+    if (this.recognition) {
       try {
         if (preference === 'cactus_whisper') {
           this.recognition.lang = 'en-IN';
@@ -541,12 +534,7 @@ export class STTController {
           this.recognition.lang = 'en-IN';
         }
 
-        this.recognition.onaudiostart = () => { this.lastSpeechAt = Date.now(); };
-        this.recognition.onsoundstart = () => { this.lastSpeechAt = Date.now(); };
-        this.recognition.onspeechstart = () => { this.lastSpeechAt = Date.now(); };
-
         this.recognition.onresult = (event: any) => {
-          this.lastSpeechAt = Date.now();
           let interim = '';
           for (let i = event.resultIndex || 0; i < event.results.length; ++i) {
             const item = event.results[i];
@@ -581,14 +569,6 @@ export class STTController {
 
         this.recognition.onerror = (err: any) => {
           console.warn('SpeechRecognition status:', err?.error);
-          // Speech recognition could not work on this device/network: fall back to recorder + server transcription
-          if ((err?.error === 'audio-capture' || err?.error === 'network' || err?.error === 'language-not-supported') && speechFirst) {
-            try { this.recognition.onend = null; this.recognition.stop(); } catch {}
-            if (this.volumeTimer) { clearInterval(this.volumeTimer); this.volumeTimer = null; }
-            this.isListening = false;
-            void this.start(options, true);
-            return;
-          }
           if ((err?.error === 'not-allowed' || err?.error === 'service-not-allowed') && !streamObtained) {
             this.micPermissionDenied = true;
             if (isEmbeddedIframe) {
@@ -614,15 +594,6 @@ export class STTController {
 
         this.recognition.start();
         recognitionStarted = true;
-
-        // Simple live meter for the waveform (no separate mic stream in speech-first mode)
-        this.lastSpeechAt = Date.now();
-        if (this.volumeTimer) clearInterval(this.volumeTimer);
-        this.volumeTimer = setInterval(() => {
-          if (!this.isListening) return;
-          const speaking = Date.now() - this.lastSpeechAt < 700;
-          onVolumeChange?.(speaking ? Math.round(35 + Math.random() * 45) : Math.round(4 + Math.random() * 6));
-        }, 100);
       } catch (err: any) {
         console.warn('SpeechRecognition start notice:', err?.message);
       }
@@ -650,7 +621,6 @@ export class STTController {
     options.onStatusChange?.('processing');
 
     if (this.animationFrameId) cancelAnimationFrame(this.animationFrameId);
-    if (this.volumeTimer) { clearInterval(this.volumeTimer); this.volumeTimer = null; }
     if (this.silenceTimer) clearTimeout(this.silenceTimer);
 
     if (this.recognition) {
@@ -768,7 +738,6 @@ export class STTController {
     } else {
       this.isListening = false;
       if (this.animationFrameId) cancelAnimationFrame(this.animationFrameId);
-      if (this.volumeTimer) { clearInterval(this.volumeTimer); this.volumeTimer = null; }
       if (this.silenceTimer) clearTimeout(this.silenceTimer);
       if (this.recognition) {
         try {

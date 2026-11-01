@@ -79,7 +79,7 @@ export const ShopInboxConfirmCard: React.FC<ShopInboxConfirmCardProps> = ({
     const nextState = !isMonitoringPaused;
     setIsMonitoringPaused(nextState);
     localStorage.setItem('kitchensync_shop_listener_paused', String(nextState));
-    setActionNotice(nextState ? 'Shop chat reading paused.' : 'Shop chat reading resumed.');
+    setActionNotice(nextState ? 'Shop chat listener paused.' : 'Shop chat listener resumed.');
     setTimeout(() => setActionNotice(null), 3000);
   };
 
@@ -120,11 +120,11 @@ export const ShopInboxConfirmCard: React.FC<ShopInboxConfirmCardProps> = ({
         setPastedText('');
         setShowPasteBox(false);
         await fetchInbox();
-        setActionNotice('Message read & added to your review list!');
+        setActionNotice('Pasted message analyzed & added to review inbox!');
         setTimeout(() => setActionNotice(null), 4000);
       } else {
         const err = await res.json();
-        alert(`Couldn’t read the message: ${err?.error || 'Unknown error'}`);
+        alert(`Failed to extract message: ${err?.error || 'Unknown error'}`);
       }
     } catch (err: any) {
       alert(`Error submitting pasted message: ${err?.message}`);
@@ -133,46 +133,28 @@ export const ShopInboxConfirmCard: React.FC<ShopInboxConfirmCardProps> = ({
     }
   };
 
-  const fetchInbox = useCallback(async (silent: boolean | unknown = false) => {
-    const isSilent = silent === true;
+  const fetchInbox = useCallback(async () => {
     try {
-      if (!isSilent) setLoading(true);
-      const res = await fetch('/api/shop-inbox', { cache: 'no-store' });
+      setLoading(true);
+      const res = await fetch('/api/shop-inbox');
       if (res.ok) {
         const data = await res.json();
         const items: ShopInboxItem[] = data.items || [];
         setInboxItems(items);
 
-        // Pre-populate editable items map; keep in-progress edits for cards already on screen
-        setEditedItemsMap((prev) => {
-          const nextMap: Record<string, ExtractedShopItem[]> = {};
-          for (const item of items) {
-            nextMap[item.id] = prev[item.id] || (item.extractedItems || []).map((it) => ({ ...it }));
-          }
-          return nextMap;
-        });
+        // Pre-populate editable items map
+        const initialMap: Record<string, ExtractedShopItem[]> = {};
+        for (const item of items) {
+          initialMap[item.id] = (item.extractedItems || []).map((it) => ({ ...it }));
+        }
+        setEditedItemsMap(initialMap);
       }
     } catch (err) {
       console.warn('Failed to fetch shop inbox:', err);
     } finally {
-      if (!isSilent) setLoading(false);
+      setLoading(false);
     }
   }, []);
-
-  // New WhatsApp/Telegram messages arrive server-side, so poll and refresh on focus
-  useEffect(() => {
-    const tick = () => {
-      if (document.visibilityState === 'visible') fetchInbox(true);
-    };
-    const timer = window.setInterval(tick, 8000);
-    document.addEventListener('visibilitychange', tick);
-    window.addEventListener('focus', tick);
-    return () => {
-      window.clearInterval(timer);
-      document.removeEventListener('visibilitychange', tick);
-      window.removeEventListener('focus', tick);
-    };
-  }, [fetchInbox]);
 
   useEffect(() => {
     fetchInbox();
@@ -291,7 +273,7 @@ export const ShopInboxConfirmCard: React.FC<ShopInboxConfirmCardProps> = ({
       setActionNotice(`Successfully added ${itemsToApply.length} item(s) from "${inboxItem.sender}" to Kitchen Stock!`);
       setTimeout(() => setActionNotice(null), 4500);
 
-      // Refresh messages list
+      // Refresh inbox list
       setInboxItems((prev) => prev.filter((i) => i.id !== inboxItem.id));
       if (onItemsApplied) onItemsApplied();
     } catch (e: any) {
@@ -357,11 +339,11 @@ export const ShopInboxConfirmCard: React.FC<ShopInboxConfirmCardProps> = ({
       if (res.ok) {
         setIsTestModalOpen(false);
         await fetchInbox();
-        setActionNotice(`Sample ${testSource} message from "${testSender}"!`);
+        setActionNotice(`Simulated incoming ${testSource} message from "${testSender}"!`);
         setTimeout(() => setActionNotice(null), 4000);
       } else {
         const err = await res.json();
-        alert(`Couldn’t add sample message: ${err.error || 'Failed to submit'}`);
+        alert(`Simulation error: ${err.error || 'Failed to submit'}`);
       }
     } catch (err: any) {
       alert(`Failed to simulate shop message: ${err?.message}`);
@@ -427,7 +409,7 @@ export const ShopInboxConfirmCard: React.FC<ShopInboxConfirmCardProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-[15px] font-bold text-[#1a1c1a]">
-                  {isHindi ? 'दुकानदार चैट इनबॉक्स' : 'Shop Chat Updates'}
+                  {isHindi ? 'दुकानदार चैट इनबॉक्स' : 'Shop Chat Listener'}
                 </h3>
                 {inboxItems.length > 0 && (
                   <span className="px-2 py-0.5 rounded-full bg-[#FEF3C7] text-[#92400E] text-[11px] font-bold animate-pulse">
@@ -438,7 +420,7 @@ export const ShopInboxConfirmCard: React.FC<ShopInboxConfirmCardProps> = ({
               <p className="text-[11.5px] text-[#727972]">
                 {isHindi
                   ? 'WhatsApp/Telegram से प्राप्त किराने के ऑर्डर - पुष्टि के बाद ही स्टॉक में जुड़ेंगे'
-                  : 'Messages from your shop on WhatsApp/Telegram • Items are added only after you confirm'}
+                  : 'Incoming WhatsApp/Telegram orders • Items applied only after your confirmation'}
               </p>
             </div>
           </div>
@@ -446,10 +428,10 @@ export const ShopInboxConfirmCard: React.FC<ShopInboxConfirmCardProps> = ({
           <div className="flex items-center gap-1.5">
             <button
               type="button"
-              onClick={() => fetchInbox()}
+              onClick={fetchInbox}
               disabled={loading}
               className="p-1.5 rounded-xl border border-[#E6E4DD] text-[#424843] hover:bg-[#faf9f6] text-[12px] flex items-center gap-1"
-              title="Refresh messages"
+              title="Refresh inbox"
             >
               <span className={`material-symbols-outlined text-[16px] ${loading ? 'animate-spin' : ''}`}>
                 refresh
@@ -469,7 +451,7 @@ export const ShopInboxConfirmCard: React.FC<ShopInboxConfirmCardProps> = ({
               className="px-2.5 py-1.5 rounded-xl bg-[#EDF2EE] border border-[#137333]/30 text-[#137333] text-[11.5px] font-bold flex items-center gap-1 hover:bg-[#dbe7de] transition-all"
             >
               <span className="material-symbols-outlined text-[15px]">send_time_extension</span>
-              <span>Try a Sample Chat</span>
+              <span>Test Chat</span>
             </button>
           </div>
         </div>
@@ -523,7 +505,7 @@ export const ShopInboxConfirmCard: React.FC<ShopInboxConfirmCardProps> = ({
               type="button"
               onClick={handleClearAllStoredMessages}
               className="px-2 py-1 rounded-lg text-[11px] font-bold text-[#9E2A2B] hover:bg-[#FEE2E2] border border-transparent hover:border-[#FCA5A5] transition-all flex items-center gap-1"
-              title="Delete all saved messages"
+              title="Delete all stored messages from server"
             >
               <span className="material-symbols-outlined text-[13px]">delete_sweep</span>
               <span>Delete All</span>
@@ -537,7 +519,7 @@ export const ShopInboxConfirmCard: React.FC<ShopInboxConfirmCardProps> = ({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5 text-[12px] font-bold text-[#92400E]">
                 <span className="material-symbols-outlined text-[16px]">edit_note</span>
-                <span>Paste or Share Shop Message</span>
+                <span>Paste or Share Shop Message (Web & iPhone Fallback)</span>
               </div>
               <a
                 href="https://wa.me/?text=Hi%2C%20please%20send%20the%20grocery%20order%20status%20or%20bill"
@@ -573,7 +555,7 @@ export const ShopInboxConfirmCard: React.FC<ShopInboxConfirmCardProps> = ({
                 ) : (
                   <span className="material-symbols-outlined text-[14px]">neurology</span>
                 )}
-                <span>Read Items from Message</span>
+                <span>Extract with Gemini</span>
               </button>
             </div>
           </div>
@@ -602,7 +584,7 @@ export const ShopInboxConfirmCard: React.FC<ShopInboxConfirmCardProps> = ({
         {inboxItems.length === 0 && !loading && (
           <div className="py-6 px-4 text-center rounded-xl bg-[#faf9f6] border border-dashed border-[#E6E4DD]">
             <span className="material-symbols-outlined text-[32px] text-[#727972]">inbox</span>
-            <p className="text-[13px] font-bold text-[#1a1c1a] mt-1.5">No shop messages waiting</p>
+            <p className="text-[13px] font-bold text-[#1a1c1a] mt-1.5">No pending shop orders</p>
             <p className="text-[11.5px] text-[#727972] mt-0.5 max-w-sm mx-auto">
               Messages received from your configured shopkeeper on WhatsApp or Telegram will appear here for review and confirmation.
             </p>
@@ -612,7 +594,7 @@ export const ShopInboxConfirmCard: React.FC<ShopInboxConfirmCardProps> = ({
               className="mt-3 px-3 py-1.5 rounded-lg bg-[#1A3826] text-white text-[11.5px] font-semibold inline-flex items-center gap-1 shadow-xs"
             >
               <span className="material-symbols-outlined text-[15px]">add_comment</span>
-              <span>Try a Sample Shop Message</span>
+              <span>Simulate an Incoming Chat</span>
             </button>
           </div>
         )}
@@ -627,7 +609,7 @@ export const ShopInboxConfirmCard: React.FC<ShopInboxConfirmCardProps> = ({
               ? { name: 'Telegram', color: 'bg-[#E0F2FE] text-[#0369A1] border-[#7DD3FC]', icon: 'send' }
               : inboxItem.source === 'telegram_bot'
               ? { name: 'Telegram Bot', color: 'bg-[#F3E8FF] text-[#7E22CE] border-[#D8B4FE]', icon: 'smart_toy' }
-              : { name: 'Manual / Sample', color: 'bg-[#F4F4F5] text-[#3F3F46] border-[#D4D4D8]', icon: 'input' };
+              : { name: 'Manual/Test', color: 'bg-[#F4F4F5] text-[#3F3F46] border-[#D4D4D8]', icon: 'input' };
 
           return (
             <div
@@ -776,7 +758,7 @@ export const ShopInboxConfirmCard: React.FC<ShopInboxConfirmCardProps> = ({
                             ? 'bg-[#F3E8FF] border-[#D8B4FE] text-[#7E22CE]'
                             : 'bg-[#DCFCE7] border-[#86EFAC] text-[#15803D]'
                         }`}
-                        title="Personal or Shared"
+                        title="Household Scope"
                       >
                         <span>{item.targetScope === 'personal' ? '👤 Personal' : '👥 Shared'}</span>
                       </button>
@@ -824,7 +806,7 @@ export const ShopInboxConfirmCard: React.FC<ShopInboxConfirmCardProps> = ({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-[20px] text-[#137333]">send_time_extension</span>
-                <h3 className="text-[16px] font-bold text-[#1a1c1a]">Try a Sample Shop Message</h3>
+                <h3 className="text-[16px] font-bold text-[#1a1c1a]">Simulate Incoming Shop Chat</h3>
               </div>
               <button
                 type="button"
@@ -841,7 +823,7 @@ export const ShopInboxConfirmCard: React.FC<ShopInboxConfirmCardProps> = ({
 
             <div className="flex flex-col gap-2.5">
               <div>
-                <label className="text-[11px] font-bold text-[#1a1c1a] block mb-1">Message From</label>
+                <label className="text-[11px] font-bold text-[#1a1c1a] block mb-1">Source Platform</label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
@@ -927,7 +909,7 @@ export const ShopInboxConfirmCard: React.FC<ShopInboxConfirmCardProps> = ({
                 ) : (
                   <span className="material-symbols-outlined text-[16px]">send</span>
                 )}
-                <span>{isSimulating ? 'Reading the message...' : 'Add to Shop Messages'}</span>
+                <span>{isSimulating ? 'Processing with Gemini...' : 'Send to Shop Inbox'}</span>
               </button>
             </div>
           </div>

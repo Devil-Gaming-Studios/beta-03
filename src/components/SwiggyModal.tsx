@@ -113,7 +113,7 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
       const res = await fetch(`/api/swiggy/connect?redirect_uri=${localhostRedirectUri}`);
       const data = await res.json();
       if (!res.ok || !data.authorizationUrl) {
-        throw new Error(data.error || 'Couldn’t start Swiggy sign-in');
+        throw new Error(data.error || 'Failed to start Swiggy OAuth flow');
       }
 
       // Open official Swiggy phone + OTP authorization page in a secure popup
@@ -162,15 +162,15 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
       });
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Couldn’t finish Swiggy sign-in');
+        throw new Error(data.error || 'Failed to complete manual code exchange');
       }
 
-      setManualSuccessMsg(data.message || 'Swiggy connected securely!');
+      setManualSuccessMsg(data.message || 'Swiggy OAuth tokens successfully exchanged and encrypted!');
       setManualCodeOrUrl('');
       await checkStatus();
       setActiveTab('oauth');
     } catch (err: any) {
-      setAuthError(err.message || 'Couldn’t verify the Swiggy code');
+      setAuthError(err.message || 'Failed to exchange Swiggy authorization code');
     } finally {
       setManualSubmitting(false);
     }
@@ -230,7 +230,7 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
       if (!res.ok) throw new Error(data.error || 'Failed to prepare cart preview');
       setCartPreview(data.preview);
     } catch (err: any) {
-      setAuthError(err.message || 'Couldn’t load your Swiggy cart preview');
+      setAuthError(err.message || 'Failed to calculate Swiggy cart preview');
     } finally {
       setPreviewLoading(false);
     }
@@ -254,13 +254,13 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Swiggy couldn’t update your cart');
+        throw new Error(data.error || 'Cart modification rejected by Swiggy MCP');
       }
 
       setConfirmSuccess(data.message || 'Items successfully added to your Swiggy cart!');
       store.markItemsInSwiggyCart(items.map((i) => i.id));
     } catch (err: any) {
-      setAuthError(err.message || 'Couldn’t update your Swiggy cart.');
+      setAuthError(err.message || 'Swiggy MCP cart modification failed.');
     } finally {
       setConfirmLoading(false);
     }
@@ -301,8 +301,8 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
               </div>
               <p className="text-[11.5px] text-[#424843]">
                 {connection.isConnected
-                  ? `Signed in with Phone + OTP (${connection.userProfile?.name || 'Swiggy Member'})`
-                  : (isHindi ? 'आधिकारिक फोन + OTP ऑथेंटिकेशन (RFC 7591 DCR)' : 'Secure Phone + OTP sign-in')}
+                  ? `Authenticated via Phone + OTP (${connection.userProfile?.name || 'Swiggy Member'})`
+                  : (isHindi ? 'आधिकारिक फोन + OTP ऑथेंटिकेशन (RFC 7591 DCR)' : 'Official Phone + OTP OAuth 2.1 (RFC 7591 DCR)')}
               </p>
             </div>
           </div>
@@ -480,7 +480,7 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
                     Verified Cart Preview
                   </span>
                   <span className="text-[11px] text-[#B45309] font-medium">
-                    {cartPreview.supportedByMcp ? 'Available' : 'Guarded'}
+                    {cartPreview.supportedByMcp ? 'MCP Tool Available' : 'Guarded'}
                   </span>
                 </div>
 
@@ -518,7 +518,7 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
                     {confirmLoading ? (
                       <>
                         <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                        <span>Confirming with Swiggy...</span>
+                        <span>Confirming with Swiggy MCP...</span>
                       </>
                     ) : (
                       <>
@@ -577,12 +577,12 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
                   {previewLoading ? (
                     <>
                       <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                      <span>Checking with Swiggy...</span>
+                      <span>Querying Swiggy MCP Server...</span>
                     </>
                   ) : connection.isConnected ? (
                     <>
                       <span className="material-symbols-outlined text-[20px]">shopping_bag</span>
-                      <span>Preview Swiggy Cart</span>
+                      <span>Prepare Swiggy Cart Preview (MCP)</span>
                     </>
                   ) : (
                     <>
@@ -628,7 +628,7 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
 
                   <p className="text-[11.5px] text-[#166534] leading-relaxed">
                     {connection.firstToolCallResult?.summary ||
-                      'Swiggy is connected.'}
+                      'Swiggy Food MCP connection established with official @modelcontextprotocol/sdk.'}
                   </p>
 
                   {testToolMessage && (
@@ -665,7 +665,7 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
                 {/* Account Details */}
                 <div className="p-4 rounded-2xl bg-[#FAF9F6] border border-[#E6E4DD] flex flex-col gap-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-[13px] font-bold text-[#1a1c1a]">Swiggy is Connected</span>
+                    <span className="text-[13px] font-bold text-[#1a1c1a]">Active Swiggy OAuth Connection</span>
                     <span className="text-[10.5px] font-bold bg-[#E8F5E9] text-[#2E7D32] px-2.5 py-0.5 rounded-full border border-[#C8E6C9]">
                       OAuth 2.1 Active
                     </span>
@@ -685,7 +685,7 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
                       </span>
                     </div>
                     <div className="col-span-2">
-                      <span className="text-[10.5px] text-[#727972] block">Your Security</span>
+                      <span className="text-[10.5px] text-[#727972] block">Token Security</span>
                       <span className="text-[11.5px] text-[#15803D] font-medium flex items-center gap-1">
                         <span className="material-symbols-outlined text-[14px]">lock</span>
                         Encrypted at rest with AES-256-GCM on backend
@@ -744,7 +744,7 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
                   <div className="space-y-2 text-[#374151] text-[11.5px] pl-1">
                     <div className="flex items-start gap-2">
                       <span className="w-5 h-5 rounded-full bg-[#FC8019]/10 text-[#FC8019] font-bold flex items-center justify-center shrink-0 text-[11px]">1</span>
-                      <span><strong>Dynamic Registration:</strong> KitchenSync securely registers with Swiggy.</span>
+                      <span><strong>Dynamic Registration:</strong> KitchenSync registers dynamically (RFC 7591) with Swiggy's registration endpoint.</span>
                     </div>
                     <div className="flex items-start gap-2">
                       <span className="w-5 h-5 rounded-full bg-[#FC8019]/10 text-[#FC8019] font-bold flex items-center justify-center shrink-0 text-[11px]">2</span>
@@ -763,7 +763,7 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
                   <div className="p-2.5 rounded-xl bg-[#F0FDF4] border border-[#BBF7D0] text-[#15803D] text-[11px] flex items-start gap-2">
                     <span className="material-symbols-outlined text-[16px] shrink-0 mt-0.5">verified</span>
                     <span>
-                      <strong>Return Address:</strong> <code>http://localhost:3000/api/swiggy/callback</code> (Whitelisted for Local Dev).
+                      <strong>Configured Callback URI:</strong> <code>http://localhost:3000/api/swiggy/callback</code> (Whitelisted for Local Dev).
                     </span>
                   </div>
 
@@ -797,7 +797,7 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
                 {/* Manual Callback Entry / Developer Helper */}
                 <div className="p-3 rounded-2xl bg-[#FAF9F6] border border-[#E6E4DD] flex flex-col gap-2 mt-1">
                   <div className="flex items-center justify-between text-[11.5px] font-bold text-[#1a1c1a]">
-                    <span>Enter Code Manually</span>
+                    <span>Manual Code / Redirect URL Entry</span>
                     <span className="text-[10px] text-[#727972] font-normal">Dev Helper</span>
                   </div>
                   <p className="text-[10.5px] text-[#6b7280]">
@@ -830,7 +830,7 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
         {activeTab === 'tools' && (
           <div className="flex flex-col gap-3 text-[12px]">
             <div className="flex items-center justify-between">
-              <span className="font-bold text-[#1a1c1a]">Swiggy Features Available</span>
+              <span className="font-bold text-[#1a1c1a]">Discovered Swiggy MCP Tools</span>
               <button
                 type="button"
                 onClick={checkStatus}
@@ -861,10 +861,10 @@ export const SwiggyModal: React.FC<SwiggyModalProps> = ({
             </div>
 
             <div className="p-3 rounded-2xl bg-[#FAF9F6] border border-[#E6E4DD] text-[11px] text-[#4b5563] space-y-1">
-              <span className="font-bold text-[#1a1c1a] block text-[11.5px]">Swiggy Services:</span>
-              <div>&bull; Swiggy Food: <code className="text-[#FC8019]">https://mcp.swiggy.com/food</code></div>
-              <div>&bull; Instamart: <code className="text-[#FC8019]">https://mcp.swiggy.com/im</code></div>
-              <div>&bull; Sign-in Service: <code className="text-[#FC8019]">https://mcp.swiggy.com/auth</code></div>
+              <span className="font-bold text-[#1a1c1a] block text-[11.5px]">Official Swiggy Endpoints:</span>
+              <div>&bull; Food MCP: <code className="text-[#FC8019]">https://mcp.swiggy.com/food</code></div>
+              <div>&bull; Instamart MCP: <code className="text-[#FC8019]">https://mcp.swiggy.com/im</code></div>
+              <div>&bull; Authorization Server: <code className="text-[#FC8019]">https://mcp.swiggy.com/auth</code></div>
             </div>
           </div>
         )}

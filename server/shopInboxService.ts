@@ -241,6 +241,7 @@ INSTRUCTIONS:
         }
       });
 
+      let response: any;
       try {
         response = await Promise.race([
           ai.models.generateContent({

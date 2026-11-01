@@ -3,6 +3,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { GraphRAGOutput, GraphRecipeNode, buildGraphRAG } from '../scripts/convert_csv_to_graph_rag';
 
+type GraphRecipe = GraphRecipeNode;
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -362,7 +364,7 @@ export class GraphRAGService {
           dietLower.includes('diabetic') ||
           dietLower.includes('sugar free') ||
           (carbs <= 38 && protein >= 9);
-        const hasHeavySugar = recipe.ingredients.some((i) =>
+        const hasHeavySugar = recipe.ingredients.some((i: any) =>
           ['sugar', 'jaggery', 'chini', 'gud', 'condensed_milk'].some((s) => i.canonicalId.includes(s) || i.name.toLowerCase().includes(s))
         );
         if (isDiabeticTag && !hasHeavySugar) {

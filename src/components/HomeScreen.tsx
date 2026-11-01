@@ -118,11 +118,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     lunch: dayMeals.find((m) => m.slot === 'lunch'),
     dinner: dayMeals.find((m) => m.slot === 'dinner'),
   };
-  const todayAllBySlot: Record<MealSlot, PlannedMeal[]> = {
-    breakfast: dayMeals.filter((m) => m.slot === 'breakfast'),
-    lunch: dayMeals.filter((m) => m.slot === 'lunch'),
-    dinner: dayMeals.filter((m) => m.slot === 'dinner'),
-  };
 
   const handleMarkMealDone = (e: React.MouseEvent, meal: PlannedMeal) => {
     e.stopPropagation();
@@ -132,7 +127,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         setQuickAddNotice(`"${meal.title}" is already marked as cooked!`);
       } else {
         setQuickAddNotice(
-          `Marked "${meal.title}" as Cooked! Used from stock: ${res.deductions || 'kitchen stock'}`
+          `Marked "${meal.title}" as Cooked! Deducted: ${res.deductions || 'kitchen stock'}`
         );
       }
       refresh();
@@ -159,7 +154,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   };
 
   // Compute real daily protein goal from today's planned & cooked meals
-  const todayMealsList = slots.flatMap((s) => todayAllBySlot[s]);
+  const todayMealsList = slots.map((s) => todayMealsBySlot[s]).filter(Boolean) as PlannedMeal[];
   const mealProteinG = todayMealsList
     .filter((m) => m.status === 'done')
     .reduce((acc, m) => acc + (m.nutrition?.protein_g || 14), 0);
@@ -220,7 +215,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#eeeeea] text-[#1a1c1a] border border-[#E6E4DD] shrink-0">
             <span
               className="w-2 h-2 rounded-full bg-[#1A3826] animate-pulse shrink-0"
-              title="Up to date"
+              title="Live DB Synced"
             ></span>
             <span className="text-[13px] font-semibold truncate max-w-[200px]">
               {me.household.name}
@@ -329,7 +324,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           })}
         </div>
 
-        {slots.flatMap((slot) => (todayAllBySlot[slot].length ? todayAllBySlot[slot] : [undefined]).map((meal) => {
+        {slots.map((slot) => {
+          const meal = todayMealsBySlot[slot];
           const meta = SLOT_META[slot];
 
           if (!meal) {
@@ -432,7 +428,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
                     {!hasMissing ? (
                       <span className="px-2 py-0.5 rounded-full bg-[#E8F0EC] text-[#1E4620] text-[11px] font-semibold flex items-center gap-1 border border-[#D1E2D7]">
                         <span className="material-symbols-outlined text-[13px]">check_circle</span>{' '}
-                        {isDone ? 'Used from Stock' : 'Stock OK'}
+                        {isDone ? 'Stock Deducted' : 'Stock OK'}
                       </span>
                     ) : (
                       <span className="px-2 py-0.5 rounded-full bg-[#FAF6F0] text-[#B45309] text-[11px] font-semibold flex items-center gap-1 border border-[#E9E1D6]">
@@ -514,7 +510,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               </div>
             </article>
           );
-        }))}
+        })}
       </section>
 
       {/* Daily Protein Goal Tracker Widget (Connected to Today's Planned & Cooked Meals) */}
@@ -555,8 +551,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           {/* Breakdown items from today's planned meals */}
           <div className="flex flex-col flex-1 gap-2">
             {slots.map((slot) => {
-              const ms = todayAllBySlot[slot];
-              const m = ms.length > 0 ? { title: ms.map((x) => x.title).join(' + '), status: ms.every((x) => x.status === 'done') ? 'done' : 'planned', nutrition: { protein_g: ms.reduce((a, x) => a + (x.nutrition?.protein_g || 14), 0) } } : undefined;
+              const m = todayMealsBySlot[slot];
               const meta = SLOT_META[slot];
               return (
                 <div key={slot} className="flex items-center justify-between text-[12px]">
@@ -676,7 +671,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </div>
             <div className="flex flex-col">
               <span className="text-[13px] font-bold text-[#1a1c1a]">Scan Receipt</span>
-              <span className="text-[11px] text-[#424843]">Scan Blinkit / Zepto Bill</span>
+              <span className="text-[11px] text-[#424843]">Blinkit / Zepto Bill OCR</span>
             </div>
           </button>
 
@@ -723,7 +718,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
             </div>
           </button>
 
-          {/* Action 4: Leftover Ideas */}
+          {/* Action 4: AI Leftovers */}
           <button
             className="p-4 rounded-xl bg-[#1A3826] text-left flex flex-col justify-between gap-3 border border-[#1A3826] hover:bg-[#132a1d] active:scale-95 transition-all min-h-[96px] shadow-xs text-white"
             type="button"
@@ -733,7 +728,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               <span className="material-symbols-outlined text-[20px]">auto_awesome</span>
             </div>
             <div className="flex flex-col">
-              <span className="text-[13px] font-bold text-white">Leftover Ideas</span>
+              <span className="text-[13px] font-bold text-white">AI Leftovers</span>
               <span className="text-[11px] text-white/80">बचे खाने से नई डिश</span>
             </div>
           </button>

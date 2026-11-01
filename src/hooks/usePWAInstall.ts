@@ -1,103 +1,108 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface BeforeInstallPromptEvent extends Event {
   readonly platforms: string[];
-  readonly userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
+  readonly userChoice: Promise<{
+    outcome: 'accepted' | 'dismissed';
+    platform: string;
+  }>;
   prompt(): Promise<void>;
 }
 
-export type InstallResult = 'accepted' | 'dismissed' | 'manual_ios' | 'manual_android' | 'manual_desktop';
-
 export interface PWAInstallState {
   canInstall: boolean;
-  /** true when the browser gave us its one-tap install prompt */
-  canPromptNatively: boolean;
   isInstalled: boolean;
   isIOS: boolean;
-  isAndroid: boolean;
   isStandalone: boolean;
-  install: () => Promise<InstallResult>;
-}
-
-/**
- * The browser fires `beforeinstallprompt` only ONCE, early in page load. If nothing is listening
- * at that moment (e.g. the hook lives in a component that mounts after login) the event is lost
- * and the Install button silently does nothing. So the listener lives at module level, starts as
- * soon as the app bundle loads, and every component reads the same captured event.
- */
-let deferred: BeforeInstallPromptEvent | null = null;
-let installed = false;
-const subscribers = new Set<() => void>();
-const emit = () => subscribers.forEach((fn) => fn());
-
-function detectInstalled(): boolean {
-  if (typeof window === 'undefined') return false;
-  return (
-    window.matchMedia('(display-mode: standalone)').matches ||
-    (window.navigator as unknown as { standalone?: boolean }).standalone === true
-  );
-}
-
-if (typeof window !== 'undefined') {
-  installed = detectInstalled();
-  window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    deferred = e as BeforeInstallPromptEvent;
-    emit();
-  });
-  window.addEventListener('appinstalled', () => {
-    deferred = null;
-    installed = true;
-    emit();
-  });
-  const mq = window.matchMedia('(display-mode: standalone)');
-  const onMode = (e: MediaQueryListEvent) => { installed = e.matches; emit(); };
-  if (mq.addEventListener) mq.addEventListener('change', onMode);
-  else mq.addListener(onMode);
-}
-
-function platform() {
-  if (typeof navigator === 'undefined') return { isIOS: false, isAndroid: false };
-  const ua = navigator.userAgent.toLowerCase();
-  const isIOS = /iphone|ipad|ipod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  return { isIOS, isAndroid: /android/.test(ua) };
-}
-
-export async function installApp(): Promise<InstallResult> {
-  if (deferred) {
-    const evt = deferred;
-    try {
-      await evt.prompt();
-      const choice = await evt.userChoice;
-      deferred = null; // a prompt event can only be used once
-      emit();
-      if (choice.outcome === 'accepted') { installed = true; emit(); return 'accepted'; }
-      return 'dismissed';
-    } catch (err) {
-      console.warn('Install prompt error:', err);
-    }
-  }
-  const p = platform();
-  if (p.isIOS) return 'manual_ios';
-  if (p.isAndroid) return 'manual_android';
-  return 'manual_desktop';
+  install: () => Promise<'accepted' | 'dismissed' | 'manual_ios' | 'manual_desktop'>;
 }
 
 export function usePWAInstall(): PWAInstallState {
-  const [, force] = useState(0);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [isInstalled, setIsInstalled] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return (
+      window.matchMedia('(display-mode: standalone)').matches ||
+      (window.navigator as unknown as { standalone?: boolean }).standalone === true
+    );
+  });
+  const [isIOS, setIsIOS] = useState<boolean>(false);
+
   useEffect(() => {
-    const fn = () => force((n) => n + 1);
-    subscribers.add(fn);
-    return () => { subscribers.delete(fn); };
+    if (typeof window === 'undefined') return;
+
+    // Detect iOS
+    const userAgent = window.navigator.userAgent.toLowerCase();
+    const isIosDevice =
+      /iphone|ipad|ipod/.test(userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    setIsIOS(isIosDevice);
+
+    // Check standalone on resize / matchMedia changes
+    const mediaQuery = window.matchMedia('(display-mode: standalone)');
+    const handleDisplayModeChange = (e: MediaQueryListEvent) => {
+      setIsInstalled(e.matches);
+    };
+
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', handleDisplayModeChange);
+    } else {
+      mediaQuery.addListener(handleDisplayModeChange);
+    }
+
+    // Capture beforeinstallprompt event (Chromium, Edge, Android Chrome, etc.)
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e as BeforeInstallPromptEvent);
+    };
+
+    const handleAppInstalled = () => {
+      setDeferredPrompt(null);
+      setIsInstalled(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      if (mediaQuery.removeEventListener) {
+        mediaQuery.removeEventListener('change', handleDisplayModeChange);
+      } else {
+        mediaQuery.removeListener(handleDisplayModeChange);
+      }
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
   }, []);
-  const p = platform();
+
+  const install = async (): Promise<'accepted' | 'dismissed' | 'manual_ios' | 'manual_desktop'> => {
+    if (deferredPrompt) {
+      try {
+        await deferredPrompt.prompt();
+        const choice = await deferredPrompt.userChoice;
+        if (choice.outcome === 'accepted') {
+          setIsInstalled(true);
+          setDeferredPrompt(null);
+          return 'accepted';
+        }
+        return 'dismissed';
+      } catch (err) {
+        console.warn('Install prompt error:', err);
+      }
+    }
+
+    if (isIOS) {
+      return 'manual_ios';
+    }
+
+    return 'manual_desktop';
+  };
+
   return {
-    canInstall: !installed,
-    canPromptNatively: !!deferred,
-    isInstalled: installed,
-    isIOS: p.isIOS,
-    isAndroid: p.isAndroid,
-    isStandalone: installed,
-    install: installApp,
+    canInstall: !isInstalled,
+    isInstalled,
+    isIOS,
+    isStandalone: isInstalled,
+    install,
   };
 }
